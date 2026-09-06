@@ -1181,7 +1181,8 @@ function renderSupplierOrders(bt) {
       const rows = so.data.data || []; const suppliers = sup.data.data || []; const products = prod.data.data || [];
       document.getElementById('content').innerHTML = `
         <div class="row-between"><div><h2 class="page-title">Commandes fournisseurs</h2></div>
-          <button class="btn btn-primary" ${suppliers.length===0?'disabled title="Ajoutez un fournisseur d\'abord"':''} onclick="openSupplierOrderForm(${JSON.stringify(suppliers).replace(/"/g,'&quot;')},${JSON.stringify(products).replace(/"/g,'&quot;')})">+ Nouvelle commande</button></div>
+          <button class="btn btn-primary" onclick="openSupplierOrderForm(${JSON.stringify(suppliers).replace(/"/g,'&quot;')},${JSON.stringify(products).replace(/"/g,'&quot;')})">+ Nouvelle commande</button></div>
+        ${suppliers.length===0 ? '<div class="card" style="background:var(--amber-bg);border-color:#fde68a">⚠️ Ajoutez d\'abord un fournisseur (page <a href="#/'+bt.slug+'/products/suppliers" style="font-weight:600">Fournisseurs</a>) avant de pouvoir passer une commande.</div>' : ''}
         <div class="card">${rows.length ? `<table><thead><tr><th>Fournisseur</th><th>Produit</th><th>Qté</th><th>Coût unitaire</th><th>Statut</th><th></th></tr></thead><tbody>
           ${rows.map(r=>`<tr><td>${escapeHtml(r.supplier_name)}</td><td>${escapeHtml(r.product_name||'—')}</td><td>${r.qty}</td><td>${fmtMoney(r.unit_cost, bt.currency)}</td>
             <td>${pill(r.status==='received'?'delivered':(r.status==='cancelled'?'cancelled':'pending'))}</td>
@@ -1203,6 +1204,7 @@ function renderSupplierOrders(bt) {
     });
 }
 function openSupplierOrderForm(suppliers, products, preselectProductId) {
+  if (!suppliers.length) { alert('Ajoutez d\'abord un fournisseur (page Fournisseurs) avant de passer une commande.'); return; }
   const preselect = preselectProductId ? products.find(p=>p.id===preselectProductId) : null;
   const suggestedQty = preselect ? Math.max(1, Number(preselect.low_stock_threshold ?? 5) * 2 - Number(preselect.stock_qty)) : 1;
   openModal(`<h2>Nouvelle commande fournisseur</h2>
