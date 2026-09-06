@@ -864,7 +864,7 @@ function renderProducts(bt) {
     document.getElementById('content').innerHTML = `
       <div class="row-between"><div><h2 class="page-title">Produits</h2><div class="page-sub">${rows.length} produit(s)</div></div>
         <button class="btn btn-primary" onclick="openProductForm()">+ Nouveau produit</button></div>
-      ${lowStock.length ? '<div class="card" style="background:var(--amber-bg);border-color:#fde68a">⚠️ Stock bas sur '+lowStock.length+' produit(s) :<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px">'+
+      ${lowStock.length ? '<div class="card" style="background:var(--amber-bg);border-color:#fde68a">⚠️ Stock limité sur '+lowStock.length+' produit(s) :<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px">'+
         lowStock.map(p=>'<span>'+escapeHtml(p.name)+' <button class="btn btn-ghost btn-sm" onclick="goReorder(\''+p.id+'\')">Commander</button></span>').join('')+'</div></div>' : ''}
       <div class="card">${rows.length ? `<table><thead><tr><th>Produit</th><th>Prix</th><th>Stock</th><th>Statut</th><th></th></tr></thead><tbody>
         ${rows.map(p=>`<tr><td>${escapeHtml(p.name)}${p.variants.length?' <span class="muted">('+p.variants.length+' variantes)</span>':''}</td>
@@ -883,7 +883,7 @@ function stockBadge(p) {
   const threshold = Number(p.low_stock_threshold ?? 5);
   const orderBtn = ' <button class="btn btn-ghost btn-sm" onclick="goReorder(\''+p.id+'\')">Commander</button>';
   if (qty <= 0) return '<span class="pill pill-refused">'+qty+' · rupture</span>'+orderBtn;
-  if (qty <= threshold) return '<span class="pill pill-pending">'+qty+' · bas</span>'+orderBtn;
+  if (qty <= threshold) return '<span class="pill pill-pending">'+qty+' · limité</span>'+orderBtn;
   return qty;
 }
 // Envoie directement vers Commandes fournisseurs avec le formulaire de
@@ -922,7 +922,7 @@ function renderProductFormModal(p) {
     </div>
     <div class="field-row">
       <div class="field"><label>Stock</label><input id="prodStock" type="number" min="0" value="${p.stock_qty||0}"></div>
-      <div class="field"><label>Alerte stock bas à partir de</label><input id="prodLowStock" type="number" min="0" value="${p.low_stock_threshold??5}"></div>
+      <div class="field"><label>Alerte stock limité à partir de</label><input id="prodLowStock" type="number" min="0" value="${p.low_stock_threshold??5}"></div>
     </div>
     <div class="field-row">
       <div class="field"><label>Statut</label><select id="prodStatus"><option value="draft" ${p.status==='draft'?'selected':''}>Brouillon</option><option value="active" ${p.status==='active'?'selected':''}>Actif</option></select></div>
@@ -1136,7 +1136,7 @@ function renderStock(bt) {
       <div class="card">${rows.length ? `<table><thead><tr><th>Produit</th><th>Stock actuel</th><th>Ajuster</th></tr></thead><tbody>
         ${rows.map(p=>{
           const low = p.track_inventory && Number(p.stock_qty) <= Number(p.low_stock_threshold ?? 5);
-          return `<tr><td>${escapeHtml(p.name)}</td><td>${p.stock_qty}${low?' <span class="pill pill-pending">bas</span>':''}</td>
+          return `<tr><td>${escapeHtml(p.name)}</td><td>${p.stock_qty}${low?' <span class="pill pill-pending">limité</span>':''}</td>
           <td><button class="btn btn-ghost btn-sm" onclick="adjustStock('${p.id}',-1)">-1</button>
               <button class="btn btn-ghost btn-sm" onclick="adjustStock('${p.id}',1)">+1</button>
               <button class="btn btn-ghost btn-sm" onclick="adjustStockCustom('${p.id}')">Autre…</button>
