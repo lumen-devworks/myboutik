@@ -233,6 +233,40 @@ function require_boutique_admin($boutiqueId, $userId) {
     return $row;
 }
 
+// Acces par module pour chaque role non-admin (owner/admin passent toujours,
+// voir require_module_access). Correspond a la description des roles
+// affichee a l'invitation : Manager = tout sauf equipe/parametres/abonnement
+// (deja geres a part par require_boutique_admin) ; Livreur ne voit que les
+// livraisons (et seulement celles qui lui sont assignees, voir
+// deliveries_list()) ; Closeuse = commandes/clients/stock ; Comptable =
+// finance/analytique uniquement.
+const ROLE_MODULE_ACCESS = [
+    'manager'   => ['orders','deliveries','customers','contacts','finance','products','analytics','marketing'],
+    'closeuse'  => ['orders','customers','products'],
+    'comptable' => ['finance','analytics'],
+    'livreur'   => ['deliveries'],
+];
+// A appeler juste apres require_boutique_owned() dans chaque route_* module
+// boutique-scope (voir les routeurs plus bas) - owner/admin ne sont jamais
+// restreints, les autres roles doivent figurer dans ROLE_MODULE_ACCESS pour
+// ce module precis.
+function require_module_access($boutiqueRow, $module) {
+    $role = $boutiqueRow['_member_role'] ?? 'owner';
+    if (in_array($role, ['owner','admin'], true)) return;
+    $allowed = ROLE_MODULE_ACCESS[$role] ?? [];
+    if (!in_array($module, $allowed, true)) {
+        fail('Votre role n\'a pas acces a cette section', 403);
+    }
+}
+// Interdit une action a des roles precis meme s'ils ont acces au module en
+// general (ex: un Livreur peut consulter les livraisons mais ne doit pas
+// pouvoir en reassigner une a quelqu'un d'autre).
+function deny_roles($boutiqueRow, $roles) {
+    if (in_array($boutiqueRow['_member_role'] ?? 'owner', $roles, true)) {
+        fail('Action non autorisee pour votre role', 403);
+    }
+}
+
 // Plans d'abonnement (limite de boutiques par compte). Aucune passerelle de
 // paiement automatique branchee : un choix de plan cree une demande
 // (subscription_requests) verifiee manuellement par l'operateur de
@@ -312,6 +346,7 @@ try {
         case 'team':      route_team($action); break;
         case 'billing':   route_billing($action); break;
         case 'admin':     route_admin($action); break;
+        case 'integrations': route_integrations($action); break;
         case 'health':    ok(['status'=>'up','time'=>date('c')]); break;
         default: fail('Module inconnu', 404);
     }
@@ -347,6 +382,41 @@ function route_install() {
     // paiement automatique n'est branchee pour l'instant.
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS plan VARCHAR(20) DEFAULT 'starter'",
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS plan_status VARCHAR(20) DEFAULT 'active'",
+    // Affiliation : code personnel a partager (?ref=CODE), et la personne
+    // qui a recrute ce compte (s'il y en a une). La commission (10% du prix
+    // du plan) n'est calculee qu'a l'approbation manuelle d'un abonnement -
+    // voir admin_subscription_approve() et referral_commissions ci-dessous.
+    "ALTER TABLE users ADD COLUMN IF NOT EXISTS referral_code VARCHAR(20) UNIQUE",
+    "ALTER TABLE users ADD COLUMN IF NOT EXISTS referred_by VARCHAR(36)",
+    "CREATE TABLE IF NOT EXISTS referral_commissions (
+        id VARCHAR(36) PRIMARY KEY,
+        referrer_user_id VARCHAR(36) NOT NULL,
+        referred_user_id VARCHAR(36) NOT NULL,
+        subscription_request_id VARCHAR(36),
+        plan VARCHAR(20),
+        amount DECIMAL(14,2) NOT NULL,
+        status VARCHAR(20) DEFAULT 'pending',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        paid_at TIMESTAMP
+    )",
+    "CREATE INDEX IF NOT EXISTS idx_refcomm_referrer ON referral_commissions(referrer_user_id)",
+    "ALTER TABLE users ADD COLUMN IF NOT EXISTS referral_clicks INT DEFAULT 0",
+    // Un retrait couvre toujours la totalite du solde "disponible" au
+    // moment de la demande (les commissions couvertes passent en
+    // status='requested' pour ne pas etre comptees deux fois dans une
+    // demande suivante) - verifie manuellement puis marque paye via
+    // admin.html, comme les demandes d'abonnement.
+    "CREATE TABLE IF NOT EXISTS referral_payouts (
+        id VARCHAR(36) PRIMARY KEY,
+        user_id VARCHAR(36) NOT NULL,
+        amount DECIMAL(14,2) NOT NULL,
+        method VARCHAR(30),
+        phone VARCHAR(30),
+        status VARCHAR(20) DEFAULT 'requested',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        paid_at TIMESTAMP
+    )",
+    "CREATE INDEX IF NOT EXISTS idx_refpayouts_user ON referral_payouts(user_id)",
     "CREATE TABLE IF NOT EXISTS subscription_requests (
         id VARCHAR(36) PRIMARY KEY,
         user_id VARCHAR(36) NOT NULL,
@@ -377,6 +447,12 @@ function route_install() {
     "ALTER TABLE boutiques ADD COLUMN IF NOT EXISTS logo_url TEXT",
     "ALTER TABLE boutiques ADD COLUMN IF NOT EXISTS notify_order_email SMALLINT DEFAULT 1",
     "ALTER TABLE boutiques ADD COLUMN IF NOT EXISTS notify_email VARCHAR(190)",
+    // Import de commandes depuis une feuille Google Sheets publiee en CSV
+    // (voir route_integrations()). Pas de synchronisation automatique en
+    // arriere-plan (aucun worker planifie sur cet hebergement) : le bouton
+    // "Importer maintenant" appelle la meme route a la demande.
+    "ALTER TABLE boutiques ADD COLUMN IF NOT EXISTS sheet_url TEXT",
+    "ALTER TABLE boutiques ADD COLUMN IF NOT EXISTS sheet_sync_enabled SMALLINT DEFAULT 0",
     // Equipe : une boutique peut etre geree par plusieurs comptes MYBOUTIK
     // distincts (le proprietaire + des membres invites par email). status
     // reste 'pending' (avec un invite_token) tant que la personne invitee
@@ -395,6 +471,10 @@ function route_install() {
     )",
     "CREATE INDEX IF NOT EXISTS idx_boutiquemembers_boutique ON boutique_members(boutique_id)",
     "CREATE UNIQUE INDEX IF NOT EXISTS idx_boutiquemembers_boutique_email ON boutique_members(boutique_id, email)",
+    // Lie un membre au role 'livreur' a une fiche livreur precise (voir
+    // delivery_persons) - lui permet de ne voir que les livraisons qui lui
+    // sont assignees plutot que toutes celles de la boutique.
+    "ALTER TABLE boutique_members ADD COLUMN IF NOT EXISTS delivery_person_id VARCHAR(36)",
     "CREATE TABLE IF NOT EXISTS products (
         id VARCHAR(36) PRIMARY KEY,
         boutique_id VARCHAR(36) NOT NULL,
@@ -504,6 +584,10 @@ function route_install() {
     )",
     "CREATE INDEX IF NOT EXISTS idx_orders_boutique ON orders(boutique_id)",
     "CREATE INDEX IF NOT EXISTS idx_orders_boutique_created ON orders(boutique_id, created_at)",
+    // Reference externe (id_commande de la feuille Google Sheets importee) -
+    // sert uniquement a ne jamais importer deux fois la meme ligne.
+    "ALTER TABLE orders ADD COLUMN IF NOT EXISTS external_ref VARCHAR(64)",
+    "CREATE UNIQUE INDEX IF NOT EXISTS idx_orders_boutique_external_ref ON orders(boutique_id, external_ref) WHERE external_ref IS NOT NULL AND external_ref <> ''",
     "CREATE TABLE IF NOT EXISTS order_items (
         id VARCHAR(36) PRIMARY KEY,
         order_id VARCHAR(36) NOT NULL,
@@ -690,8 +774,26 @@ function route_auth($action) {
         case 'login':    auth_login(); break;
         case 'me':       auth_me(); break;
         case 'profile_update': auth_profile_update(); break;
+        case 'track_ref_click': auth_track_ref_click(); break;
         default: fail('Action inconnue', 404);
     }
+}
+
+function generate_unique_referral_code() {
+    do { $code = strtoupper(substr(bin2hex(random_bytes(5)), 0, 7)); }
+    while (q("SELECT 1 FROM users WHERE referral_code=?", [$code])->fetch());
+    return $code;
+}
+
+// Public (aucune authentification) : compte un clic sur un lien d'affiliation
+// avant meme une eventuelle inscription, pour que la page Affiliation montre
+// un vrai taux de conversion (clics -> inscriptions -> abonnes payants).
+function auth_track_ref_click() {
+    rate_limit_check('ref_click', 60, 300);
+    $code = trim(bg('code', ''));
+    if ($code === '') ok(null);
+    q("UPDATE users SET referral_clicks = referral_clicks + 1 WHERE referral_code=?", [$code]);
+    ok(null);
 }
 
 function auth_register() {
@@ -708,9 +810,16 @@ function auth_register() {
 
     $id = uid();
     $token = bin2hex(random_bytes(24));
-    q("INSERT INTO users (id,email,password_hash,full_name,verification_token,verification_sent_at)
-       VALUES (?,?,?,?,?,NOW())",
-      [$id, $email, password_hash($password, PASSWORD_DEFAULT), $fullName, $token]);
+    $myReferralCode = generate_unique_referral_code();
+    $referredBy = null;
+    $refCode = trim($b['ref'] ?? '');
+    if ($refCode !== '') {
+        $referrer = q("SELECT id FROM users WHERE referral_code=?", [$refCode])->fetch();
+        if ($referrer) $referredBy = $referrer['id'];
+    }
+    q("INSERT INTO users (id,email,password_hash,full_name,verification_token,verification_sent_at,referral_code,referred_by)
+       VALUES (?,?,?,?,?,NOW(),?,?)",
+      [$id, $email, password_hash($password, PASSWORD_DEFAULT), $fullName, $token, $myReferralCode, $referredBy]);
 
     $verifyLink = auth_verify_link($token, $b['page_url'] ?? '');
     send_email($email, 'Verifiez votre email MYBOUTIK', "Cliquez sur ce lien pour activer votre compte :\n".$verifyLink);
@@ -891,6 +1000,7 @@ function boutiques_grade($pl) {
 // ============================================================
 function route_products($action) {
     $pl = owner_auth();
+    require_module_access(require_boutique_owned(bg('boutique_id'), $pl['sub']), 'products');
     switch ($action) {
         case 'list':   products_list($pl); break;
         case 'get':    products_get($pl); break;
@@ -1402,6 +1512,7 @@ function shop_contact_message() {
 // ============================================================
 function route_orders($action) {
     $pl = owner_auth();
+    require_module_access(require_boutique_owned(bg('boutique_id'), $pl['sub']), 'orders');
     switch ($action) {
         case 'list':               orders_list($pl); break;
         case 'get':                orders_get($pl); break;
@@ -1543,6 +1654,7 @@ function abandoned_settings_save($pl) {
 // ============================================================
 function route_deliveries($action) {
     $pl = owner_auth();
+    require_module_access(require_boutique_owned(bg('boutique_id'), $pl['sub']), 'deliveries');
     switch ($action) {
         case 'list':           deliveries_list($pl); break;
         case 'persons':        delivery_persons_list($pl); break;
@@ -1566,6 +1678,14 @@ function deliveries_list($pl) {
             WHERE da.boutique_id=?";
     $params = [$bt['id']];
     if ($status !== '' && $status !== 'all') { $sql .= " AND da.status=?"; $params[] = $status; }
+    // Un membre 'livreur' ne voit que les livraisons qui lui sont assignees
+    // (via son lien delivery_person_id) - pas encore lie : ne voit rien
+    // plutot que tout, en attendant que l'admin fasse le lien.
+    if (($bt['_member_role'] ?? '') === 'livreur') {
+        $dpId = q("SELECT delivery_person_id FROM boutique_members WHERE boutique_id=? AND user_id=? AND status='active'", [$bt['id'], $pl['sub']])->fetchColumn();
+        if ($dpId) { $sql .= " AND da.delivery_person_id=?"; $params[] = $dpId; }
+        else { $sql .= " AND 1=0"; }
+    }
     $sql .= " ORDER BY da.created_at DESC LIMIT 500";
     ok(q($sql, $params)->fetchAll());
 }
@@ -1577,6 +1697,7 @@ function delivery_persons_list($pl) {
 function delivery_person_create($pl) {
     $b = body();
     $bt = require_boutique_owned($b['boutique_id'] ?? '', $pl['sub']);
+    deny_roles($bt, ['livreur']);
     $name = trim($b['name'] ?? '');
     if ($name === '') fail('Le nom du livreur est requis');
     $id = uid();
@@ -1594,6 +1715,7 @@ function delivery_person_owned($id, $boutiqueId) {
 function delivery_person_update($pl) {
     $b = body();
     $bt = require_boutique_owned($b['boutique_id'] ?? '', $pl['sub']);
+    deny_roles($bt, ['livreur']);
     $row = delivery_person_owned($b['id'] ?? '', $bt['id']);
     q("UPDATE delivery_persons SET name=?, phone=?, active=?, email=?, vehicle_type=?, plate_number=?, photo_url=?, notes=? WHERE id=?",
       [trim($b['name'] ?? $row['name']), trim($b['phone'] ?? $row['phone']),
@@ -1606,6 +1728,7 @@ function delivery_person_update($pl) {
 function delivery_person_delete($pl) {
     $b = body();
     $bt = require_boutique_owned($b['boutique_id'] ?? '', $pl['sub']);
+    deny_roles($bt, ['livreur']);
     $row = delivery_person_owned($b['id'] ?? '', $bt['id']);
     q("UPDATE delivery_persons SET active=0 WHERE id=?", [$row['id']]);
     ok(null, 'Livreur desactive');
@@ -1614,6 +1737,7 @@ function delivery_person_delete($pl) {
 function delivery_assign($pl) {
     $b = body();
     $bt = require_boutique_owned($b['boutique_id'] ?? '', $pl['sub']);
+    deny_roles($bt, ['livreur']);
     $o = order_owned($b['order_id'] ?? '', $bt['id']);
     delivery_person_owned($b['delivery_person_id'] ?? '', $bt['id']);
     q("UPDATE delivery_assignments SET delivery_person_id=?, status='assigned', assigned_at=NOW() WHERE order_id=?",
@@ -1627,6 +1751,15 @@ function delivery_update_status($pl) {
     $b = body();
     $bt = require_boutique_owned($b['boutique_id'] ?? '', $pl['sub']);
     $o = order_owned($b['order_id'] ?? '', $bt['id']);
+    // Un livreur ne peut faire evoluer que ses propres livraisons assignees,
+    // pas n'importe quelle commande de la boutique.
+    if (($bt['_member_role'] ?? '') === 'livreur') {
+        $dpId = q("SELECT delivery_person_id FROM boutique_members WHERE boutique_id=? AND user_id=? AND status='active'", [$bt['id'], $pl['sub']])->fetchColumn();
+        $assignment = q("SELECT delivery_person_id FROM delivery_assignments WHERE order_id=?", [$o['id']])->fetch();
+        if (!$dpId || !$assignment || $assignment['delivery_person_id'] !== $dpId) {
+            fail('Cette livraison ne vous est pas assignee', 403);
+        }
+    }
     $status = $b['status'] ?? '';
     $allowed = ['to_assign','assigned','in_delivery','delivered','refused'];
     if (!in_array($status, $allowed, true)) fail('Statut invalide');
@@ -1647,6 +1780,7 @@ function delivery_update_status($pl) {
 // ============================================================
 function route_customers($action) {
     $pl = owner_auth();
+    require_module_access(require_boutique_owned(bg('boutique_id'), $pl['sub']), 'customers');
     switch ($action) {
         case 'list': customers_list($pl); break;
         case 'get':  customers_get($pl); break;
@@ -1674,6 +1808,7 @@ function customers_get($pl) {
 
 function route_contacts($action) {
     $pl = owner_auth();
+    require_module_access(require_boutique_owned(bg('boutique_id'), $pl['sub']), 'contacts');
     switch ($action) {
         case 'roles':        contact_roles_list($pl); break;
         case 'role_create':  contact_role_create($pl); break;
@@ -1743,6 +1878,7 @@ function contacts_delete($pl) {
 // ============================================================
 function route_finance($action) {
     $pl = owner_auth();
+    require_module_access(require_boutique_owned(bg('boutique_id'), $pl['sub']), 'finance');
     switch ($action) {
         case 'overview':          finance_overview($pl); break;
         case 'accounts':          finance_accounts($pl); break;
@@ -1980,6 +2116,7 @@ function finance_ad_expense_create($pl) {
 // ============================================================
 function route_analytics($action) {
     $pl = owner_auth();
+    require_module_access(require_boutique_owned(bg('boutique_id'), $pl['sub']), 'analytics');
     switch ($action) {
         case 'report': analytics_report($pl); break;
         case 'live':   analytics_live($pl); break;
@@ -2048,6 +2185,7 @@ function analytics_live($pl) {
 // ============================================================
 function route_marketing($action) {
     $pl = owner_auth();
+    require_module_access(require_boutique_owned(bg('boutique_id'), $pl['sub']), 'marketing');
     switch ($action) {
         case 'newsletter':     marketing_newsletter($pl); break;
         case 'messages':       marketing_messages($pl); break;
@@ -2122,10 +2260,18 @@ function team_invite($pl) {
     if (!in_array($role, TEAM_ROLES, true)) fail('Role invalide');
     $existing = q("SELECT id FROM boutique_members WHERE boutique_id=? AND email=?", [$bt['id'], $email])->fetch();
     if ($existing) fail('Ce membre est deja invite sur cette boutique', 409);
+    // Pour un livreur, on peut le lier des l'invitation a une fiche de la
+    // page Livraisons (voir delivery_persons) : c'est ce lien qui lui
+    // permettra de ne voir que ses propres livraisons assignees.
+    $deliveryPersonId = null;
+    if ($role === 'livreur' && !empty($b['delivery_person_id'])) {
+        $dp = q("SELECT id FROM delivery_persons WHERE id=? AND boutique_id=?", [$b['delivery_person_id'], $bt['id']])->fetch();
+        if ($dp) $deliveryPersonId = $dp['id'];
+    }
     $token = bin2hex(random_bytes(24));
     $id = uid();
-    q("INSERT INTO boutique_members (id,boutique_id,email,role,invite_token,status) VALUES (?,?,?,?,?,'pending')",
-      [$id, $bt['id'], $email, $role, $token]);
+    q("INSERT INTO boutique_members (id,boutique_id,email,role,invite_token,status,delivery_person_id) VALUES (?,?,?,?,?,'pending',?)",
+      [$id, $bt['id'], $email, $role, $token, $deliveryPersonId]);
     $link = team_invite_link($token, $b['page_url'] ?? '');
     send_email($email, 'Invitation a rejoindre '.$bt['name'].' sur MYBOUTIK',
         "Vous avez ete invite(e) a gerer la boutique ".$bt['name']." avec le role \"$role\".\n".
@@ -2165,6 +2311,8 @@ function route_billing($action) {
     switch ($action) {
         case 'plans':     billing_plans($pl); break;
         case 'subscribe': billing_subscribe($pl); break;
+        case 'affiliate_info':          billing_affiliate_info($pl); break;
+        case 'affiliate_request_payout':billing_affiliate_request_payout($pl); break;
         default: fail('Action inconnue', 404);
     }
 }
@@ -2190,6 +2338,69 @@ function billing_subscribe($pl) {
     ok(null, 'Demande enregistree. Votre plan sera active des verification du paiement par l\'equipe MYBOUTIK.', 201);
 }
 
+// Une commission n'est "disponible" au retrait qu'apres un delai de
+// validation (7 jours, le temps qu'un paiement Mobile Money litigieux soit
+// eventuellement annule) - avant cela elle reste "en attente de validation"
+// tout en etant deja comptee dans le total gagne.
+const REFERRAL_VALIDATION_DAYS = 7;
+const REFERRAL_MIN_PAYOUT = 5000;
+
+function billing_affiliate_info($pl) {
+    $user = q("SELECT referral_code, referral_clicks FROM users WHERE id=?", [$pl['sub']])->fetch();
+    if (!$user['referral_code']) {
+        $code = generate_unique_referral_code();
+        q("UPDATE users SET referral_code=? WHERE id=?", [$code, $pl['sub']]);
+        $user['referral_code'] = $code;
+    }
+    $referred = q("SELECT email, full_name, plan_status, created_at FROM users WHERE referred_by=? ORDER BY created_at DESC", [$pl['sub']])->fetchAll();
+    $payingCount = count(array_filter($referred, fn($r) => $r['plan_status'] === 'active'));
+
+    $commissions = q("SELECT * FROM referral_commissions WHERE referrer_user_id=? ORDER BY created_at DESC", [$pl['sub']])->fetchAll();
+    $pending = 0; $available = 0; $paid = 0;
+    $cutoff = time() - REFERRAL_VALIDATION_DAYS * 86400;
+    foreach ($commissions as $c) {
+        $amount = (float)$c['amount'];
+        if ($c['status'] === 'paid') { $paid += $amount; }
+        elseif ($c['status'] === 'requested') { /* deja compte comme "disponible" au moment de la demande, en cours de versement */ $available += 0; }
+        elseif ($c['status'] === 'pending' && strtotime($c['created_at']) <= $cutoff) { $available += $amount; }
+        else { $pending += $amount; }
+    }
+    $payouts = q("SELECT * FROM referral_payouts WHERE user_id=? ORDER BY created_at DESC", [$pl['sub']])->fetchAll();
+
+    ok([
+        'referral_code' => $user['referral_code'],
+        'clicks' => (int)$user['referral_clicks'],
+        'signups' => count($referred),
+        'paying_referrals' => $payingCount,
+        'total_earned' => $pending + $available + $paid,
+        'pending_validation' => $pending,
+        'available' => $available,
+        'paid' => $paid,
+        'min_payout' => REFERRAL_MIN_PAYOUT,
+        'validation_days' => REFERRAL_VALIDATION_DAYS,
+        'referred_users' => $referred,
+        'payouts' => $payouts,
+    ]);
+}
+
+function billing_affiliate_request_payout($pl) {
+    $b = body();
+    $method = trim($b['method'] ?? '');
+    $phone = trim($b['phone'] ?? '');
+    if ($phone === '') fail('Numero Mobile Money requis');
+    $cutoff = date('Y-m-d H:i:s', time() - REFERRAL_VALIDATION_DAYS * 86400);
+    $available = q("SELECT * FROM referral_commissions WHERE referrer_user_id=? AND status='pending' AND created_at <= ?", [$pl['sub'], $cutoff])->fetchAll();
+    $total = array_sum(array_column($available, 'amount'));
+    if ($total < REFERRAL_MIN_PAYOUT) {
+        fail('Le solde disponible doit atteindre au moins '.REFERRAL_MIN_PAYOUT.' FCFA pour demander un retrait');
+    }
+    $id = uid();
+    q("INSERT INTO referral_payouts (id,user_id,amount,method,phone,status) VALUES (?,?,?,?,?,'requested')",
+      [$id, $pl['sub'], $total, $method, $phone]);
+    foreach ($available as $c) { q("UPDATE referral_commissions SET status='requested' WHERE id=?", [$c['id']]); }
+    ok(null, 'Demande de retrait envoyee. Vous serez paye(e) apres verification.', 201);
+}
+
 // ============================================================
 // ADMIN — panneau reserve a l'operateur de MYBOUTIK (mot de passe distinct
 // des comptes marchands), pour valider les demandes d'abonnement. Pas de
@@ -2205,6 +2416,8 @@ function route_admin($action) {
         case 'subscription_requests': admin_subscription_requests(); break;
         case 'subscription_approve':  admin_subscription_approve(); break;
         case 'subscription_reject':   admin_subscription_reject(); break;
+        case 'payouts_pending':       admin_payouts_pending(); break;
+        case 'payout_mark_paid':      admin_payout_mark_paid(); break;
         default: fail('Action inconnue', 404);
     }
 }
@@ -2220,6 +2433,18 @@ function admin_subscription_approve() {
     if (!$req) fail('Demande introuvable', 404);
     q("UPDATE users SET plan=?, plan_status='active' WHERE id=?", [$req['plan'], $req['user_id']]);
     q("UPDATE subscription_requests SET status='approved', reviewed_at=NOW() WHERE id=?", [$req['id']]);
+    // Commission de parrainage (10% du prix du plan) si ce compte a ete
+    // recrute via un lien d'affiliation - une seule fois par abonnement
+    // approuve (subscription_request_id), jamais recalculee si le meme
+    // plan est de nouveau approuve plus tard.
+    $referredUser = q("SELECT referred_by FROM users WHERE id=?", [$req['user_id']])->fetch();
+    if ($referredUser && $referredUser['referred_by']) {
+        $amount = round((PLANS[$req['plan']]['price'] ?? 0) * 0.10, 2);
+        if ($amount > 0) {
+            q("INSERT INTO referral_commissions (id,referrer_user_id,referred_user_id,subscription_request_id,plan,amount) VALUES (?,?,?,?,?,?)",
+              [uid(), $referredUser['referred_by'], $req['user_id'], $req['id'], $req['plan'], $amount]);
+        }
+    }
     ok(null, 'Plan active');
 }
 
@@ -2227,4 +2452,143 @@ function admin_subscription_reject() {
     $b = body();
     q("UPDATE subscription_requests SET status='rejected', reviewed_at=NOW() WHERE id=?", [$b['id'] ?? '']);
     ok(null, 'Demande rejetee');
+}
+
+function admin_payouts_pending() {
+    ok(q("SELECT rp.*, u.email FROM referral_payouts rp JOIN users u ON u.id=rp.user_id
+          WHERE rp.status='requested' ORDER BY rp.created_at ASC")->fetchAll());
+}
+
+function admin_payout_mark_paid() {
+    $b = body();
+    $payout = q("SELECT * FROM referral_payouts WHERE id=?", [$b['id'] ?? ''])->fetch();
+    if (!$payout) fail('Retrait introuvable', 404);
+    q("UPDATE referral_payouts SET status='paid', paid_at=NOW() WHERE id=?", [$payout['id']]);
+    q("UPDATE referral_commissions SET status='paid' WHERE referrer_user_id=? AND status='requested'", [$payout['user_id']]);
+    ok(null, 'Retrait marque paye');
+}
+
+// ============================================================
+// INTEGRATIONS — import de commandes depuis une feuille Google Sheets
+// publiee en CSV. Reserve au proprietaire/admin de la boutique (memes
+// donnees sensibles qu'un parametre). Pas de synchronisation automatique en
+// arriere-plan (aucun worker planifie sur cet hebergement) : seul le bouton
+// "Importer maintenant" declenche une lecture, a la demande.
+// ============================================================
+function route_integrations($action) {
+    $pl = owner_auth();
+    switch ($action) {
+        case 'sheet_get':    integrations_sheet_get($pl); break;
+        case 'sheet_save':   integrations_sheet_save($pl); break;
+        case 'sheet_import': integrations_sheet_import($pl); break;
+        default: fail('Action inconnue', 404);
+    }
+}
+
+function integrations_sheet_get($pl) {
+    $bt = require_boutique_admin($_GET['boutique_id'] ?? '', $pl['sub']);
+    ok(['sheet_url' => $bt['sheet_url'], 'sheet_sync_enabled' => (bool)$bt['sheet_sync_enabled']]);
+}
+
+function integrations_sheet_save($pl) {
+    $b = body();
+    $bt = require_boutique_admin($b['boutique_id'] ?? '', $pl['sub']);
+    q("UPDATE boutiques SET sheet_url=?, sheet_sync_enabled=? WHERE id=?",
+      [trim($b['sheet_url'] ?? ''), (int)!!($b['sheet_sync_enabled'] ?? 0), $bt['id']]);
+    ok(null, 'Parametres enregistres');
+}
+
+// Lit une valeur de ligne CSV en essayant plusieurs noms de colonne possibles
+// (les variantes usuelles - "tel"/"telephone", "qty"/"quantite" - sont
+// acceptees sans que l'ordre des colonnes compte).
+function csv_alias($row, $aliases) {
+    foreach ($aliases as $key) {
+        if (isset($row[$key]) && trim((string)$row[$key]) !== '') return trim((string)$row[$key]);
+    }
+    return '';
+}
+
+function integrations_sheet_import($pl) {
+    $bt = require_boutique_admin(bg('boutique_id'), $pl['sub']);
+    $url = trim($bt['sheet_url'] ?? '');
+    if ($url === '') fail('Aucun lien de feuille configure');
+    $context = stream_context_create(['http' => ['timeout' => 15], 'https' => ['timeout' => 15]]);
+    $csvRaw = @file_get_contents($url, false, $context);
+    if ($csvRaw === false || trim($csvRaw) === '') {
+        fail('Impossible de recuperer la feuille (verifiez que le lien est bien publie en CSV et accessible publiquement)');
+    }
+    $lines = preg_split('/\r\n|\r|\n/', trim($csvRaw));
+    if (count($lines) < 2) fail('La feuille est vide (juste l\'entete ou aucune ligne)');
+    $header = array_map(fn($h) => strtolower(trim($h)), str_getcsv(array_shift($lines)));
+
+    $groups = [];
+    foreach ($lines as $line) {
+        if (trim($line) === '') continue;
+        $cells = str_getcsv($line);
+        $row = [];
+        foreach ($header as $i => $h) { $row[$h] = $cells[$i] ?? ''; }
+        $extRef = csv_alias($row, ['id_commande', 'order id', 'commande', 'id']);
+        if ($extRef === '') continue; // colonne obligatoire manquante : ligne ignoree silencieusement
+        $groups[$extRef][] = $row;
+    }
+
+    $imported = 0; $skipped = [];
+    foreach ($groups as $extRef => $groupRows) {
+        $already = q("SELECT id FROM orders WHERE boutique_id=? AND external_ref=?", [$bt['id'], $extRef])->fetch();
+        if ($already) continue; // deja importee - jamais deux fois la meme ligne
+        $first = $groupRows[0];
+        $client = csv_alias($first, ['client', 'nom', 'name']);
+        $phone = csv_alias($first, ['telephone', 'tel', 'phone']);
+        if ($client === '' || $phone === '') { $skipped[] = "$extRef: client ou telephone manquant"; continue; }
+
+        $items = []; $subtotal = 0; $lineOk = true; $reason = '';
+        foreach ($groupRows as $row) {
+            $sku = csv_alias($row, ['sku', 'reference']);
+            if ($sku === '') { $lineOk = false; $reason = 'SKU manquant'; break; }
+            $product = q("SELECT * FROM products WHERE boutique_id=? AND sku=?", [$bt['id'], $sku])->fetch();
+            if (!$product) { $lineOk = false; $reason = "SKU '$sku' introuvable dans le catalogue"; break; }
+            $qty = max(1, (int)(csv_alias($row, ['quantite', 'qty', 'quantity']) ?: 1));
+            $unitPriceRaw = csv_alias($row, ['prix_unitaire', 'prix', 'price']);
+            $unitPrice = $unitPriceRaw !== '' ? (float)$unitPriceRaw : (float)$product['price'];
+            $items[] = ['product' => $product, 'qty' => $qty, 'unit_price' => $unitPrice];
+            $subtotal += $unitPrice * $qty;
+        }
+        if (!$lineOk) { $skipped[] = "$extRef: $reason"; continue; }
+
+        $deliveryFee = (float)(csv_alias($first, ['frais_livraison', 'frais de livraison']) ?: 0);
+        $address = trim(csv_alias($first, ['adresse']).' '.csv_alias($first, ['quartier']).' '.csv_alias($first, ['ville']));
+        $pdo = db();
+        $pdo->beginTransaction();
+        try {
+            $customerRow = q("SELECT id FROM customers WHERE boutique_id=? AND phone=?", [$bt['id'], $phone])->fetch();
+            if ($customerRow) {
+                $customerId = $customerRow['id'];
+                q("UPDATE customers SET name=?, address=? WHERE id=?", [$client, $address, $customerId]);
+            } else {
+                $customerId = uid();
+                q("INSERT INTO customers (id,boutique_id,name,phone,email,address) VALUES (?,?,?,?,?,?)",
+                  [$customerId, $bt['id'], $client, $phone, csv_alias($first, ['email']), $address]);
+            }
+            $orderId = uid(); $ref = order_ref();
+            $total = $subtotal + $deliveryFee;
+            q("INSERT INTO orders (id,boutique_id,customer_id,ref,external_ref,status,payment_method,subtotal,delivery_fee_charged,total,
+               customer_name,customer_phone,customer_address) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+              [$orderId, $bt['id'], $customerId, $ref, $extRef, 'pending', 'cod', $subtotal, $deliveryFee, $total, $client, $phone, $address]);
+            foreach ($items as $it) {
+                q("INSERT INTO order_items (id,order_id,product_id,product_name,unit_price,unit_cost,qty) VALUES (?,?,?,?,?,?,?)",
+                  [uid(), $orderId, $it['product']['id'], $it['product']['name'], $it['unit_price'], $it['product']['cost_price'] ?? 0, $it['qty']]);
+                if ($it['product']['track_inventory']) {
+                    q("UPDATE products SET stock_qty = stock_qty - ? WHERE id=?", [$it['qty'], $it['product']['id']]);
+                }
+            }
+            q("INSERT INTO delivery_assignments (id,order_id,boutique_id,status) VALUES (?,?,?,?)", [uid(), $orderId, $bt['id'], 'to_assign']);
+            $pdo->commit();
+            $imported++;
+            log_activity($bt['id'], 'Commande importee depuis Google Sheets: '.$ref);
+        } catch (Exception $e) {
+            $pdo->rollBack();
+            $skipped[] = "$extRef: erreur d'import";
+        }
+    }
+    ok(['imported' => $imported, 'skipped' => $skipped], $imported.' commande(s) importee(s), '.count($skipped).' ligne(s) ignoree(s)');
 }

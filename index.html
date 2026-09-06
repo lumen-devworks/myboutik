@@ -196,7 +196,8 @@ function doRegister() {
   const password = document.getElementById('regPassword').value;
   setMsg('registerMsg','','');
   const page_url = window.location.origin + window.location.pathname;
-  api('/auth?action=register', {method:'POST', body:JSON.stringify({full_name,email,password,page_url})}).then(({data}) => {
+  const ref = sessionStorage.getItem('myboutik_ref') || '';
+  api('/auth?action=register', {method:'POST', body:JSON.stringify({full_name,email,password,page_url,ref})}).then(({data}) => {
     if (!data.success) return setMsg('registerMsg', data.message, 'error');
     document.getElementById('pendingEmail').textContent = data.data.email;
     const devLink = document.getElementById('pendingDevLink');
@@ -228,6 +229,19 @@ function checkVerifyToken() {
   });
 }
 checkVerifyToken();
+
+// Lien d'affiliation (?ref=CODE) : memorise le code pour l'inscription et
+// compte le clic aupres du parrain, une seule fois par visite de session.
+function checkReferralCode() {
+  const code = new URLSearchParams(window.location.search).get('ref');
+  if (!code) return;
+  sessionStorage.setItem('myboutik_ref', code);
+  if (!sessionStorage.getItem('myboutik_ref_counted')) {
+    sessionStorage.setItem('myboutik_ref_counted', '1');
+    api('/auth?action=track_ref_click', {method:'POST', body:JSON.stringify({code})});
+  }
+}
+checkReferralCode();
 
 // Deja connecte ? on evite de re-proposer la page marketing (mais on traite
 // d'abord une invitation d'equipe presente dans l'URL, le cas echeant).

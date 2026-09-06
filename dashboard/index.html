@@ -209,14 +209,49 @@ const NAV = [
   {group:'Catalogue', items:[['products','📦','Produits'], ['products/stock','📊','Stock'], ['products/suppliers','🚛','Fournisseurs'], ['products/supplier-orders','🧾','Commandes fournisseurs']]},
   {group:'Analytique', items:[['analytics/reports','📈','Rapports'], ['analytics/live','🔴','Live']]},
   {group:'Marketing', items:[['marketing','✉️','Messages et abonnés']]},
-  {group:'Paramètres', items:[['settings','⚙️','Général'], ['team','🧑‍🤝‍🧑','Équipe'], ['profile','👤','Mon profil'], ['billing','💳','Abonnement']]},
+  {group:'Paramètres', items:[
+    ['settings','⚙️','Général'], ['team','🧑‍🤝‍🧑','Équipe'], ['integrations','🔌','Intégrations'],
+    ['profile','👤','Mon profil'], ['billing','💳','Abonnement'], ['affiliate','🤝','Affiliation'],
+  ]},
 ];
+// Module dont depend chaque page (voir ROLE_MODULE_ACCESS cote backend,
+// meme repartition) - '*' = toujours visible, 'admin' = proprietaire/admin
+// de la boutique seulement, 'account' = toujours visible (concerne le
+// compte connecte, pas la boutique affichee).
+const NAV_MODULE = {
+  home:'*', grade:'*',
+  orders:'orders', 'orders/delivery':'deliveries', 'orders/abandoned':'orders',
+  customers:'customers', contacts:'contacts',
+  'finance/overview':'finance', 'finance/accounts':'finance', 'finance/delivery-fees':'finance', 'finance/detail':'finance', 'finance/ads':'finance',
+  products:'products', 'products/stock':'products', 'products/suppliers':'products', 'products/supplier-orders':'products',
+  'analytics/reports':'analytics', 'analytics/live':'analytics',
+  marketing:'marketing',
+  settings:'admin', team:'admin', integrations:'admin',
+  profile:'account', billing:'account', affiliate:'account',
+};
+const ROLE_MODULE_ACCESS_CLIENT = {
+  manager: ['orders','deliveries','customers','contacts','finance','products','analytics','marketing'],
+  closeuse: ['orders','customers','products'],
+  comptable: ['finance','analytics'],
+  livreur: ['deliveries'],
+};
+function navItemVisible(role, key) {
+  const need = NAV_MODULE[key];
+  if (need === '*' || need === 'account') return true;
+  if (role === 'owner' || role === 'admin') return true;
+  if (need === 'admin') return false;
+  return (ROLE_MODULE_ACCESS_CLIENT[role] || []).includes(need);
+}
 function renderSidebar(bt, current) {
-  document.getElementById('sideNav').innerHTML = NAV.map(g => (g.group ? '<div class="side-group">'+g.group+'</div>' : '') +
-    g.items.map(([key,icon,label]) =>
-      '<a class="side-link'+(current===key?' active':'')+'" href="#/'+bt.slug+'/'+key+'">'+icon+' '+label+'</a>'
-    ).join('')
-  ).join('');
+  const role = bt.my_role || 'owner';
+  document.getElementById('sideNav').innerHTML = NAV.map(g => {
+    const items = g.items.filter(([key]) => navItemVisible(role, key));
+    if (!items.length) return '';
+    return (g.group ? '<div class="side-group">'+g.group+'</div>' : '') +
+      items.map(([key,icon,label]) =>
+        '<a class="side-link'+(current===key?' active':'')+'" href="#/'+bt.slug+'/'+key+'">'+icon+' '+label+'</a>'
+      ).join('');
+  }).join('');
 }
 
 // ============================================================
@@ -286,6 +321,7 @@ function renderSection(bt, section) {
     'analytics/reports': renderReports, 'analytics/live': renderLive,
     'marketing': renderMarketing, 'settings': renderSettings,
     'team': renderTeam, 'profile': renderProfile, 'billing': renderBilling,
+    'integrations': renderIntegrations, 'affiliate': renderAffiliate,
   };
   (map[section] || renderHome)(bt);
 }
@@ -1312,22 +1348,37 @@ function renderTeam(bt) {
   });
 }
 function openInviteForm() {
-  openModal(`<h2>Inviter un membre</h2>
-    <div id="inviteMsg"></div>
-    <div class="field"><label>Email</label><input id="inviteEmail" type="email" placeholder="collegue@exemple.com"></div>
-    <div class="field"><label>Rôle</label><select id="inviteRole">
-      <option value="admin">Admin — accès complet à toute la boutique</option>
-      <option value="manager" selected>Manager — tout sauf équipe et paramètres</option>
-      <option value="livreur">Livreur — voit les livraisons</option>
-      <option value="closeuse">Closeuse — commandes, clients, stock</option>
-      <option value="comptable">Comptable — finances et analytique</option>
-    </select></div>
-    <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal()">Annuler</button><button class="btn btn-primary" onclick="submitInvite()">Envoyer l'invitation</button></div>`);
+  api('/deliveries?action=persons&boutique_id='+CURRENT.id).then(({data}) => {
+    const persons = (data.data || []).filter(p=>p.active);
+    openModal(`<h2>Inviter un membre</h2>
+      <div id="inviteMsg"></div>
+      <div class="field"><label>Email</label><input id="inviteEmail" type="email" placeholder="collegue@exemple.com"></div>
+      <div class="field"><label>Rôle</label><select id="inviteRole" onchange="toggleInviteDeliveryPerson()">
+        <option value="admin">Admin — accès complet à toute la boutique</option>
+        <option value="manager" selected>Manager — tout sauf équipe et paramètres</option>
+        <option value="livreur">Livreur — voit les livraisons</option>
+        <option value="closeuse">Closeuse — commandes, clients, stock</option>
+        <option value="comptable">Comptable — finances et analytique</option>
+      </select></div>
+      <div class="field" id="inviteDeliveryPersonField" style="display:none">
+        <label>Fiche livreur associée (pour ne voir que ses livraisons)</label>
+        <select id="inviteDeliveryPerson"><option value="">— aucune (verra ses livraisons dès qu'un admin le liera plus tard)</option>
+          ${persons.map(p=>'<option value="'+p.id+'">'+escapeHtml(p.name)+'</option>').join('')}
+        </select>
+      </div>
+      <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal()">Annuler</button><button class="btn btn-primary" onclick="submitInvite()">Envoyer l'invitation</button></div>`);
+  });
+}
+function toggleInviteDeliveryPerson() {
+  document.getElementById('inviteDeliveryPersonField').style.display = document.getElementById('inviteRole').value === 'livreur' ? 'block' : 'none';
 }
 function submitInvite() {
   const email = document.getElementById('inviteEmail').value.trim();
   if (!email) return;
-  post('/team?action=invite', {boutique_id:CURRENT.id, email, role:document.getElementById('inviteRole').value, page_url: window.location.origin + window.location.pathname.replace(/dashboard\/.*/, '')}).then(({data}) => {
+  const role = document.getElementById('inviteRole').value;
+  const dpField = document.getElementById('inviteDeliveryPerson');
+  post('/team?action=invite', {boutique_id:CURRENT.id, email, role, delivery_person_id: dpField ? dpField.value : '',
+    page_url: window.location.origin + window.location.pathname.replace(/dashboard\/.*/, '')}).then(({data}) => {
     if (!data.success) { document.getElementById('inviteMsg').innerHTML = '<div class="msg error">'+data.message+'</div>'; return; }
     if (data.data && data.data.invite_link_dev_only) alert('Mode développement — lien direct : '+data.data.invite_link_dev_only);
     closeModal(); route();
@@ -1398,6 +1449,124 @@ function subscribeToPlan(plan) {
   post('/billing?action=subscribe', {plan}).then(({data}) => {
     alert(data.message);
     if (data.success) renderBilling();
+  });
+}
+
+// ============================================================
+// Affiliation (niveau compte)
+// ============================================================
+function renderAffiliate() {
+  document.getElementById('content').innerHTML = '<div class="empty">Chargement…</div>';
+  api('/billing?action=affiliate_info').then(({data}) => {
+    const A = data.data;
+    const link = window.location.origin + window.location.pathname.replace(/dashboard\/.*/, '') + '?ref=' + A.referral_code;
+    document.getElementById('content').innerHTML = `
+      <h2 class="page-title">Affiliation</h2>
+      <div class="page-sub">Recommandez MYBOUTIK et gagnez 10% de chaque abonnement payé par vos filleuls.</div>
+      <div class="card">
+        <h3>Votre lien d'affiliation</h3>
+        <div class="page-sub">Gagnez 10% de chaque paiement d'abonnement de vos filleuls.</div>
+        <div class="field-row">
+          <input id="refLinkInput" value="${link}" readonly>
+          <button class="btn btn-primary" onclick="copyRefLink()">Copier</button>
+        </div>
+      </div>
+      <div class="kpi-grid">
+        <div class="kpi"><div class="lbl">Clics sur le lien</div><div class="val">${A.clicks}</div></div>
+        <div class="kpi"><div class="lbl">Inscriptions</div><div class="val">${A.signups}</div></div>
+        <div class="kpi"><div class="lbl">Abonnés payants</div><div class="val">${A.paying_referrals}</div></div>
+        <div class="kpi"><div class="lbl">Total gagné</div><div class="val">${fmtMoney(A.total_earned)}</div></div>
+      </div>
+      <div class="card">
+        <h3>Mes commissions</h3>
+        <div class="kpi-grid">
+          <div class="kpi"><div class="lbl">En attente de validation</div><div class="val">${fmtMoney(A.pending_validation)}</div></div>
+          <div class="kpi" style="background:var(--success-bg,#ecfdf5)"><div class="lbl">Disponible au retrait</div><div class="val">${fmtMoney(A.available)}</div></div>
+          <div class="kpi"><div class="lbl">Déjà payé</div><div class="val">${fmtMoney(A.paid)}</div></div>
+        </div>
+        <div class="muted" style="margin:10px 0">Une commission devient disponible après ${A.validation_days} jours de validation. Retrait minimum : ${fmtMoney(A.min_payout)}.</div>
+        <div class="field-row">
+          <select id="payoutMethod"><option value="wave">Wave</option><option value="orange_money">Orange Money</option><option value="mtn_momo">MTN MoMo</option><option value="moov_money">Moov Money</option></select>
+          <input id="payoutPhone" placeholder="+225 00 00 00 00 00">
+          <button class="btn btn-primary" ${A.available<A.min_payout?'disabled':''} onclick="requestPayout()">Demander le retrait</button>
+        </div>
+      </div>
+      <div class="card">
+        <h3>Mes filleuls</h3>
+        ${A.referred_users.length ? `<table><thead><tr><th>Email</th><th>Statut</th><th>Inscrit le</th></tr></thead><tbody>
+          ${A.referred_users.map(r=>`<tr><td>${escapeHtml(r.email)}</td><td>${r.plan_status==='active'?'<span class="pill pill-delivered">Payant</span>':'<span class="pill pill-pending">Inscrit</span>'}</td><td>${fmtDate(r.created_at)}</td></tr>`).join('')}
+          </tbody></table>` : '<div class="empty">Personne pour l\'instant — partagez votre lien pour commencer à gagner.</div>'}
+      </div>
+    `;
+  });
+}
+function copyRefLink() {
+  const input = document.getElementById('refLinkInput');
+  input.select();
+  navigator.clipboard && navigator.clipboard.writeText(input.value);
+}
+function requestPayout() {
+  const phone = document.getElementById('payoutPhone').value.trim();
+  if (!phone) { alert('Numéro Mobile Money requis'); return; }
+  post('/billing?action=affiliate_request_payout', {method:document.getElementById('payoutMethod').value, phone}).then(({data}) => {
+    alert(data.message);
+    if (data.success) renderAffiliate();
+  });
+}
+
+// ============================================================
+// Intégrations (Google Sheets)
+// ============================================================
+function renderIntegrations(bt) {
+  document.getElementById('content').innerHTML = '<div class="empty">Chargement…</div>';
+  api('/integrations?action=sheet_get&boutique_id='+bt.id).then(({data}) => {
+    if (!data.success) { document.getElementById('content').innerHTML = '<div class="card">'+escapeHtml(data.message)+'</div>'; return; }
+    const S = data.data;
+    document.getElementById('content').innerHTML = `
+      <h2 class="page-title">Intégrations</h2>
+      <div class="page-sub">Reliez une source de commandes extérieure. Chaque ligne devient une vraie commande MYBOUTIK.</div>
+      <div class="card">
+        <h3>Google Sheets</h3>
+        <div class="page-sub">Publiez votre feuille en CSV (Fichier → Partager → Publier sur le web → CSV) puis collez le lien ici.</div>
+        <div id="sheetMsg"></div>
+        <div class="field"><label>Lien de votre Google Sheet (CSV)</label><input id="sheetUrl" value="${escapeHtml(S.sheet_url||'')}" placeholder="https://docs.google.com/spreadsheets/d/.../pub?output=csv"></div>
+        <label style="display:flex;align-items:center;gap:8px;margin-bottom:14px"><input type="checkbox" id="sheetEnabled" ${S.sheet_sync_enabled?'checked':''}> Activer cette intégration</label>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-primary" onclick="saveSheetSettings()">Enregistrer</button>
+          <button class="btn btn-ghost" onclick="importSheetNow()">Importer maintenant</button>
+        </div>
+      </div>
+      <div class="card">
+        <h3>Colonnes attendues</h3>
+        <table><thead><tr><th>Colonne</th><th>Obligatoire</th><th>Exemple</th></tr></thead><tbody>
+          <tr><td>id_commande</td><td>Oui</td><td>CMD-1042</td></tr>
+          <tr><td>client</td><td>Oui</td><td>Awa Diallo</td></tr>
+          <tr><td>telephone</td><td>Oui</td><td>+225 07 00 00 00</td></tr>
+          <tr><td>sku</td><td>Oui</td><td>TS-BLEU-M (doit exister dans vos produits)</td></tr>
+          <tr><td>quantite</td><td>Non</td><td>2 (vide = 1)</td></tr>
+          <tr><td>prix_unitaire</td><td>Non</td><td>14900 (vide = prix catalogue)</td></tr>
+          <tr><td>frais_livraison</td><td>Non</td><td>2000 (une seule ligne par commande)</td></tr>
+          <tr><td>ville / quartier / adresse</td><td>Non</td><td>Abidjan / Cocody / Rue des Jardins</td></tr>
+        </tbody></table>
+        <div class="muted" style="margin-top:10px">Une commande avec plusieurs produits ? Mettez une ligne par produit avec le même id_commande.</div>
+      </div>
+      <div class="card" id="sheetResultCard" style="display:none"></div>
+    `;
+  });
+}
+function saveSheetSettings() {
+  post('/integrations?action=sheet_save', {boutique_id:CURRENT.id, sheet_url:document.getElementById('sheetUrl').value.trim(), sheet_sync_enabled:document.getElementById('sheetEnabled').checked}).then(({data}) => {
+    document.getElementById('sheetMsg').innerHTML = '<div class="msg '+(data.success?'success':'error')+'">'+data.message+'</div>';
+  });
+}
+function importSheetNow() {
+  saveSheetSettings();
+  post('/integrations?action=sheet_import', {boutique_id:CURRENT.id}).then(({data}) => {
+    const card = document.getElementById('sheetResultCard');
+    card.style.display = 'block';
+    if (!data.success) { card.innerHTML = '<div class="msg error">'+data.message+'</div>'; return; }
+    card.innerHTML = '<h3>Résultat de l\'import</h3><div class="msg success">'+data.message+'</div>' +
+      (data.data.skipped.length ? '<div class="muted">Lignes ignorées :<br>'+data.data.skipped.map(escapeHtml).join('<br>')+'</div>' : '');
   });
 }
 </script>
