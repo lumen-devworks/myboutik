@@ -399,6 +399,7 @@ function updateOrderStatus(id, status) {
 function renderGrade(bt) {
   document.getElementById('content').innerHTML = '<div class="empty">Chargement…</div>';
   api('/boutiques?action=grade&boutique_id='+bt.id).then(({data}) => {
+    if (!data.success) { document.getElementById('content').innerHTML = '<div class="card">'+escapeHtml(data.message)+'</div>'; return; }
     const g = data.data;
     document.getElementById('content').innerHTML = `
       <h2 class="page-title">${g.current_name ? g.current_name : 'Pas encore de grade'}</h2>
@@ -686,6 +687,7 @@ function renderFinanceOverview(bt, period) {
   period = period || '30d';
   document.getElementById('content').innerHTML = '<div class="empty">Chargement…</div>';
   api('/finance?action=overview&boutique_id='+bt.id+'&period='+period).then(({data}) => {
+    if (!data.success) { document.getElementById('content').innerHTML = '<div class="card">'+escapeHtml(data.message)+'</div>'; return; }
     const F = data.data;
     document.getElementById('content').innerHTML = `
       <div class="row-between"><div><h2 class="page-title">Vue Globale</h2><div class="page-sub">Santé financière complète — ${escapeHtml(bt.name)}.</div></div>${periodSelectHtml('finPeriod', period)}</div>
@@ -797,6 +799,7 @@ function renderFinanceDetail(bt, period) {
   period = period || '30d';
   document.getElementById('content').innerHTML = '<div class="empty">Chargement…</div>';
   api('/finance?action=detail&boutique_id='+bt.id+'&period='+period).then(({data}) => {
+    if (!data.success) { document.getElementById('content').innerHTML = '<div class="card">'+escapeHtml(data.message)+'</div>'; return; }
     const F = data.data;
     document.getElementById('content').innerHTML = `
       <div class="row-between"><div><h2 class="page-title">Finance Détaillée</h2><div class="page-sub">${F.rows.length?('Marge par commande livrée.'):'Aucune commande livrée sur cette période.'}</div></div>${periodSelectHtml('finDetailPeriod', period)}</div>
@@ -818,6 +821,7 @@ function renderFinanceAds(bt, period) {
   period = period || '30d';
   document.getElementById('content').innerHTML = '<div class="empty">Chargement…</div>';
   api('/finance?action=ads&boutique_id='+bt.id+'&period='+period).then(({data}) => {
+    if (!data.success) { document.getElementById('content').innerHTML = '<div class="card">'+escapeHtml(data.message)+'</div>'; return; }
     const F = data.data;
     document.getElementById('content').innerHTML = `
       <div class="row-between"><div><h2 class="page-title">Publicités & ROAS</h2><div class="page-sub">Le retour sur investissement (ROAS) est calculé en croisant avec tes ventes livrées.</div></div>${periodSelectHtml('finAdsPeriod', period)}</div>
@@ -1228,6 +1232,7 @@ function renderReports(bt, period) {
   period = period || '30d';
   document.getElementById('content').innerHTML = '<div class="empty">Chargement…</div>';
   api('/analytics?action=report&boutique_id='+bt.id+'&period='+period).then(({data}) => {
+    if (!data.success) { document.getElementById('content').innerHTML = '<div class="card">'+escapeHtml(data.message)+'</div>'; return; }
     const R = data.data;
     document.getElementById('content').innerHTML = `
       <div class="row-between"><div><h2 class="page-title">Rapports de ventes</h2><div class="page-sub">Suivez les performances de votre boutique.</div></div>${periodSelectHtml('reportPeriod', period)}</div>
@@ -1261,6 +1266,7 @@ function renderLive(bt) {
   document.getElementById('content').innerHTML = '<div class="empty">Chargement…</div>';
   function load() {
     api('/analytics?action=live&boutique_id='+bt.id).then(({data}) => {
+      if (!data.success) { document.getElementById('content').innerHTML = '<div class="card">'+escapeHtml(data.message)+'</div>'; return; }
       const L = data.data;
       document.getElementById('content').innerHTML = `
         <div class="card" style="background:linear-gradient(135deg,#1d4ed8,#2563eb);color:#fff">
@@ -1425,6 +1431,7 @@ function removeTeamMember(id) {
 function renderProfile() {
   document.getElementById('content').innerHTML = '<div class="empty">Chargement…</div>';
   api('/auth?action=me').then(({data}) => {
+    if (!data.success) { document.getElementById('content').innerHTML = '<div class="card">'+escapeHtml(data.message)+'</div>'; return; }
     const u = data.data;
     document.getElementById('content').innerHTML = `
       <h2 class="page-title">Mon profil</h2>
@@ -1457,6 +1464,7 @@ function saveProfile() {
 function renderBilling() {
   document.getElementById('content').innerHTML = '<div class="empty">Chargement…</div>';
   api('/billing?action=plans').then(({data}) => {
+    if (!data.success) { document.getElementById('content').innerHTML = '<div class="card">'+escapeHtml(data.message)+'</div>'; return; }
     const B = data.data;
     const plans = Object.entries(B.plans);
     document.getElementById('content').innerHTML = `
@@ -1488,6 +1496,7 @@ function subscribeToPlan(plan) {
 function renderAffiliate() {
   document.getElementById('content').innerHTML = '<div class="empty">Chargement…</div>';
   api('/billing?action=affiliate_info').then(({data}) => {
+    if (!data.success) { document.getElementById('content').innerHTML = '<div class="card">'+escapeHtml(data.message)+'</div>'; return; }
     const A = data.data;
     const link = window.location.origin + window.location.pathname.replace(/dashboard\/.*/, '') + '?ref=' + A.referral_code;
     document.getElementById('content').innerHTML = `
