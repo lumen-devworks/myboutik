@@ -864,7 +864,8 @@ function renderProducts(bt) {
     document.getElementById('content').innerHTML = `
       <div class="row-between"><div><h2 class="page-title">Produits</h2><div class="page-sub">${rows.length} produit(s)</div></div>
         <button class="btn btn-primary" onclick="openProductForm()">+ Nouveau produit</button></div>
-      ${lowStock.length ? '<div class="card" style="background:var(--amber-bg);border-color:#fde68a">⚠️ Stock bas sur '+lowStock.length+' produit(s) : '+lowStock.map(p=>escapeHtml(p.name)).join(', ')+'</div>' : ''}
+      ${lowStock.length ? '<div class="card" style="background:var(--amber-bg);border-color:#fde68a">⚠️ Stock bas sur '+lowStock.length+' produit(s) :<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px">'+
+        lowStock.map(p=>'<span>'+escapeHtml(p.name)+' <button class="btn btn-ghost btn-sm" onclick="goReorder(\''+p.id+'\')">Commander</button></span>').join('')+'</div></div>' : ''}
       <div class="card">${rows.length ? `<table><thead><tr><th>Produit</th><th>Prix</th><th>Stock</th><th>Statut</th><th></th></tr></thead><tbody>
         ${rows.map(p=>`<tr><td>${escapeHtml(p.name)}${p.variants.length?' <span class="muted">('+p.variants.length+' variantes)</span>':''}</td>
           <td>${fmtMoney(p.price, bt.currency)}${p.compare_at_price && Number(p.compare_at_price) > Number(p.price) ? ' <span class="muted" style="text-decoration:line-through">'+fmtMoney(p.compare_at_price, bt.currency)+'</span>' : ''}</td>
@@ -880,9 +881,17 @@ function stockBadge(p) {
   if (!p.track_inventory) return '<span class="muted">—</span>';
   const qty = Number(p.stock_qty);
   const threshold = Number(p.low_stock_threshold ?? 5);
-  if (qty <= 0) return '<span class="pill pill-refused">'+qty+' · rupture</span>';
-  if (qty <= threshold) return '<span class="pill pill-pending">'+qty+' · bas</span>';
+  const orderBtn = ' <button class="btn btn-ghost btn-sm" onclick="goReorder(\''+p.id+'\')">Commander</button>';
+  if (qty <= 0) return '<span class="pill pill-refused">'+qty+' · rupture</span>'+orderBtn;
+  if (qty <= threshold) return '<span class="pill pill-pending">'+qty+' · bas</span>'+orderBtn;
   return qty;
+}
+// Envoie directement vers Commandes fournisseurs avec le formulaire de
+// reapprovisionnement pre-rempli pour ce produit, plutot que de laisser le
+// marchand re-chercher le produit lui-meme dans un long formulaire.
+function goReorder(productId) {
+  window.__reorderProductId = productId;
+  window.location.hash = '#/'+CURRENT.slug+'/products/supplier-orders';
 }
 function openProductForm(id) {
   if (!id) { renderProductFormModal({}); return; }
@@ -1125,10 +1134,14 @@ function renderStock(bt) {
     document.getElementById('content').innerHTML = `
       <h2 class="page-title">Stock</h2><div class="page-sub">Ajustez les quantités en stock.</div>
       <div class="card">${rows.length ? `<table><thead><tr><th>Produit</th><th>Stock actuel</th><th>Ajuster</th></tr></thead><tbody>
-        ${rows.map(p=>`<tr><td>${escapeHtml(p.name)}</td><td>${p.stock_qty}</td>
+        ${rows.map(p=>{
+          const low = p.track_inventory && Number(p.stock_qty) <= Number(p.low_stock_threshold ?? 5);
+          return `<tr><td>${escapeHtml(p.name)}</td><td>${p.stock_qty}${low?' <span class="pill pill-pending">bas</span>':''}</td>
           <td><button class="btn btn-ghost btn-sm" onclick="adjustStock('${p.id}',-1)">-1</button>
               <button class="btn btn-ghost btn-sm" onclick="adjustStock('${p.id}',1)">+1</button>
-              <button class="btn btn-ghost btn-sm" onclick="adjustStockCustom('${p.id}')">Autre…</button></td></tr>`).join('')}
+              <button class="btn btn-ghost btn-sm" onclick="adjustStockCustom('${p.id}')">Autre…</button>
+              ${low?'<button class="btn btn-primary btn-sm" onclick="goReorder(\''+p.id+'\')">Commander</button>':''}</td></tr>`;
+        }).join('')}
         </tbody></table>` : '<div class="empty">Aucun produit.</div>'}</div>
     `;
   });
@@ -1175,13 +1188,28 @@ function renderSupplierOrders(bt) {
             <td>${r.status==='pending' ? '<button class="btn btn-ghost btn-sm" onclick="supplierOrderStatus(\''+r.id+'\',\'received\')">Reçue</button> <button class="btn btn-ghost btn-sm" onclick="supplierOrderStatus(\''+r.id+'\',\'cancelled\')">Annuler</button>' : ''}</td></tr>`).join('')}
           </tbody></table>` : '<div class="empty">Aucune commande fournisseur.</div>'}</div>
       `;
+      // Arrivee depuis le bouton "Commander" d'un produit en stock bas
+      // (voir goReorder) : ouvre directement le formulaire pre-rempli au
+      // lieu de laisser le marchand rechercher le produit lui-meme.
+      if (window.__reorderProductId) {
+        const preselectId = window.__reorderProductId;
+        window.__reorderProductId = null;
+        if (suppliers.length === 0) {
+          alert('Ajoutez d\'abord un fournisseur avant de passer une commande de réapprovisionnement.');
+        } else {
+          openSupplierOrderForm(suppliers, products, preselectId);
+        }
+      }
     });
 }
-function openSupplierOrderForm(suppliers, products) {
+function openSupplierOrderForm(suppliers, products, preselectProductId) {
+  const preselect = preselectProductId ? products.find(p=>p.id===preselectProductId) : null;
+  const suggestedQty = preselect ? Math.max(1, Number(preselect.low_stock_threshold ?? 5) * 2 - Number(preselect.stock_qty)) : 1;
   openModal(`<h2>Nouvelle commande fournisseur</h2>
     <div class="field"><label>Fournisseur</label><select id="soSupplier">${suppliers.map(s=>'<option value="'+s.id+'">'+escapeHtml(s.name)+'</option>').join('')}</select></div>
-    <div class="field"><label>Produit</label><select id="soProduct"><option value="">—</option>${products.map(p=>'<option value="'+p.id+'">'+escapeHtml(p.name)+'</option>').join('')}</select></div>
-    <div class="field-row"><div class="field"><label>Quantité</label><input id="soQty" type="number" min="1" value="1"></div><div class="field"><label>Coût unitaire</label><input id="soCost" type="number" min="0"></div></div>
+    <div class="field"><label>Produit</label><select id="soProduct"><option value="">—</option>${products.map(p=>'<option value="'+p.id+'" '+(p.id===preselectProductId?'selected':'')+'>'+escapeHtml(p.name)+'</option>').join('')}</select></div>
+    <div class="field-row"><div class="field"><label>Quantité</label><input id="soQty" type="number" min="1" value="${preselect?suggestedQty:1}"></div>
+      <div class="field"><label>Coût unitaire</label><input id="soCost" type="number" min="0" value="${preselect && preselect.cost_price!=null ? preselect.cost_price : ''}"></div></div>
     <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal()">Annuler</button><button class="btn btn-primary" onclick="submitSupplierOrderForm()">Créer</button></div>`);
 }
 function submitSupplierOrderForm() {
