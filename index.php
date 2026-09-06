@@ -1024,7 +1024,15 @@ function route_products($action) {
 
 function products_list($pl) {
     $row = require_boutique_owned($_GET['boutique_id'] ?? '', $pl['sub']);
-    $rows = q("SELECT * FROM products WHERE boutique_id=? ORDER BY created_at DESC", [$row['id']])->fetchAll();
+    // image_url contient la photo en base64 (potentiellement plusieurs
+    // centaines de Ko) - jamais affichee dans ce tableau, donc jamais
+    // transferee ici (elle alourdissait chaque page qui liste les produits,
+    // meme celles qui ne montrent qu'un menu deroulant sans photo). Elle
+    // reste disponible via products_get() pour la fiche d'un seul produit.
+    $rows = q("SELECT id,boutique_id,name,description,price,compare_at_price,cost_price,stock_qty,status,
+               sku,barcode,slug,track_inventory,allow_backorder,is_physical,delivery_fee,low_stock_threshold,
+               options_json,created_at, (image_url IS NOT NULL AND image_url<>'') AS has_image
+               FROM products WHERE boutique_id=? ORDER BY created_at DESC", [$row['id']])->fetchAll();
     foreach ($rows as &$p) {
         $p['variants'] = q("SELECT * FROM product_variants WHERE product_id=? ORDER BY name", [$p['id']])->fetchAll();
     }
