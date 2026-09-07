@@ -880,6 +880,26 @@ function route_install() {
     )",
     "CREATE INDEX IF NOT EXISTS idx_reviews_product ON product_reviews(product_id)",
     "CREATE INDEX IF NOT EXISTS idx_reviews_boutique ON product_reviews(boutique_id)",
+    // Promotion automatiquement visible sur les fiches produits ciblees
+    // (contrairement aux codes promo, aucune saisie du client - le prix
+    // barre/reduit s'affiche tout seul, voir effective_unit_price()).
+    "CREATE TABLE IF NOT EXISTS product_promotions (
+        id VARCHAR(36) PRIMARY KEY,
+        boutique_id VARCHAR(36) NOT NULL,
+        type VARCHAR(10) NOT NULL DEFAULT 'percent',
+        value DECIMAL(14,2) NOT NULL,
+        starts_at TIMESTAMP,
+        expires_at TIMESTAMP,
+        active SMALLINT DEFAULT 1,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )",
+    "CREATE INDEX IF NOT EXISTS idx_productpromotions_boutique ON product_promotions(boutique_id)",
+    "CREATE TABLE IF NOT EXISTS product_promotion_items (
+        promotion_id VARCHAR(36) NOT NULL,
+        product_id VARCHAR(36) NOT NULL,
+        PRIMARY KEY (promotion_id, product_id)
+    )",
+    "CREATE INDEX IF NOT EXISTS idx_productpromotionitems_product ON product_promotion_items(product_id)",
     "CREATE TABLE IF NOT EXISTS newsletter_subscribers (
         id VARCHAR(36) PRIMARY KEY,
         boutique_id VARCHAR(36) NOT NULL,
@@ -1528,6 +1548,38 @@ function shop_boutique() {
     ok(public_boutique_by_slug($_GET['slug'] ?? ''));
 }
 
+// Promotion "produit" active (independante des codes promo - visible
+// directement sur le prix affiche, rien a saisir cote client). Au plus une
+// promotion appliquee par produit ; en cas de chevauchement, la plus
+// recemment creee gagne plutot que de cumuler les reductions.
+function active_product_promotion($productId) {
+    return q("SELECT pp.type, pp.value FROM product_promotions pp
+              JOIN product_promotion_items ppi ON ppi.promotion_id = pp.id
+              WHERE ppi.product_id=? AND pp.active=1
+              AND (pp.starts_at IS NULL OR pp.starts_at <= NOW())
+              AND (pp.expires_at IS NULL OR pp.expires_at > NOW())
+              ORDER BY pp.created_at DESC LIMIT 1", [$productId])->fetch();
+}
+function effective_unit_price($productId, $basePrice) {
+    $promo = active_product_promotion($productId);
+    if (!$promo) return (float)$basePrice;
+    $discount = $promo['type'] === 'amount' ? (float)$promo['value'] : round($basePrice * ((float)$promo['value'] / 100), 2);
+    return max(0, (float)$basePrice - min($discount, (float)$basePrice));
+}
+// Applique la promotion (si active) directement sur le tableau produit tel
+// que renvoye a la vitrine : compare_at_price devient le prix catalogue
+// d'origine, price devient le prix reduit - reutilise donc l'affichage
+// "prix barre" deja code cote store/index.html sans rien y changer la-bas.
+// Ne touche jamais products.price en base - seulement ce qui est renvoye
+// ici, le catalogue du marchand garde son vrai prix.
+function apply_active_promotion(&$p) {
+    $effective = effective_unit_price($p['id'], (float)$p['price']);
+    if ($effective < (float)$p['price']) {
+        $p['compare_at_price'] = $p['price'];
+        $p['price'] = $effective;
+    }
+}
+
 function shop_products() {
     $bt = public_boutique_by_slug($_GET['slug'] ?? '');
     $rows = q("SELECT id,name,description,price,compare_at_price,stock_qty,image_url,slug,track_inventory,allow_backorder,is_physical,delivery_fee,options_json
@@ -1535,6 +1587,7 @@ function shop_products() {
     foreach ($rows as &$p) {
         $p['variants'] = q("SELECT id,name,price,stock_qty FROM product_variants WHERE product_id=? ORDER BY name", [$p['id']])->fetchAll();
         $p['images'] = q("SELECT id,data FROM product_images WHERE product_id=? ORDER BY position", [$p['id']])->fetchAll();
+        apply_active_promotion($p);
     }
     ok($rows);
 }
@@ -1546,6 +1599,7 @@ function shop_product() {
     if (!$p) fail('Produit introuvable', 404);
     $p['variants'] = q("SELECT id,name,price,stock_qty FROM product_variants WHERE product_id=? ORDER BY name", [$p['id']])->fetchAll();
     $p['images'] = q("SELECT id,data FROM product_images WHERE product_id=? ORDER BY position", [$p['id']])->fetchAll();
+    apply_active_promotion($p);
     // Produits associes (upsell) choisis a la main par le marchand sur la
     // fiche produit du tableau de bord - seuls les produits toujours actifs
     // sont proposes a l'achat, un produit retire du catalogue disparait donc
@@ -1675,6 +1729,11 @@ function shop_checkout() {
                 $variant = q("SELECT * FROM product_variants WHERE id=? AND product_id=?", [$it['variant_id'], $productId])->fetch();
             }
             $unitPrice = $variant && $variant['price'] !== null ? (float)$variant['price'] : (float)$product['price'];
+            // Meme reduction "promotion produit" que celle affichee sur la
+            // vitrine (voir apply_active_promotion()) - recalculee ici a
+            // partir de la base, jamais a partir d'un prix envoye par le
+            // client, pour ne jamais faire confiance a un montant client.
+            $unitPrice = effective_unit_price($productId, $unitPrice);
             // Une commande n'est jamais bloquee par manque de stock - c'est
             // au marchand de s'organiser une fois la commande recue, pas a
             // l'acheteur de le decouvrir au moment de payer. Le stock est
@@ -2674,6 +2733,10 @@ function route_marketing($action) {
         case 'review_list':    marketing_review_list($pl); break;
         case 'review_moderate':marketing_review_moderate($pl); break;
         case 'review_delete':  marketing_review_delete($pl); break;
+        case 'promotion_list':   marketing_promotion_list($pl); break;
+        case 'promotion_create': marketing_promotion_create($pl); break;
+        case 'promotion_update': marketing_promotion_update($pl); break;
+        case 'promotion_delete': marketing_promotion_delete($pl); break;
         default: fail('Action inconnue', 404);
     }
 }
@@ -2778,6 +2841,75 @@ function marketing_review_delete($pl) {
     if (!$row) fail('Avis introuvable', 404);
     q("DELETE FROM product_reviews WHERE id=?", [$row['id']]);
     ok(null, 'Avis supprime');
+}
+
+// ============================================================
+// PROMOTIONS PRODUIT — reduction automatiquement visible sur le prix des
+// produits choisis (contrairement aux codes promo, aucune saisie du client
+// n'est necessaire). Voir apply_active_promotion()/effective_unit_price()
+// dans le module shop pour la partie affichage/calcul cote vitrine.
+// ============================================================
+function marketing_promotion_list($pl) {
+    $bt = require_boutique_owned($_GET['boutique_id'] ?? '', $pl['sub']);
+    $rows = q("SELECT * FROM product_promotions WHERE boutique_id=? ORDER BY created_at DESC", [$bt['id']])->fetchAll();
+    foreach ($rows as &$pr) {
+        $pr['products'] = q("SELECT p.id, p.name FROM product_promotion_items ppi
+                              JOIN products p ON p.id = ppi.product_id
+                              WHERE ppi.promotion_id=? ORDER BY p.name", [$pr['id']])->fetchAll();
+    }
+    ok($rows);
+}
+function set_promotion_products($promotionId, $productIds, $boutiqueId) {
+    $productIds = array_values(array_unique(array_filter((array)$productIds)));
+    q("DELETE FROM product_promotion_items WHERE promotion_id=?", [$promotionId]);
+    foreach ($productIds as $pid) {
+        product_owned($pid, $boutiqueId); // 404 si le produit n'appartient pas a cette boutique
+        q("INSERT INTO product_promotion_items (promotion_id, product_id) VALUES (?,?) ON CONFLICT DO NOTHING", [$promotionId, $pid]);
+    }
+}
+function marketing_promotion_create($pl) {
+    $b = body();
+    $bt = require_boutique_owned($b['boutique_id'] ?? '', $pl['sub']);
+    $type = in_array($b['type'] ?? '', ['percent','amount'], true) ? $b['type'] : 'percent';
+    $value = (float)($b['value'] ?? 0);
+    $productIds = (array)($b['product_ids'] ?? []);
+    if ($value <= 0) fail('La valeur doit etre superieure a 0');
+    if ($type === 'percent' && $value > 100) fail('Un pourcentage ne peut pas depasser 100');
+    if (!$productIds) fail('Selectionnez au moins un produit');
+    $id = uid();
+    q("INSERT INTO product_promotions (id,boutique_id,type,value,starts_at,expires_at,active) VALUES (?,?,?,?,?,?,1)",
+      [$id, $bt['id'], $type, $value,
+       isset($b['starts_at']) && $b['starts_at'] !== '' ? $b['starts_at'] : null,
+       isset($b['expires_at']) && $b['expires_at'] !== '' ? $b['expires_at'] : null]);
+    set_promotion_products($id, $productIds, $bt['id']);
+    log_activity($bt['id'], 'Promotion produit creee ('.count($productIds).' produit(s))', $pl['sub']);
+    ok(q("SELECT * FROM product_promotions WHERE id=?", [$id])->fetch(), 'Promotion creee', 201);
+}
+function promotion_owned($id, $boutiqueId) {
+    $row = q("SELECT * FROM product_promotions WHERE id=? AND boutique_id=?", [$id, $boutiqueId])->fetch();
+    if (!$row) fail('Promotion introuvable', 404);
+    return $row;
+}
+function marketing_promotion_update($pl) {
+    $b = body();
+    $bt = require_boutique_owned($b['boutique_id'] ?? '', $pl['sub']);
+    $promo = promotion_owned($b['id'] ?? '', $bt['id']);
+    q("UPDATE product_promotions SET type=?, value=?, starts_at=?, expires_at=?, active=? WHERE id=?",
+      [in_array($b['type'] ?? '', ['percent','amount'], true) ? $b['type'] : $promo['type'],
+       isset($b['value']) && $b['value'] !== '' ? (float)$b['value'] : $promo['value'],
+       isset($b['starts_at']) && $b['starts_at'] !== '' ? $b['starts_at'] : null,
+       isset($b['expires_at']) && $b['expires_at'] !== '' ? $b['expires_at'] : null,
+       isset($b['active']) ? (int)!!$b['active'] : $promo['active'], $promo['id']]);
+    if (array_key_exists('product_ids', $b)) set_promotion_products($promo['id'], $b['product_ids'], $bt['id']);
+    ok(q("SELECT * FROM product_promotions WHERE id=?", [$promo['id']])->fetch(), 'Promotion mise a jour');
+}
+function marketing_promotion_delete($pl) {
+    $b = body();
+    $bt = require_boutique_owned($b['boutique_id'] ?? '', $pl['sub']);
+    $promo = promotion_owned($b['id'] ?? '', $bt['id']);
+    q("DELETE FROM product_promotion_items WHERE promotion_id=?", [$promo['id']]);
+    q("DELETE FROM product_promotions WHERE id=?", [$promo['id']]);
+    ok(null, 'Promotion supprimee');
 }
 function marketing_newsletter($pl) {
     $bt = require_boutique_owned($_GET['boutique_id'] ?? '', $pl['sub']);

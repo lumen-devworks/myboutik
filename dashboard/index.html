@@ -1510,11 +1510,14 @@ function renderMarketing(bt) {
   Promise.all([
     api('/marketing?action=newsletter&boutique_id='+bt.id), api('/marketing?action=messages&boutique_id='+bt.id),
     api('/marketing?action=promo_list&boutique_id='+bt.id), api('/marketing?action=review_list&boutique_id='+bt.id),
-  ]).then(([nl, msg, promo, rev]) => {
-    const failed = [nl, msg, promo, rev].find(r => !r.data.success);
+    api('/marketing?action=promotion_list&boutique_id='+bt.id), api('/products?action=list&boutique_id='+bt.id),
+  ]).then(([nl, msg, promo, rev, promotions, prod]) => {
+    const failed = [nl, msg, promo, rev, promotions, prod].find(r => !r.data.success);
     if (failed) { document.getElementById('content').innerHTML = '<div class="card">'+escapeHtml(failed.data.message)+'</div>'; return; }
     const N = nl.data.data || []; const M = msg.data.data || [];
     const P = promo.data.data || []; const R = rev.data.data || [];
+    const PR = promotions.data.data || []; const allProducts = prod.data.data || [];
+    window.__marketingProducts = allProducts;
     window.__marketingReviews = R;
     document.getElementById('content').innerHTML = `
       <h2 class="page-title">Marketing</h2><div class="page-sub">Codes promo, avis clients, signups newsletter et messages de contact.</div>
@@ -1532,6 +1535,20 @@ function renderMarketing(bt) {
               <button class="btn btn-ghost btn-sm" onclick="togglePromo('${p.id}',${p.active?0:1})">${Number(p.active)?'Désactiver':'Activer'}</button>
               <button class="btn btn-ghost btn-sm" onclick="deletePromo('${p.id}')">Supprimer</button></td>
           </tr>`).join('')}</tbody></table>` : '<div class="empty">Aucun code promo. Créez-en un pour proposer une réduction à vos clients.</div>'}
+      </div>
+      <div class="card">
+        <div class="row-between"><h3>Promotions produits (${PR.length})</h3><button class="btn btn-primary btn-sm" onclick="openPromotionForm()">+ Nouvelle promotion</button></div>
+        <div class="muted" style="font-size:12px;margin:-4px 0 10px">Réduction affichée automatiquement sur le prix des produits choisis — le client n'a rien à saisir.</div>
+        ${PR.length ? `<table><thead><tr><th>Réduction</th><th>Produits</th><th>Période</th><th>Statut</th><th></th></tr></thead><tbody>
+          ${PR.map(pr=>`<tr>
+            <td>${pr.type==='percent' ? Number(pr.value)+' %' : fmtMoney(pr.value, bt.currency)}</td>
+            <td title="${escapeHtml(pr.products.map(x=>x.name).join(', '))}">${pr.products.length} produit(s)</td>
+            <td>${pr.starts_at?fmtDate(pr.starts_at):'—'} → ${pr.expires_at?fmtDate(pr.expires_at):'sans fin'}</td>
+            <td>${Number(pr.active) ? '<span class="pill pill-delivered">Actif</span>' : '<span class="pill pill-refused">Désactivé</span>'}</td>
+            <td><button class="btn btn-ghost btn-sm" onclick='openPromotionForm(${JSON.stringify(pr).replace(/'/g,"&#39;")})'>Modifier</button>
+              <button class="btn btn-ghost btn-sm" onclick="togglePromotion('${pr.id}',${pr.active?0:1})">${Number(pr.active)?'Désactiver':'Activer'}</button>
+              <button class="btn btn-ghost btn-sm" onclick="deletePromotion('${pr.id}')">Supprimer</button></td>
+          </tr>`).join('')}</tbody></table>` : '<div class="empty">Aucune promotion produit. Créez-en une pour afficher un prix réduit directement sur des articles choisis.</div>'}
       </div>
       <div class="card">
         <h3>Avis clients (${R.length})</h3>
@@ -1607,6 +1624,49 @@ function submitPromoTargetsForm(id) {
 }
 function togglePromo(id, active) { post('/marketing?action=promo_update', {boutique_id:CURRENT.id, id, active}).then(({data})=>{ if(!data.success){alert(data.message);return;} route(); }); }
 function deletePromo(id) { if(!confirm('Supprimer ce code promo ?')) return; post('/marketing?action=promo_delete', {boutique_id:CURRENT.id, id}).then(()=>route()); }
+function openPromotionForm(pr) {
+  pr = pr || {};
+  const selectedIds = (pr.products || []).map(x => x.id);
+  const products = window.__marketingProducts || [];
+  openModal(`<h2>${pr.id ? 'Modifier la promotion' : 'Nouvelle promotion produit'}</h2>
+    <div id="promotionMsg"></div>
+    <div class="field-row">
+      <div class="field"><label>Type</label><select id="promotionType"><option value="percent" ${pr.type!=='amount'?'selected':''}>Pourcentage (%)</option><option value="amount" ${pr.type==='amount'?'selected':''}>Montant fixe</option></select></div>
+      <div class="field"><label>Valeur</label><input id="promotionValue" type="number" min="1" value="${pr.value||''}"></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>Début (optionnel)</label><input id="promotionStarts" type="date" value="${pr.starts_at?pr.starts_at.substring(0,10):''}"></div>
+      <div class="field"><label>Fin (optionnel)</label><input id="promotionExpires" type="date" value="${pr.expires_at?pr.expires_at.substring(0,10):''}"></div>
+    </div>
+    <div class="field">
+      <label>Produits concernés</label>
+      <div style="max-height:180px;overflow-y:auto;border:1px solid var(--border);border-radius:9px;padding:8px">
+        ${products.length ? products.map(p => `<label style="display:flex;align-items:center;gap:8px;padding:3px 0">
+          <input type="checkbox" class="promotionProductCheck" value="${p.id}" ${selectedIds.includes(p.id)?'checked':''}> ${escapeHtml(p.name)}
+        </label>`).join('') : '<div class="muted">Ajoutez des produits à votre catalogue avant de créer une promotion.</div>'}
+      </div>
+    </div>
+    <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal()">Annuler</button><button class="btn btn-primary" onclick="submitPromotionForm('${pr.id||''}')">${pr.id?'Enregistrer':'Créer'}</button></div>`);
+}
+function submitPromotionForm(id) {
+  const value = Number(document.getElementById('promotionValue').value||0);
+  const product_ids = Array.from(document.querySelectorAll('.promotionProductCheck:checked')).map(c=>c.value);
+  if (value<=0) { document.getElementById('promotionMsg').innerHTML = '<div class="msg error">La valeur est requise</div>'; return; }
+  if (!product_ids.length) { document.getElementById('promotionMsg').innerHTML = '<div class="msg error">Sélectionnez au moins un produit</div>'; return; }
+  const payload = {
+    boutique_id: CURRENT.id, type: document.getElementById('promotionType').value, value, product_ids,
+    starts_at: document.getElementById('promotionStarts').value || null,
+    expires_at: document.getElementById('promotionExpires').value || null,
+  };
+  const action = id ? '/marketing?action=promotion_update' : '/marketing?action=promotion_create';
+  if (id) payload.id = id;
+  post(action, payload).then(({data}) => {
+    if (!data.success) { document.getElementById('promotionMsg').innerHTML = '<div class="msg error">'+escapeHtml(data.message)+'</div>'; return; }
+    closeModal(); route();
+  });
+}
+function togglePromotion(id, active) { post('/marketing?action=promotion_update', {boutique_id:CURRENT.id, id, active}).then(()=>route()); }
+function deletePromotion(id) { if(!confirm('Supprimer cette promotion ?')) return; post('/marketing?action=promotion_delete', {boutique_id:CURRENT.id, id}).then(()=>route()); }
 function moderateReview(id, status) { post('/marketing?action=review_moderate', {boutique_id:CURRENT.id, id, status}).then(()=>route()); }
 function deleteReview(id) { if(!confirm('Supprimer cet avis ?')) return; post('/marketing?action=review_delete', {boutique_id:CURRENT.id, id}).then(()=>route());
 }
