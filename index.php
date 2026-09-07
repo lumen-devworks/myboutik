@@ -2323,6 +2323,7 @@ function route_finance($action) {
         case 'ad_expense_create':  finance_ad_expense_create($pl); break;
         case 'ad_expense_detail':  finance_ad_expense_detail($pl); break;
         case 'export':             finance_export($pl); break;
+        case 'export_excel':       finance_export_excel($pl); break;
         default: fail('Action inconnue', 404);
     }
 }
@@ -2340,9 +2341,30 @@ function csv_output($filename, $headers, $rows) {
     fclose($out);
     exit;
 }
-function finance_export($pl) {
-    $bt = require_boutique_owned($_GET['boutique_id'] ?? '', $pl['sub']);
-    $period = $_GET['period'] ?? '30d';
+// Un tableau HTML avec le bon Content-Type/extension .xls s'ouvre
+// directement dans Excel/LibreOffice avec sa mise en forme (gras, bordures,
+// couleurs) deja appliquee - evite d'ajouter une bibliotheque PHP (type
+// PhpSpreadsheet) et son installation Composer juste pour produire un
+// vrai .xlsx.
+function excel_output($filename, $title, $headers, $rows) {
+    header('Content-Type: application/vnd.ms-excel; charset=utf-8');
+    header('Content-Disposition: attachment; filename="'.$filename.'"');
+    echo "\xEF\xBB\xBF";
+    echo '<html><head><meta charset="UTF-8"></head><body>';
+    echo '<table border="1" cellspacing="0" cellpadding="6" style="border-collapse:collapse;font-family:Arial,sans-serif;font-size:12px">';
+    echo '<tr><td colspan="'.count($headers).'" style="background:#1d4ed8;color:#ffffff;font-size:15px;font-weight:bold;padding:10px">'.htmlspecialchars($title).'</td></tr>';
+    echo '<tr>';
+    foreach ($headers as $h) echo '<th style="background:#eff6ff;font-weight:bold;text-align:left;padding:6px;border:1px solid #cbd5e1">'.htmlspecialchars($h).'</th>';
+    echo '</tr>';
+    foreach ($rows as $row) {
+        echo '<tr>';
+        foreach ($row as $cell) echo '<td style="padding:6px;border:1px solid #cbd5e1">'.htmlspecialchars((string)$cell).'</td>';
+        echo '</tr>';
+    }
+    echo '</table></body></html>';
+    exit;
+}
+function finance_export_rows($bt, $period) {
     $pc = period_clause($period, 'delivered_at');
     $orders = q("SELECT * FROM orders WHERE boutique_id=? AND status='delivered' AND $pc ORDER BY delivered_at DESC", [$bt['id']])->fetchAll();
     $rows = [];
@@ -2351,8 +2373,17 @@ function finance_export($pl) {
         $rows[] = [$o['ref'], $o['delivered_at'], $o['customer_name'], $o['customer_phone'], $o['subtotal'],
                    $o['delivery_fee_charged'], $o['discount_amount'], $o['total'], $cost, (float)$o['total']-$cost];
     }
-    csv_output('finance-detaillee-'.$bt['slug'].'.csv',
-        ['Reference','Livree le','Client','Telephone','Sous-total','Frais livraison','Remise','Total','Cout produits','Marge'], $rows);
+    return [['Reference','Livree le','Client','Telephone','Sous-total','Frais livraison','Remise','Total','Cout produits','Marge'], $rows];
+}
+function finance_export($pl) {
+    $bt = require_boutique_owned($_GET['boutique_id'] ?? '', $pl['sub']);
+    [$headers, $rows] = finance_export_rows($bt, $_GET['period'] ?? '30d');
+    csv_output('finance-detaillee-'.$bt['slug'].'.csv', $headers, $rows);
+}
+function finance_export_excel($pl) {
+    $bt = require_boutique_owned($_GET['boutique_id'] ?? '', $pl['sub']);
+    [$headers, $rows] = finance_export_rows($bt, $_GET['period'] ?? '30d');
+    excel_output('finance-detaillee-'.$bt['slug'].'.xls', 'Finance detaillee - '.$bt['name'], $headers, $rows);
 }
 
 function finance_overview($pl) {
@@ -2638,18 +2669,26 @@ function route_analytics($action) {
         case 'live':     analytics_live($pl); break;
         case 'activity_log': analytics_activity_log($pl); break;
         case 'export':       analytics_export($pl); break;
+        case 'export_excel': analytics_export_excel($pl); break;
         default: fail('Action inconnue', 404);
     }
 }
-function analytics_export($pl) {
-    $bt = require_boutique_owned($_GET['boutique_id'] ?? '', $pl['sub']);
-    $period = $_GET['period'] ?? '30d';
+function analytics_export_rows($bt, $period) {
     $pc = period_clause($period);
     $sales = q("SELECT DATE(created_at) d, COUNT(*) commandes, COALESCE(SUM(total),0) ventes
                 FROM orders WHERE boutique_id=? AND status<>'cancelled' AND $pc
                 GROUP BY DATE(created_at) ORDER BY d", [$bt['id']])->fetchAll();
-    $rows = array_map(fn($r) => [$r['d'], $r['commandes'], $r['ventes']], $sales);
-    csv_output('rapport-ventes-'.$bt['slug'].'.csv', ['Date','Commandes','Ventes'], $rows);
+    return [['Date','Commandes','Ventes'], array_map(fn($r) => [$r['d'], $r['commandes'], $r['ventes']], $sales)];
+}
+function analytics_export($pl) {
+    $bt = require_boutique_owned($_GET['boutique_id'] ?? '', $pl['sub']);
+    [$headers, $rows] = analytics_export_rows($bt, $_GET['period'] ?? '30d');
+    csv_output('rapport-ventes-'.$bt['slug'].'.csv', $headers, $rows);
+}
+function analytics_export_excel($pl) {
+    $bt = require_boutique_owned($_GET['boutique_id'] ?? '', $pl['sub']);
+    [$headers, $rows] = analytics_export_rows($bt, $_GET['period'] ?? '30d');
+    excel_output('rapport-ventes-'.$bt['slug'].'.xls', 'Rapport de ventes - '.$bt['name'], $headers, $rows);
 }
 
 function analytics_report($pl) {

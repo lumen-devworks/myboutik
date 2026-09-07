@@ -385,6 +385,7 @@ function renderSection(bt, section) {
   (map[section] || renderHome)(bt);
 }
 
+const PERIOD_LABELS = {'7d':'7 derniers jours','30d':'30 derniers jours','90d':'90 derniers jours','all':'Depuis le début'};
 function periodSelectHtml(id, current) {
   return `<select id="${id}" onchange="window.__periodChange && window.__periodChange(this.value)" style="padding:8px 12px;border:1px solid var(--border);border-radius:9px;font-size:13px">
     <option value="7d" ${current==='7d'?'selected':''}>7 derniers jours</option>
@@ -489,6 +490,45 @@ function printOrderBordereau(orderId) {
       </body></html>`);
     win.document.close();
   });
+}
+// Ouvre un rapport mis en forme dans un nouvel onglet et lance
+// l'impression - meme mecanisme que le bordereau ci-dessus : le
+// navigateur propose "Enregistrer en PDF" comme destination d'impression,
+// ce qui donne un vrai PDF deja mis en page sans bibliotheque serveur.
+function openPrintReport(title, subtitle, bodyHtml) {
+  const win = window.open('', '_blank', 'width=800,height=900');
+  win.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(title)}</title>
+    <style>
+      body{font-family:Arial,sans-serif;color:#111;padding:24px;max-width:760px;margin:0 auto}
+      h1{font-size:20px;margin:0 0 2px}
+      .muted{color:#666;font-size:13px;margin-bottom:18px}
+      table{width:100%;border-collapse:collapse;margin:12px 0;font-size:13px}
+      th,td{padding:6px 8px;border-bottom:1px solid #ddd;text-align:left}
+      th{background:#eff6ff}
+      .kpis{display:flex;gap:12px;margin:14px 0}
+      .kpi{flex:1;border:1px solid #ddd;border-radius:8px;padding:10px}
+      .kpi .lbl{color:#666;font-size:11px;text-transform:uppercase}
+      .kpi .val{font-size:18px;font-weight:bold}
+    </style></head><body>
+    <h1>${escapeHtml(CURRENT.name)}</h1>
+    <div class="muted">${escapeHtml(title)} — ${escapeHtml(subtitle)}</div>
+    ${bodyHtml}
+    <script>window.onload = () => window.print();<\/script>
+    </body></html>`);
+  win.document.close();
+}
+function printFinanceDetailPdf() {
+  const F = window.__financeDetailData;
+  if (!F) return;
+  const kpis = `<div class="kpis">
+      <div class="kpi"><div class="lbl">Revenu</div><div class="val">${fmtMoney(F.total_revenue, CURRENT.currency)}</div></div>
+      <div class="kpi"><div class="lbl">Coût</div><div class="val">${fmtMoney(F.total_cost, CURRENT.currency)}</div></div>
+      <div class="kpi"><div class="lbl">Marge</div><div class="val">${fmtMoney(F.total_margin, CURRENT.currency)}</div></div>
+    </div>`;
+  const table = `<table><thead><tr><th>Réf</th><th>Client</th><th>Revenu</th><th>Coût</th><th>Marge</th></tr></thead><tbody>
+    ${F.rows.map(r=>'<tr><td>'+escapeHtml(r.ref)+'</td><td>'+escapeHtml(r.customer_name)+'</td><td>'+fmtMoney(r.total,CURRENT.currency)+'</td><td>'+fmtMoney(r.cost,CURRENT.currency)+'</td><td>'+fmtMoney(r.margin,CURRENT.currency)+'</td></tr>').join('')}
+    </tbody></table>`;
+  openPrintReport('Finance Détaillée', PERIOD_LABELS[window.__financeDetailPeriod]||'', kpis+table);
 }
 
 // ============================================================
@@ -901,9 +941,14 @@ function renderFinanceDetail(bt, period) {
   api('/finance?action=detail&boutique_id='+bt.id+'&period='+period).then(({data}) => {
     if (!data.success) { document.getElementById('content').innerHTML = '<div class="card">'+escapeHtml(data.message)+'</div>'; return; }
     const F = data.data;
+    window.__financeDetailData = F; window.__financeDetailPeriod = period;
+    const finExportBtns = F.rows.length ? `
+        <button class="btn btn-ghost btn-sm" onclick="downloadCsv('/finance?action=export&boutique_id=${bt.id}&period=${period}','finance-${bt.slug}.csv')">⬇️ CSV</button>
+        <button class="btn btn-ghost btn-sm" onclick="downloadCsv('/finance?action=export_excel&boutique_id=${bt.id}&period=${period}','finance-${bt.slug}.xls')">⬇️ Excel</button>
+        <button class="btn btn-ghost btn-sm" onclick="printFinanceDetailPdf()">🖨️ PDF</button>` : '';
     document.getElementById('content').innerHTML = `
       <div class="row-between"><div><h2 class="page-title">Finance Détaillée</h2><div class="page-sub">${F.rows.length?('Marge par commande livrée.'):'Aucune commande livrée sur cette période.'}</div></div>
-        <div style="display:flex;gap:8px;align-items:center">${F.rows.length?'<button class="btn btn-ghost btn-sm" onclick="downloadCsv(\'/finance?action=export&boutique_id='+bt.id+'&period='+period+'\',\'finance-'+bt.slug+'.csv\')">⬇️ Exporter CSV</button>':''}${periodSelectHtml('finDetailPeriod', period)}</div></div>
+        <div style="display:flex;gap:8px;align-items:center">${finExportBtns}${periodSelectHtml('finDetailPeriod', period)}</div></div>
       ${F.rows.length ? `
       <div class="kpi-grid">
         <div class="kpi"><div class="lbl">Revenu</div><div class="val">${fmtMoney(F.total_revenue, bt.currency)}</div></div>
@@ -1424,9 +1469,15 @@ function renderReports(bt, period) {
   api('/analytics?action=report&boutique_id='+bt.id+'&period='+period).then(({data}) => {
     if (!data.success) { document.getElementById('content').innerHTML = '<div class="card">'+escapeHtml(data.message)+'</div>'; return; }
     const R = data.data;
+    window.__reportsData = R; window.__reportsPeriod = period;
     document.getElementById('content').innerHTML = `
       <div class="row-between"><div><h2 class="page-title">Rapports de ventes</h2><div class="page-sub">Suivez les performances de votre boutique.</div></div>
-        <div style="display:flex;gap:8px;align-items:center"><button class="btn btn-ghost btn-sm" onclick="downloadCsv('/analytics?action=export&boutique_id='+bt.id+'&period='+period,'rapport-ventes-'+bt.slug+'.csv')">⬇️ Exporter CSV</button>${periodSelectHtml('reportPeriod', period)}</div></div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <button class="btn btn-ghost btn-sm" onclick="downloadCsv('/analytics?action=export&boutique_id=${bt.id}&period=${period}','rapport-ventes-${bt.slug}.csv')">⬇️ CSV</button>
+          <button class="btn btn-ghost btn-sm" onclick="downloadCsv('/analytics?action=export_excel&boutique_id=${bt.id}&period=${period}','rapport-ventes-${bt.slug}.xls')">⬇️ Excel</button>
+          <button class="btn btn-ghost btn-sm" onclick="printReportsPdf()">🖨️ PDF</button>
+          ${periodSelectHtml('reportPeriod', period)}
+        </div></div>
       <div class="kpi-grid">
         <div class="kpi"><div class="lbl">Ventes brutes</div><div class="val">${fmtMoney(R.ventes_brutes, bt.currency)}</div></div>
         <div class="kpi"><div class="lbl">Commandes</div><div class="val">${R.commandes}</div></div>
@@ -1452,6 +1503,21 @@ function renderReports(bt, period) {
     `;
     window.__periodChange = p => renderReports(bt, p);
   });
+}
+function printReportsPdf() {
+  const R = window.__reportsData;
+  if (!R) return;
+  const kpis = `<div class="kpis">
+      <div class="kpi"><div class="lbl">Ventes brutes</div><div class="val">${fmtMoney(R.ventes_brutes, CURRENT.currency)}</div></div>
+      <div class="kpi"><div class="lbl">Commandes</div><div class="val">${R.commandes}</div></div>
+      <div class="kpi"><div class="lbl">Panier moyen</div><div class="val">${fmtMoney(R.panier_moyen, CURRENT.currency)}</div></div>
+      <div class="kpi"><div class="lbl">Livrées</div><div class="val">${R.livrees}</div></div>
+    </div>`;
+  const bestSellers = R.best_sellers.length ? `<h3 style="font-size:14px">Meilleures ventes</h3>
+    <table><thead><tr><th>Produit</th><th>Qté</th><th>Revenu</th></tr></thead><tbody>
+    ${R.best_sellers.map(p=>'<tr><td>'+escapeHtml(p.product_name||'—')+'</td><td>'+p.qty+'</td><td>'+fmtMoney(p.revenue,CURRENT.currency)+'</td></tr>').join('')}
+    </tbody></table>` : '';
+  openPrintReport('Rapport de ventes', PERIOD_LABELS[window.__reportsPeriod]||'', kpis+bestSellers);
 }
 function renderLive(bt) {
   document.getElementById('content').innerHTML = '<div class="empty">Chargement…</div>';
