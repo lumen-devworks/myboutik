@@ -878,9 +878,14 @@ function renderFinanceAds(bt, period) {
         F.by_product.map(p=>'<tr><td>'+escapeHtml(p.product_name||'—')+'</td><td>'+fmtMoney(p.spend,bt.currency)+'</td><td>'+fmtMoney(p.revenue,bt.currency)+'</td><td>'+(p.roas!==null?p.roas+'x':'—')+'</td></tr>').join('')+'</tbody></table>'
         : '<div class="empty">Aucune dépense attribuée à un produit.</div>'}</div>
       <h3 style="margin-bottom:10px">Dernières dépenses</h3>
-      <div class="card">${F.recent.length ? '<table><thead><tr><th>Date</th><th>Campagne</th><th>Montant</th><th></th></tr></thead><tbody>'+
-        F.recent.map(r=>'<tr><td>'+fmtDate(r.created_at)+'</td><td>'+escapeHtml(r.campaign_name||'—')+'</td><td>'+fmtMoney(r.amount,bt.currency)+'</td>'+
-          '<td>'+(r.campaign_name?'<button class="btn btn-ghost btn-sm" data-campaign="'+escapeHtml(r.campaign_name)+'" data-product-slug="'+escapeHtml(r.product_slug||'')+'" onclick="copyGeneratedAdLink(this.dataset.campaign,this.dataset.productSlug)">Copier le lien</button>':'')+'</td></tr>').join('')+'</tbody></table>'
+      <div class="card">${F.recent.length ? '<table><thead><tr><th>Date</th><th>Campagne</th><th>Produits</th><th>Montant</th><th></th></tr></thead><tbody>'+
+        F.recent.map(r=>'<tr><td>'+fmtDate(r.created_at)+'</td><td>'+escapeHtml(r.campaign_name||'—')+'</td>'+
+          '<td>'+(r.product_count>0?r.product_count+' produit'+(r.product_count>1?'s':''):'—')+'</td>'+
+          '<td>'+fmtMoney(r.amount,bt.currency)+'</td>'+
+          '<td>'+
+            (r.campaign_name?'<button class="btn btn-ghost btn-sm" data-campaign="'+escapeHtml(r.campaign_name)+'" data-product-slug="'+escapeHtml(r.product_slug||'')+'" onclick="copyGeneratedAdLink(this.dataset.campaign,this.dataset.productSlug)">Copier le lien</button> ':'')+
+            (r.product_count>0?'<button class="btn btn-ghost btn-sm" onclick="openAdExpenseDetail(\''+r.id+'\')">ROAS par produit</button>':'')+
+          '</td></tr>').join('')+'</tbody></table>'
         : '<div class="empty">Aucune dépense saisie pour l\'instant. Clique « Nouvelle dépense » pour commencer.</div>'}</div>
     `;
     window.__periodChange = p => renderFinanceAds(bt, p);
@@ -891,12 +896,18 @@ function openAddAdExpense() {
     const products = data.data || [];
     openModal(`<h2>Nouvelle dépense publicitaire</h2>
       <div class="field"><label>Nom de campagne</label><input id="adCampaign" oninput="updateAdCampaignLink()"></div>
-      <div class="field"><label>Produit lié (optionnel)</label><select id="adProduct" onchange="updateAdCampaignLink()"><option value="">—</option>${products.map(p=>'<option value="'+p.id+'" data-slug="'+escapeHtml(p.slug||'')+'">'+escapeHtml(p.name)+'</option>').join('')}</select></div>
+      <div class="field"><label>Produit(s) lié(s) (optionnel — cochez-en plusieurs pour un carrousel/une promo groupée)</label>
+        <div style="max-height:160px;overflow-y:auto;border:1px solid var(--border);border-radius:9px;padding:8px">
+          ${products.length ? products.map(p=>`<label style="display:flex;align-items:center;gap:8px;padding:4px 0;font-size:13px">
+            <input type="checkbox" class="adProductCheck" value="${p.id}" data-slug="${escapeHtml(p.slug||'')}" onchange="updateAdCampaignLink()"> ${escapeHtml(p.name)}
+          </label>`).join('') : '<div class="muted">Aucun produit dans le catalogue.</div>'}
+        </div>
+      </div>
       <div class="field"><label>Montant</label><input id="adAmount" type="number" min="1"></div>
       <div class="field" id="adLinkField" style="display:none">
         <label>Lien à utiliser dans votre publicité</label>
         <div class="field-row"><input id="adLinkInput" readonly><button type="button" class="btn btn-ghost" onclick="copyInput('adLinkInput')">Copier</button></div>
-        <div class="muted" style="margin-top:6px">Généré automatiquement à partir du nom de campagne — collez-le comme lien de destination de votre publicité.</div>
+        <div class="muted" style="margin-top:6px" id="adLinkHint"></div>
       </div>
       <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal()">Annuler</button><button class="btn btn-primary" onclick="submitAddAdExpense()">Enregistrer</button></div>`);
   });
@@ -905,18 +916,29 @@ function openAddAdExpense() {
 // de mise en minuscule/normalisation) : c'est cette meme valeur qui est
 // comparee cote serveur (orders.utm_campaign) a ad_expenses.campaign_name
 // pour calculer le ROAS - la moindre difference casserait le rattachement.
+// productSlug n'est ajoute (&p=) que pour un seul produit precis : un lien
+// ne peut ouvrir qu'une seule fiche a la fois, donc pour 0 ou plusieurs
+// produits on renvoie vers la boutique entiere (le suivi par campagne
+// fonctionne quand meme, quel que soit le produit achete).
 function buildAdLink(campaignName, productSlug) {
   if (!campaignName) return '';
   const base = window.location.origin + window.location.pathname.replace(/dashboard\/.*/, '') + 'store/index.html?b=' + encodeURIComponent(CURRENT.slug);
   const p = productSlug ? '&p=' + encodeURIComponent(productSlug) : '';
   return base + p + '&utm_campaign=' + encodeURIComponent(campaignName);
 }
+function selectedAdProductChecks() {
+  return Array.from(document.querySelectorAll('.adProductCheck:checked'));
+}
 function updateAdCampaignLink() {
   const name = document.getElementById('adCampaign').value.trim();
-  const sel = document.getElementById('adProduct');
-  const slug = sel.value ? (sel.selectedOptions[0].dataset.slug || '') : '';
+  const checked = selectedAdProductChecks();
+  const slug = checked.length === 1 ? checked[0].dataset.slug : '';
   const link = buildAdLink(name, slug);
   const field = document.getElementById('adLinkField');
+  const hint = document.getElementById('adLinkHint');
+  if (hint) hint.textContent = checked.length > 1
+    ? checked.length+' produits sélectionnés — le lien renvoie vers la boutique entière, le suivi se fait par campagne.'
+    : 'Collez ce lien comme destination de votre publicité.';
   field.style.display = link ? 'block' : 'none';
   if (link) document.getElementById('adLinkInput').value = link;
 }
@@ -926,7 +948,23 @@ function copyGeneratedAdLink(campaignName, productSlug) {
 }
 function submitAddAdExpense() {
   const amount = Number(document.getElementById('adAmount').value||0); if (amount<=0) return;
-  post('/finance?action=ad_expense_create', {boutique_id:CURRENT.id, amount, campaign_name:document.getElementById('adCampaign').value.trim(), product_id:document.getElementById('adProduct').value||null}).then(()=>{closeModal(); route();});
+  const product_ids = selectedAdProductChecks().map(c=>c.value);
+  post('/finance?action=ad_expense_create', {boutique_id:CURRENT.id, amount, campaign_name:document.getElementById('adCampaign').value.trim(), product_ids}).then(()=>{closeModal(); route();});
+}
+function openAdExpenseDetail(id) {
+  const periodEl = document.getElementById('finAdsPeriod');
+  const period = periodEl ? periodEl.value : '30d';
+  api('/finance?action=ad_expense_detail&boutique_id='+CURRENT.id+'&id='+id+'&period='+period).then(({data}) => {
+    if (!data.success) { alert(data.message); return; }
+    const D = data.data;
+    openModal(`<h2>${escapeHtml(D.campaign_name||'Dépense')} — ROAS par produit</h2>
+      <div class="page-sub">Budget de ${fmtMoney(D.total_amount, CURRENT.currency)} réparti à parts égales entre les ${D.products.length} produit(s) de ce groupe.</div>
+      <table><thead><tr><th>Produit</th><th>Part du budget</th><th>Revenu livré</th><th>ROAS</th></tr></thead><tbody>
+        ${D.products.map(p=>`<tr><td>${escapeHtml(p.product_name)}</td><td>${fmtMoney(p.spend_share, CURRENT.currency)}</td>
+          <td>${fmtMoney(p.revenue, CURRENT.currency)}</td><td>${p.roas!==null?p.roas+'x':'—'}</td></tr>`).join('')}
+      </tbody></table>
+      <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal()">Fermer</button></div>`);
+  });
 }
 
 // ============================================================

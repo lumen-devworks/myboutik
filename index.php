@@ -738,6 +738,22 @@ function route_install() {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )",
     "CREATE INDEX IF NOT EXISTS idx_adexpenses_boutique ON ad_expenses(boutique_id)",
+    // Plusieurs produits peuvent partager une meme depense publicitaire
+    // (ex: un carrousel Facebook qui met en avant 3 articles a la fois).
+    // ad_expenses.product_id reste pour compat (une seule ligne = un seul
+    // produit dans l'ancien systeme) mais n'est plus la source de verite :
+    // l'INSERT ci-dessous copie une bonne fois les anciennes lignes dans
+    // cette table, qui est ensuite la seule utilisee pour calculer le ROAS
+    // par produit (voir finance_ads()).
+    "CREATE TABLE IF NOT EXISTS ad_expense_products (
+        ad_expense_id VARCHAR(36) NOT NULL,
+        product_id VARCHAR(36) NOT NULL,
+        PRIMARY KEY (ad_expense_id, product_id)
+    )",
+    "CREATE INDEX IF NOT EXISTS idx_adexpenseproducts_product ON ad_expense_products(product_id)",
+    "INSERT INTO ad_expense_products (ad_expense_id, product_id)
+     SELECT id, product_id FROM ad_expenses WHERE product_id IS NOT NULL
+     ON CONFLICT DO NOTHING",
     "CREATE TABLE IF NOT EXISTS newsletter_subscribers (
         id VARCHAR(36) PRIMARY KEY,
         boutique_id VARCHAR(36) NOT NULL,
@@ -1942,6 +1958,7 @@ function route_finance($action) {
         case 'detail':             finance_detail($pl); break;
         case 'ads':                finance_ads($pl); break;
         case 'ad_expense_create':  finance_ad_expense_create($pl); break;
+        case 'ad_expense_detail':  finance_ad_expense_detail($pl); break;
         default: fail('Action inconnue', 404);
     }
 }
@@ -2118,10 +2135,18 @@ function finance_ads($pl) {
     // Ici $pcAd (non prefixe) serait ambigu : products a aussi une colonne
     // created_at, donc on qualifie explicitement celle de ad_expenses.
     $pcAdJoined = period_clause($period, 'ae.created_at');
-    $byProduct = q("SELECT ae.product_id, p.name AS product_name, COALESCE(SUM(ae.amount),0) AS spend
-                    FROM ad_expenses ae LEFT JOIN products p ON p.id = ae.product_id
-                    WHERE ae.boutique_id=? AND ae.product_id IS NOT NULL AND $pcAdJoined
-                    GROUP BY ae.product_id, p.name", [$bt['id']])->fetchAll();
+    // Quand une meme depense couvre plusieurs produits (carrousel, promo
+    // groupee), son montant est reparti a parts egales entre eux plutot que
+    // compte en entier pour chacun - sinon la somme des depenses "par
+    // produit" depasserait la depense totale reellement payee.
+    $byProduct = q("SELECT aep.product_id, p.name AS product_name, COALESCE(SUM(ae.amount / cnt.n), 0) AS spend
+                    FROM ad_expense_products aep
+                    JOIN ad_expenses ae ON ae.id = aep.ad_expense_id
+                    JOIN (SELECT ad_expense_id, COUNT(*)::float AS n FROM ad_expense_products GROUP BY ad_expense_id) cnt
+                         ON cnt.ad_expense_id = aep.ad_expense_id
+                    LEFT JOIN products p ON p.id = aep.product_id
+                    WHERE ae.boutique_id=? AND $pcAdJoined
+                    GROUP BY aep.product_id, p.name", [$bt['id']])->fetchAll();
     foreach ($byProduct as &$row) {
         $revenu = (float)q("SELECT COALESCE(SUM(oi.unit_price*oi.qty),0) s FROM order_items oi
                              JOIN orders o ON o.id = oi.order_id
@@ -2148,7 +2173,9 @@ function finance_ads($pl) {
     // product_slug permet au tableau de bord de reconstituer le lien exact
     // de la campagne (store/index.html?...&p=slug&utm_campaign=...) sans
     // avoir a le retaper - voir "Dernieres depenses" cote frontend.
-    $recent = q("SELECT ae.*, p.slug AS product_slug FROM ad_expenses ae LEFT JOIN products p ON p.id = ae.product_id
+    $recent = q("SELECT ae.*, p.slug AS product_slug,
+                 (SELECT COUNT(*) FROM ad_expense_products WHERE ad_expense_id=ae.id) AS product_count
+                 FROM ad_expenses ae LEFT JOIN products p ON p.id = ae.product_id
                  WHERE ae.boutique_id=? AND $pcAd ORDER BY ae.created_at DESC LIMIT 50", [$bt['id']])->fetchAll();
 
     ok([
@@ -2161,11 +2188,51 @@ function finance_ad_expense_create($pl) {
     $bt = require_boutique_owned($b['boutique_id'] ?? '', $pl['sub']);
     $amount = (float)($b['amount'] ?? 0);
     if ($amount <= 0) fail('Montant invalide');
+    // Accepte plusieurs produits (carrousel, promo groupee) ; product_id
+    // reste rempli seulement quand il n'y en a qu'un, par compatibilite
+    // avec l'ancien affichage - ad_expense_products est la vraie source
+    // pour le ROAS par produit des qu'il y en a plusieurs.
+    $productIds = array_values(array_unique(array_filter((array)($b['product_ids'] ?? []))));
+    if (!$productIds && !empty($b['product_id'])) $productIds = [$b['product_id']];
+    foreach ($productIds as $pid) { product_owned($pid, $bt['id']); }
     $id = uid();
+    $singleProductId = count($productIds) === 1 ? $productIds[0] : null;
     q("INSERT INTO ad_expenses (id,boutique_id,campaign_name,product_id,amount,spend_date)
        VALUES (?,?,?,?,?,COALESCE(?,CURRENT_DATE))",
-      [$id, $bt['id'], trim($b['campaign_name'] ?? ''), $b['product_id'] ?? null, $amount, $b['spend_date'] ?? null]);
+      [$id, $bt['id'], trim($b['campaign_name'] ?? ''), $singleProductId, $amount, $b['spend_date'] ?? null]);
+    foreach ($productIds as $pid) {
+        q("INSERT INTO ad_expense_products (ad_expense_id, product_id) VALUES (?,?) ON CONFLICT DO NOTHING", [$id, $pid]);
+    }
     ok(q("SELECT * FROM ad_expenses WHERE id=?", [$id])->fetch(), 'Depense publicitaire enregistree', 201);
+}
+
+// Detail par produit pour UNE depense precise (ex: un carrousel a 3
+// articles) - contrairement a finance_ads()?action=ads (qui agrege par
+// produit sur TOUTES les depenses de la periode), on isole ici uniquement
+// les produits lies a ce groupe, avec sa propre part du budget (partagee a
+// parts egales) et son propre revenu/ROAS.
+function finance_ad_expense_detail($pl) {
+    $bt = require_boutique_owned($_GET['boutique_id'] ?? '', $pl['sub']);
+    $expense = q("SELECT * FROM ad_expenses WHERE id=? AND boutique_id=?", [$_GET['id'] ?? '', $bt['id']])->fetch();
+    if (!$expense) fail('Depense introuvable', 404);
+    $products = q("SELECT p.id, p.name FROM ad_expense_products aep JOIN products p ON p.id=aep.product_id
+                   WHERE aep.ad_expense_id=? ORDER BY p.name", [$expense['id']])->fetchAll();
+    $n = max(1, count($products));
+    $sharePerProduct = (float)$expense['amount'] / $n;
+    $period = $_GET['period'] ?? '30d';
+    $pcOrder = period_clause($period);
+    $rows = [];
+    foreach ($products as $p) {
+        $revenu = (float)q("SELECT COALESCE(SUM(oi.unit_price*oi.qty),0) s FROM order_items oi
+                             JOIN orders o ON o.id = oi.order_id
+                             WHERE o.boutique_id=? AND o.status='delivered' AND oi.product_id=? AND $pcOrder",
+                            [$bt['id'], $p['id']])->fetch()['s'];
+        $rows[] = [
+            'product_id' => $p['id'], 'product_name' => $p['name'], 'spend_share' => $sharePerProduct,
+            'revenue' => $revenu, 'roas' => $sharePerProduct > 0 ? round($revenu / $sharePerProduct, 2) : null,
+        ];
+    }
+    ok(['campaign_name' => $expense['campaign_name'], 'total_amount' => (float)$expense['amount'], 'products' => $rows]);
 }
 
 // ============================================================
