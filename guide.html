@@ -149,9 +149,9 @@
         Pour suivre le retour d'une pub Facebook/TikTok (section 10), ajoutez <code>&utm_campaign=nom-de-la-campagne</code> :
         <ul>
           <li>Un seul produit : <code>store/index.html?b=votre-boutique&p=slug-produit&utm_campaign=nom-campagne</code></li>
-          <li>Plusieurs produits (promo générale) : <code>store/index.html?b=votre-boutique&utm_campaign=nom-campagne</code> (sans <code>&p=</code>)</li>
+          <li>Plusieurs produits (ou promo générale) : <code>store/index.html?b=votre-boutique&utm_campaign=nom-campagne</code> (sans <code>&p=</code>, car un seul lien ne peut ouvrir qu'une seule fiche produit à la fois)</li>
         </ul>
-        Utilisez exactement le même <code>nom-campagne</code> que celui saisi dans « + Nouvelle dépense » sur la page Publicités & ROAS.
+        Vous n'avez pas besoin de construire ce lien vous-même : dans « + Nouvelle dépense » (page Publicités & ROAS), le lien est généré automatiquement selon les produits que vous cochez, avec un bouton « Copier le lien ». Utilisez exactement le même <code>nom-campagne</code> que celui saisi dans ce formulaire.
       </div>
     </section>
 
@@ -200,10 +200,18 @@
       <h3>Comprendre Publicités & ROAS</h3>
       <ol>
         <li>Cliquez <strong>+ Nouvelle dépense</strong> à chaque campagne publicitaire lancée (Facebook, TikTok…).</li>
-        <li>Renseignez le montant dépensé, et si possible le produit mis en avant.</li>
-        <li>MYBOUTIK calcule le revenu attribué (ventes livrées de ce produit sur la période) et le ROAS = revenu ÷ dépense.</li>
-        <li>Pour suivre une campagne précise (pas juste un produit), ajoutez <code>&utm_campaign=nom-campagne</code> au lien de votre boutique dans votre publicité.</li>
+        <li>Renseignez le nom de la campagne et le montant dépensé, puis cochez le ou les produits mis en avant dans la liste (aucun produit coché = promo générale sur toute la boutique).</li>
+        <li>Le lien à utiliser dans votre publicité est généré automatiquement en dessous, avec un bouton « Copier le lien ».</li>
+        <li>MYBOUTIK calcule le revenu attribué (ventes livrées correspondantes sur la période) et le ROAS = revenu ÷ dépense.</li>
       </ol>
+      <div class="card">
+        <strong>Un seul produit ou plusieurs produits ?</strong>
+        <ul>
+          <li><strong>1 produit coché</strong> : le lien pointe directement sur sa fiche (<code>&p=slug</code>). La dépense apparaît dans le tableau « Par produit » avec son propre ROAS.</li>
+          <li><strong>2 produits cochés ou plus</strong> : le lien pointe sur la boutique entière (un lien ne peut pas ouvrir plusieurs fiches à la fois). Le budget est réparti à parts égales entre les produits cochés dans le tableau « Par produit ». Un bouton <strong>« ROAS par produit »</strong> apparaît alors dans « Dernières dépenses » pour voir le détail propre à cette campagne (budget, revenu et ROAS de chaque produit du groupe).</li>
+        </ul>
+      </div>
+      <p>Pour suivre une campagne précise indépendamment du produit (ex: comparer deux visuels de pub), retrouvez-la aussi dans le tableau « Par campagne » grâce au nom saisi.</p>
       <p>Un ROAS supérieur à 1 = la publicité rapporte plus qu'elle ne coûte.</p>
     </section>
 
