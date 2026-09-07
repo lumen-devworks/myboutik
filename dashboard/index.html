@@ -316,12 +316,35 @@ function closeSidebar() {
 // ============================================================
 // Vue "Mes boutiques"
 // ============================================================
+// Agrege les stats deja chargees par boutique (voir loadBoutiques()) - pas
+// besoin d'un nouvel appel serveur, tout est deja en memoire cote client.
+// Les montants sont regroupes par devise plutot que sommes en vrac : deux
+// boutiques en XOF et FCFA-ailleurs ne doivent jamais se retrouver
+// additionnees dans un seul total trompeur.
+function renderMultiBoutiqueSummary() {
+  if (BOUTIQUES.length < 2) return '';
+  const totalCommandes = BOUTIQUES.reduce((s,b)=>s+Number(b.stats.commandes),0);
+  const totalEnAttente = BOUTIQUES.reduce((s,b)=>s+Number(b.stats.en_attente),0);
+  const byCurrency = {};
+  BOUTIQUES.forEach(b => { byCurrency[b.currency] = (byCurrency[b.currency]||0) + Number(b.stats.ca_encaisse); });
+  const totalsHtml = Object.entries(byCurrency).map(([cur,amt]) => fmtMoney(amt, cur)).join(' + ');
+  return `<div class="card">
+    <h3>Vue d'ensemble — toutes boutiques</h3>
+    <div class="kpi-grid">
+      <div class="kpi"><div class="lbl">Boutiques</div><div class="val">${BOUTIQUES.length}</div></div>
+      <div class="kpi"><div class="lbl">Commandes (total)</div><div class="val">${totalCommandes}</div></div>
+      <div class="kpi"><div class="lbl">En attente</div><div class="val">${totalEnAttente}</div></div>
+      <div class="kpi"><div class="lbl">Revenus encaissés (total)</div><div class="val">${totalsHtml}</div></div>
+    </div>
+  </div>`;
+}
 function renderBoutiquesList() {
   const html = `
     <div class="row-between">
       <div><h2 class="page-title">Mes boutiques</h2><div class="page-sub">Choisissez la boutique à gérer, ou lancez-en une nouvelle.</div></div>
       <button class="btn btn-primary" onclick="openCreateBoutique()">+ Créer une boutique</button>
     </div>
+    ${renderMultiBoutiqueSummary()}
     <div id="boutiquesGrid" class="kpi-grid"></div>
   `;
   document.getElementById('content').innerHTML = html;
