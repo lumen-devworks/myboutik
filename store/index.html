@@ -95,7 +95,7 @@ function post(path, body) { return api(path, {method:'POST', body:JSON.stringify
 function fmtMoney(n, currency) { return Math.round(n||0).toLocaleString('fr-FR') + ' ' + (currency||'FCFA'); }
 function escapeHtml(s){ return (s==null?'':String(s)).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
-let BOUTIQUE = null, PRODUCTS = [], CART = JSON.parse(sessionStorage.getItem('myboutik_cart')||'[]');
+let BOUTIQUE = null, PRODUCTS = [], ACTIVE_PROMOS = [], CART = JSON.parse(sessionStorage.getItem('myboutik_cart')||'[]');
 
 function saveCart() { sessionStorage.setItem('myboutik_cart', JSON.stringify(CART)); renderCartCount(); }
 function renderCartCount() {
@@ -109,9 +109,9 @@ function renderCartCount() {
 if (!SLUG) {
   document.getElementById('root').innerHTML = '<div class="empty"><div class="big">🏬</div>Boutique introuvable.<br><span style="font-size:13px">Ajoutez ?b=nom-de-la-boutique a l\'adresse.</span></div>';
 } else {
-  Promise.all([api('/shop?action=boutique&slug='+encodeURIComponent(SLUG)), api('/shop?action=products&slug='+encodeURIComponent(SLUG))]).then(([bt, prods]) => {
+  Promise.all([api('/shop?action=boutique&slug='+encodeURIComponent(SLUG)), api('/shop?action=products&slug='+encodeURIComponent(SLUG)), api('/shop?action=active_promos&slug='+encodeURIComponent(SLUG))]).then(([bt, prods, promos]) => {
     if (!bt.data.success) { document.getElementById('root').innerHTML = '<div class="empty"><div class="big">🏬</div>Boutique introuvable ou fermee.</div>'; return; }
-    BOUTIQUE = bt.data.data; PRODUCTS = prods.data.data || [];
+    BOUTIQUE = bt.data.data; PRODUCTS = prods.data.data || []; ACTIVE_PROMOS = (promos.data.success && promos.data.data) || [];
     document.title = BOUTIQUE.name;
     renderShop();
     post('/shop?action=track_visit', {slug:SLUG, session_id:sessionId(), path:window.location.pathname, referrer:document.referrer});
@@ -137,6 +137,11 @@ function renderShop() {
         <button id="cartBtn" onclick="openCart()">🛒 Panier<span id="cartCount">0</span></button>
       </div>
     </div></header>
+    ${ACTIVE_PROMOS.length ? `<div class="wrap" style="padding-top:12px">
+      <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:10px 14px;font-size:14px;color:#1e40af">
+        🎉 ${ACTIVE_PROMOS.map(p => 'Code <strong>'+escapeHtml(p.code)+'</strong> : -'+(p.type==='percent' ? Number(p.value)+'%' : fmtMoney(p.value, BOUTIQUE.currency))).join(' &nbsp;|&nbsp; ')} — à saisir au moment de commander !
+      </div>
+    </div>` : ''}
     <div class="wrap">
       ${BOUTIQUE.description ? '<p style="color:var(--gray);margin:16px 0 0">'+escapeHtml(BOUTIQUE.description)+'</p>' : ''}
       ${PRODUCTS.length ? '<div class="products-grid">'+PRODUCTS.map(p => `
@@ -381,7 +386,11 @@ function applyPromoCode() {
   const code = document.getElementById('promoInput').value.trim();
   if (!code) return;
   const subtotal = CART.reduce((s,l)=>s+l.price*l.qty, 0);
-  post('/shop?action=validate_promo', {slug:SLUG, code, subtotal}).then(({data}) => {
+  // Le telephone n'existe que sur l'etape checkout (le champ n'apparait
+  // qu'a ce moment) - necessaire pour verifier un code reserve a un client
+  // precis (voir find_active_promo() cote serveur).
+  const phone = (document.getElementById('coPhone')||{}).value || '';
+  post('/shop?action=validate_promo', {slug:SLUG, code, subtotal, phone}).then(({data}) => {
     const msg = document.getElementById('promoMsg');
     if (!data.success) { if (msg) msg.innerHTML = '<div class="msg error">'+data.message+'</div>'; return; }
     APPLIED_PROMO = data.data;
@@ -402,7 +411,7 @@ function renderCartSheet(step) {
       <h2>Votre panier</h2>
       ${CART.length ? CART.map(l => `<div class="cart-line"><div>${escapeHtml(l.name)} × ${l.qty}<br><span style="color:var(--gray)">${fmtMoney(l.price,BOUTIQUE.currency)}</span></div><button onclick="removeFromCart('${l.key}')">✕</button></div>`).join('')
         : '<div class="empty" style="padding:30px 0"><div class="big">🛒</div>Votre panier est vide.</div>'}
-      ${CART.length ? promoFieldHtml()+totalsHtml+'<button class="btn btn-primary" onclick="renderCartSheet(\'checkout\')">Commander (paiement à la livraison)</button>' : ''}
+      ${CART.length ? totalsHtml+'<button class="btn btn-primary" onclick="renderCartSheet(\'checkout\')">Commander (paiement à la livraison)</button>' : ''}
     `;
     if (CART.length) trackAbandoned();
   } else if (step === 'checkout') {
@@ -413,6 +422,7 @@ function renderCartSheet(step) {
       <div class="field"><label>Nom complet</label><input id="coName"></div>
       <div class="field"><label>Téléphone</label><input id="coPhone" oninput="onCheckoutPhoneInput()"></div>
       <div class="field"><label>Adresse de livraison</label><textarea id="coAddress" rows="2"></textarea></div>
+      ${promoFieldHtml()}
       ${totalsHtml}
       <button class="btn btn-primary" id="coSubmitBtn" onclick="submitCheckout()">Confirmer la commande (paiement à la livraison)</button>
       <button class="btn btn-ghost" style="margin-top:8px" onclick="renderCartSheet('cart')">← Retour au panier</button>

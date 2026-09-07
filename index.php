@@ -854,6 +854,17 @@ function route_install() {
     )",
     "CREATE UNIQUE INDEX IF NOT EXISTS idx_promocodes_boutique_code ON promo_codes(boutique_id, UPPER(code))",
     "CREATE INDEX IF NOT EXISTS idx_promocodes_boutique ON promo_codes(boutique_id)",
+    // Ciblage par client (optionnel) : un code SANS aucune ligne ici reste
+    // ouvert a tous (comportement d'origine). Des qu'au moins un numero est
+    // associe, le code devient exclusif a ces numeros - voir
+    // find_active_promo(), qui refuse toute autre commande meme si le
+    // client a obtenu le code par un tiers.
+    "CREATE TABLE IF NOT EXISTS promo_code_customers (
+        promo_code_id VARCHAR(36) NOT NULL,
+        phone VARCHAR(30) NOT NULL,
+        PRIMARY KEY (promo_code_id, phone)
+    )",
+    "CREATE INDEX IF NOT EXISTS idx_promocodecustomers_promo ON promo_code_customers(promo_code_id)",
     // Avis clients sur une fiche produit - modere par le marchand
     // (status pending/approved/rejected) avant d'apparaitre sur la vitrine,
     // pour eviter le spam/les faux avis visibles immediatement.
@@ -1498,6 +1509,7 @@ function route_shop($action) {
         case 'newsletter':       shop_newsletter(); break;
         case 'contact_message':  shop_contact_message(); break;
         case 'validate_promo':   shop_validate_promo(); break;
+        case 'active_promos':    shop_active_promos(); break;
         case 'track_order':      shop_track_order(); break;
         case 'reviews':          shop_reviews(); break;
         case 'review_add':       shop_review_add(); break;
@@ -1554,29 +1566,53 @@ function shop_product() {
 
 // $code potentiellement invalide/expire -> null (jamais d'exception ici,
 // c'est a l'appelant de decider si c'est bloquant). La casse est ignoree
-// (voir l'index UPPER(code) dans route_install()).
-function find_active_promo($boutiqueId, $code) {
+// (voir l'index UPPER(code) dans route_install()). Un code SANS aucune
+// ligne dans promo_code_customers reste ouvert a tous (comportement
+// d'origine) ; des qu'au moins un numero lui est associe, seul ce(s)
+// numero(s) peuvent l'utiliser - meme si quelqu'un d'autre obtient le code
+// par un tiers, $phone absent/non liste le fait echouer ici.
+function find_active_promo($boutiqueId, $code, $phone = null) {
     $code = trim($code ?? '');
     if ($code === '') return null;
     $promo = q("SELECT * FROM promo_codes WHERE boutique_id=? AND UPPER(code)=UPPER(?) AND active=1", [$boutiqueId, $code])->fetch();
     if (!$promo) return null;
     if ($promo['expires_at'] && strtotime($promo['expires_at']) < time()) return null;
     if ($promo['max_uses'] !== null && (int)$promo['used_count'] >= (int)$promo['max_uses']) return null;
+    $targetCount = (int)q("SELECT COUNT(*) c FROM promo_code_customers WHERE promo_code_id=?", [$promo['id']])->fetch()['c'];
+    if ($targetCount > 0) {
+        $phone = trim($phone ?? '');
+        if ($phone === '') return null;
+        if (!q("SELECT 1 FROM promo_code_customers WHERE promo_code_id=? AND phone=?", [$promo['id'], $phone])->fetch()) return null;
+    }
     return $promo;
 }
 function promo_discount_amount($promo, $subtotal) {
     $discount = $promo['type'] === 'amount' ? (float)$promo['value'] : round($subtotal * ((float)$promo['value'] / 100), 2);
     return max(0, min($discount, $subtotal));
 }
-// Apercu du rabais avant de valider la commande (affiche au panier) - ne
-// consomme pas le code (used_count n'est incremente qu'au checkout reel).
+// Apercu du rabais avant de valider la commande (affiche au checkout, une
+// fois que le client a saisi son telephone - necessaire pour verifier un
+// code cible sur un client precis) - ne consomme pas le code (used_count
+// n'est incremente qu'au checkout reel).
 function shop_validate_promo() {
     $b = body();
     $bt = public_boutique_by_slug($b['slug'] ?? '');
     $subtotal = max(0, (float)($b['subtotal'] ?? 0));
-    $promo = find_active_promo($bt['id'], $b['code'] ?? '');
-    if (!$promo) fail('Code promo invalide ou expire', 404);
+    $promo = find_active_promo($bt['id'], $b['code'] ?? '', $b['phone'] ?? '');
+    if (!$promo) fail('Code promo invalide, expire, ou reserve a un autre client', 404);
     ok(['code'=>$promo['code'], 'type'=>$promo['type'], 'value'=>(float)$promo['value'], 'discount'=>promo_discount_amount($promo, $subtotal)]);
+}
+// Codes promo ouverts a tous (jamais les codes cibles sur un client precis -
+// ceux-la restent invisibles, communiques par le marchand lui-meme) -
+// affiches en bandeau public sur la vitrine (voir renderShop() cote store).
+function shop_active_promos() {
+    $bt = public_boutique_by_slug($_GET['slug'] ?? '');
+    ok(q("SELECT code, type, value FROM promo_codes pc
+          WHERE boutique_id=? AND active=1
+          AND (expires_at IS NULL OR expires_at > NOW())
+          AND (max_uses IS NULL OR used_count < max_uses)
+          AND NOT EXISTS (SELECT 1 FROM promo_code_customers WHERE promo_code_id=pc.id)
+          ORDER BY created_at DESC LIMIT 5", [$bt['id']])->fetchAll());
 }
 
 // Commande a la livraison : cree/retrouve le client par telephone, cree la
@@ -1653,7 +1689,7 @@ function shop_checkout() {
         $promoCodeUsed = null;
         $promoInput = trim($b['promo_code'] ?? '');
         if ($promoInput !== '') {
-            $promo = find_active_promo($bt['id'], $promoInput);
+            $promo = find_active_promo($bt['id'], $promoInput, $phone);
             if (!$promo) throw new Exception('Code promo invalide ou expire');
             $discountAmount = promo_discount_amount($promo, $subtotal);
             $promoCodeUsed = $promo['code'];
@@ -2624,7 +2660,17 @@ function route_marketing($action) {
 }
 function marketing_promo_list($pl) {
     $bt = require_boutique_owned($_GET['boutique_id'] ?? '', $pl['sub']);
-    ok(q("SELECT * FROM promo_codes WHERE boutique_id=? ORDER BY created_at DESC", [$bt['id']])->fetchAll());
+    ok(q("SELECT pc.*, COALESCE((SELECT string_agg(phone, ', ' ORDER BY phone) FROM promo_code_customers WHERE promo_code_id=pc.id), '') AS target_phones
+          FROM promo_codes pc WHERE pc.boutique_id=? ORDER BY pc.created_at DESC", [$bt['id']])->fetchAll());
+}
+// Remplace entierement la liste des numeros cibles par un code - une liste
+// vide rend le code ouvert a tous (voir find_active_promo()).
+function set_promo_targets($promoId, $phones) {
+    $phones = array_values(array_unique(array_filter(array_map('trim', (array)$phones))));
+    q("DELETE FROM promo_code_customers WHERE promo_code_id=?", [$promoId]);
+    foreach ($phones as $phone) {
+        q("INSERT INTO promo_code_customers (promo_code_id, phone) VALUES (?,?) ON CONFLICT DO NOTHING", [$promoId, $phone]);
+    }
 }
 // Limite le nombre de codes ACTIFS simultanement selon le plan du
 // proprietaire (voir PLANS.promo_limit) - un code desactive ou expire ne
@@ -2656,6 +2702,7 @@ function marketing_promo_create($pl) {
       [$id, $bt['id'], strtoupper($code), $type, $value,
        isset($b['max_uses']) && $b['max_uses'] !== '' ? (int)$b['max_uses'] : null,
        isset($b['expires_at']) && $b['expires_at'] !== '' ? $b['expires_at'] : null]);
+    set_promo_targets($id, $b['target_phones'] ?? []);
     log_activity($bt['id'], 'Code promo cree: '.strtoupper($code), $pl['sub']);
     ok(q("SELECT * FROM promo_codes WHERE id=?", [$id])->fetch(), 'Code promo cree', 201);
 }
@@ -2677,12 +2724,14 @@ function marketing_promo_update($pl) {
        isset($b['max_uses']) && $b['max_uses'] !== '' ? (int)$b['max_uses'] : null,
        isset($b['expires_at']) && $b['expires_at'] !== '' ? $b['expires_at'] : null,
        (int)$nowActive, $promo['id']]);
+    if (array_key_exists('target_phones', $b)) set_promo_targets($promo['id'], $b['target_phones']);
     ok(q("SELECT * FROM promo_codes WHERE id=?", [$promo['id']])->fetch(), 'Code promo mis a jour');
 }
 function marketing_promo_delete($pl) {
     $b = body();
     $bt = require_boutique_owned($b['boutique_id'] ?? '', $pl['sub']);
     $promo = promo_owned($b['id'] ?? '', $bt['id']);
+    q("DELETE FROM promo_code_customers WHERE promo_code_id=?", [$promo['id']]);
     q("DELETE FROM promo_codes WHERE id=?", [$promo['id']]);
     ok(null, 'Code promo supprime');
 }

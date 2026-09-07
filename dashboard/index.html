@@ -1518,14 +1518,16 @@ function renderMarketing(bt) {
       <h2 class="page-title">Marketing</h2><div class="page-sub">Codes promo, avis clients, signups newsletter et messages de contact.</div>
       <div class="card">
         <div class="row-between"><h3>Codes promo (${P.length})</h3><button class="btn btn-primary btn-sm" onclick="openPromoForm()">+ Nouveau code</button></div>
-        ${P.length ? `<table><thead><tr><th>Code</th><th>Réduction</th><th>Utilisations</th><th>Expire</th><th>Statut</th><th></th></tr></thead><tbody>
+        ${P.length ? `<table><thead><tr><th>Code</th><th>Réduction</th><th>Ciblage</th><th>Utilisations</th><th>Expire</th><th>Statut</th><th></th></tr></thead><tbody>
           ${P.map(p=>`<tr>
             <td><strong>${escapeHtml(p.code)}</strong></td>
             <td>${p.type==='percent' ? Number(p.value)+' %' : fmtMoney(p.value, bt.currency)}</td>
+            <td>${p.target_phones ? '<span title="'+escapeHtml(p.target_phones)+'">🔒 '+p.target_phones.split(',').length+' client(s)</span>' : '<span class="muted">Tous les clients</span>'}</td>
             <td>${p.used_count}${p.max_uses?' / '+p.max_uses:''}</td>
             <td>${p.expires_at ? fmtDate(p.expires_at) : '—'}</td>
             <td>${Number(p.active) ? '<span class="pill pill-delivered">Actif</span>' : '<span class="pill pill-refused">Désactivé</span>'}</td>
-            <td><button class="btn btn-ghost btn-sm" onclick="togglePromo('${p.id}',${p.active?0:1})">${Number(p.active)?'Désactiver':'Activer'}</button>
+            <td><button class="btn btn-ghost btn-sm" onclick='openPromoTargetsForm(${JSON.stringify(p).replace(/'/g,"&#39;")})'>Ciblage</button>
+              <button class="btn btn-ghost btn-sm" onclick="togglePromo('${p.id}',${p.active?0:1})">${Number(p.active)?'Désactiver':'Activer'}</button>
               <button class="btn btn-ghost btn-sm" onclick="deletePromo('${p.id}')">Supprimer</button></td>
           </tr>`).join('')}</tbody></table>` : '<div class="empty">Aucun code promo. Créez-en un pour proposer une réduction à vos clients.</div>'}
       </div>
@@ -1563,7 +1565,14 @@ function openPromoForm() {
       <div class="field"><label>Nombre d'utilisations max (optionnel)</label><input id="promoMaxUses" type="number" min="1"></div>
       <div class="field"><label>Expire le (optionnel)</label><input id="promoExpires" type="date"></div>
     </div>
+    <div class="field"><label>Réserver à des clients précis (optionnel)</label>
+      <textarea id="promoTargets" rows="3" placeholder="Un numéro de téléphone par ligne, ex:&#10;+225 07 00 00 00 00&#10;+225 05 45 93 76 65"></textarea>
+      <div class="muted" style="font-size:12px;margin-top:4px">Laissez vide pour un code ouvert à tous vos clients. Sinon, seuls les numéros listés ici pourront l'utiliser — même si quelqu'un d'autre l'obtient par un tiers.</div>
+    </div>
     <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal()">Annuler</button><button class="btn btn-primary" onclick="submitPromoForm()">Créer</button></div>`);
+}
+function parsePromoTargets(text) {
+  return text.split('\n').map(s=>s.trim()).filter(Boolean);
 }
 function submitPromoForm() {
   const code = document.getElementById('promoCode').value.trim();
@@ -1573,8 +1582,24 @@ function submitPromoForm() {
     boutique_id: CURRENT.id, code, type: document.getElementById('promoType').value, value,
     max_uses: document.getElementById('promoMaxUses').value || null,
     expires_at: document.getElementById('promoExpires').value || null,
+    target_phones: parsePromoTargets(document.getElementById('promoTargets').value),
   }).then(({data}) => {
     if (!data.success) { document.getElementById('promoMsg').innerHTML = '<div class="msg error">'+escapeHtml(data.message)+'</div>'; return; }
+    closeModal(); route();
+  });
+}
+function openPromoTargetsForm(p) {
+  openModal(`<h2>Ciblage — ${escapeHtml(p.code)}</h2>
+    <div id="promoTargetsMsg"></div>
+    <div class="field"><label>Clients autorisés à utiliser ce code (numéros de téléphone, un par ligne)</label>
+      <textarea id="promoTargets2" rows="5" placeholder="+225 07 00 00 00 00">${escapeHtml(p.target_phones ? p.target_phones.split(',').map(s=>s.trim()).join('\n') : '')}</textarea>
+      <div class="muted" style="font-size:12px;margin-top:4px">Videz complètement ce champ pour rendre le code ouvert à tous vos clients.</div>
+    </div>
+    <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal()">Annuler</button><button class="btn btn-primary" onclick="submitPromoTargetsForm('${p.id}')">Enregistrer</button></div>`);
+}
+function submitPromoTargetsForm(id) {
+  post('/marketing?action=promo_update', {boutique_id:CURRENT.id, id, target_phones: parsePromoTargets(document.getElementById('promoTargets2').value)}).then(({data}) => {
+    if (!data.success) { document.getElementById('promoTargetsMsg').innerHTML = '<div class="msg error">'+escapeHtml(data.message)+'</div>'; return; }
     closeModal(); route();
   });
 }
