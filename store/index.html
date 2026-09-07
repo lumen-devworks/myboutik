@@ -391,6 +391,7 @@ function checkoutFieldValues() {
     name: (document.getElementById('coName')||{}).value || '',
     phone: (document.getElementById('coPhone')||{}).value || '',
     address: (document.getElementById('coAddress')||{}).value || '',
+    email: (document.getElementById('coEmail')||{}).value || '',
   };
 }
 function applyPromoCode() {
@@ -432,6 +433,7 @@ function renderCartSheet(step, prefill) {
       <div class="field"><label>Téléphone</label><input id="coPhone" value="${escapeHtml(prefill.phone||'')}" oninput="onCheckoutPhoneInput()"></div>
       <div id="personalPromoHint"></div>
       <div class="field"><label>Adresse de livraison</label><textarea id="coAddress" rows="2">${escapeHtml(prefill.address||'')}</textarea></div>
+      <div class="field"><label>Email (optionnel — pour recevoir la confirmation de commande)</label><input id="coEmail" type="email" value="${escapeHtml(prefill.email||'')}"></div>
       ${promoFieldHtml()}
       ${totalsHtml}
       <button class="btn btn-primary" id="coSubmitBtn" onclick="submitCheckout()">Confirmer la commande (paiement à la livraison)</button>
@@ -499,13 +501,14 @@ function submitCheckout() {
   const name = document.getElementById('coName').value.trim();
   const phone = document.getElementById('coPhone').value.trim();
   const address = document.getElementById('coAddress').value.trim();
+  const email = document.getElementById('coEmail').value.trim();
   if (!name || !phone) { document.getElementById('checkoutMsg').innerHTML = '<div class="msg error">Nom et téléphone requis</div>'; return; }
   if (CART.length === 0) { document.getElementById('checkoutMsg').innerHTML = '<div class="msg error">Votre panier est vide</div>'; return; }
   const btn = document.getElementById('coSubmitBtn'); btn.disabled = true; btn.textContent = 'Envoi en cours…';
   const params = new URLSearchParams(window.location.search);
   post('/shop?action=checkout', {
     slug: SLUG, session_id: sessionId(),
-    customer: {name, phone, address},
+    customer: {name, phone, address, email},
     items: CART.map(l => ({product_id:l.product_id, variant_id:l.variant_id, qty:l.qty})),
     utm_source: params.get('utm_source')||'', utm_campaign: params.get('utm_campaign')||'',
     promo_code: APPLIED_PROMO ? APPLIED_PROMO.code : '',

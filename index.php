@@ -1712,14 +1712,15 @@ function shop_checkout() {
     $pdo = db();
     $pdo->beginTransaction();
     try {
+        $customerEmail = trim($customer['email'] ?? '');
         $customerRow = q("SELECT id FROM customers WHERE boutique_id=? AND phone=?", [$bt['id'], $phone])->fetch();
         if ($customerRow) {
             $customerId = $customerRow['id'];
-            q("UPDATE customers SET name=?, address=? WHERE id=?", [$name, $address, $customerId]);
+            q("UPDATE customers SET name=?, address=?, email=COALESCE(NULLIF(?,''), email) WHERE id=?", [$name, $address, $customerEmail, $customerId]);
         } else {
             $customerId = uid();
             q("INSERT INTO customers (id,boutique_id,name,phone,email,address) VALUES (?,?,?,?,?,?)",
-              [$customerId, $bt['id'], $name, $phone, trim($customer['email'] ?? ''), $address]);
+              [$customerId, $bt['id'], $name, $phone, $customerEmail, $address]);
         }
 
         $subtotal = 0;
@@ -1813,6 +1814,9 @@ function shop_checkout() {
         $pdo->commit();
         log_activity($bt['id'], 'Nouvelle commande '.$ref.' ('.$name.')');
         notify_new_order($bt, $ref, $name, $total);
+        if ($customerEmail !== '') {
+            notify_customer_order_confirmation($bt, $ref, $customerEmail, $name, $lineData, $subtotal, $deliveryFee, $discountAmount, $total, $address);
+        }
         ok(['ref'=>$ref, 'order_id'=>$orderId, 'total'=>$total], 'Commande enregistree', 201);
     } catch (Exception $e) {
         $pdo->rollBack();
@@ -1835,6 +1839,31 @@ function notify_new_order($bt, $ref, $customerName, $total) {
     if ($settings['notify_whatsapp_enabled'] && $settings['notify_whatsapp_number']) {
         send_whatsapp($settings['notify_whatsapp_number'], 'Nouvelle commande '.$ref.' - '.$bt['name']."\n".$summary);
     }
+}
+
+// Recu envoye au CLIENT (par opposition a notify_new_order() qui previent le
+// MARCHAND) - uniquement si une adresse email a ete renseignee au checkout
+// (le champ est optionnel, voir store/index.html). N'est jamais bloquant :
+// appele apres le commit de la transaction, une erreur d'envoi ne doit
+// jamais faire echouer une commande deja enregistree.
+function notify_customer_order_confirmation($bt, $ref, $email, $customerName, $lineData, $subtotal, $deliveryFee, $discountAmount, $total, $address) {
+    $currency = $bt['currency'] ?: 'XOF';
+    $lines = array_map(function($l) use ($currency) {
+        $label = $l['product']['name'].($l['variant'] ? ' - '.$l['variant']['name'] : '');
+        return '- '.$l['qty'].' x '.$label.' ('.number_format($l['unit_price'],0,',',' ').' '.$currency.')';
+    }, $lineData);
+    $body = "Bonjour $customerName,\n\n".
+        "Merci pour votre commande chez ".$bt['name']." !\n\n".
+        "Reference : $ref\n\n".
+        implode("\n", $lines)."\n\n".
+        "Sous-total : ".number_format($subtotal,0,',',' ')." $currency\n".
+        ($deliveryFee > 0 ? "Frais de livraison : ".number_format($deliveryFee,0,',',' ')." $currency\n" : '').
+        ($discountAmount > 0 ? "Remise : -".number_format($discountAmount,0,',',' ')." $currency\n" : '').
+        "Total a payer a la livraison : ".number_format($total,0,',',' ')." $currency\n\n".
+        "Adresse de livraison : $address\n\n".
+        "Vous serez contacte(e) pour la livraison. Paiement a la reception (paiement a la livraison).\n".
+        "Pour suivre votre commande, retournez sur la boutique et utilisez \"Suivre ma commande\" avec cette reference et votre telephone.";
+    send_email($email, 'Confirmation de votre commande '.$ref.' - '.$bt['name'], $body);
 }
 
 function shop_track_visit() {
