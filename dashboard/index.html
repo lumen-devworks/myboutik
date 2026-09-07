@@ -461,21 +461,35 @@ function printOrderBordereau(orderId) {
     if (!data.success) { alert(data.message); return; }
     const o = data.data;
     const d = o.delivery || {};
-    const itemsHtml = (o.items||[]).map(it => `<tr><td>${escapeHtml(it.product_name)}</td><td style="text-align:center">${it.qty}</td><td style="text-align:right">${fmtMoney(it.unit_price, CURRENT.currency)}</td></tr>`).join('');
-    const win = window.open('', '_blank', 'width=420,height=650');
-    win.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Bordereau ${escapeHtml(o.ref)}</title>
+    const itemsHtml = (o.items||[]).map(it => `<tr>
+        <td>${escapeHtml(it.product_name)}</td>
+        <td style="text-align:center">${it.qty}</td>
+        <td style="text-align:right">${fmtMoney(it.unit_price, CURRENT.currency)}</td>
+        <td style="text-align:right">${fmtMoney(it.unit_price*it.qty, CURRENT.currency)}</td>
+      </tr>`).join('');
+    const discount = Number(o.discount_amount||0);
+    const win = window.open('', '_blank', 'width=460,height=700');
+    win.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Facture ${escapeHtml(o.ref)}</title>
       <style>
-        body{font-family:Arial,sans-serif;font-size:13px;color:#111;padding:18px;max-width:380px}
-        h1{font-size:16px;margin:0 0 2px}
-        .muted{color:#666;font-size:12px;margin-bottom:14px}
+        body{font-family:Arial,sans-serif;font-size:13px;color:#111;padding:24px;max-width:420px;margin:0 auto}
+        h1{font-size:18px;margin:0 0 2px}
+        .muted{color:#666;font-size:12px}
+        .head-row{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px}
         table{width:100%;border-collapse:collapse;margin:10px 0}
-        th,td{padding:4px 2px;border-bottom:1px solid #ddd;font-size:12px;text-align:left}
-        .total{font-size:16px;font-weight:bold;text-align:right;margin-top:8px}
+        th{padding:5px 4px;border-bottom:2px solid #333;font-size:11px;text-align:left;text-transform:uppercase;color:#555}
+        td{padding:6px 4px;border-bottom:1px solid #eee;font-size:12px;text-align:left}
+        .totals td{border-bottom:none;padding:3px 4px}
+        .totals .grand td{border-top:2px solid #333;font-size:16px;font-weight:bold;padding-top:8px}
         .box{border:1px solid #ccc;border-radius:8px;padding:10px;margin:10px 0}
         .label{color:#666;font-size:11px;text-transform:uppercase;letter-spacing:.03em}
       </style></head><body>
-      <h1>${escapeHtml(CURRENT.name)}</h1>
-      <div class="muted">Bordereau de livraison — ${escapeHtml(o.ref)}</div>
+      <div class="head-row">
+        <div><h1>${escapeHtml(CURRENT.name)}</h1><div class="muted">Facture / Bordereau de livraison</div></div>
+        <div style="text-align:right">
+          <div><strong>${escapeHtml(o.ref)}</strong></div>
+          <div class="muted">${fmtDate(o.created_at)}</div>
+        </div>
+      </div>
       <div class="box">
         <div class="label">Client</div>
         <div><strong>${escapeHtml(o.customer_name)}</strong></div>
@@ -483,8 +497,16 @@ function printOrderBordereau(orderId) {
         <div>${escapeHtml(o.customer_address||'')}</div>
       </div>
       ${d.delivery_person_name ? `<div class="box"><div class="label">Livreur</div><div>${escapeHtml(d.delivery_person_name)}</div><div>${escapeHtml(d.delivery_person_phone||'')}</div></div>` : ''}
-      <table><thead><tr><th>Article</th><th style="text-align:center">Qté</th><th style="text-align:right">Prix unitaire</th></tr></thead><tbody>${itemsHtml}</tbody></table>
-      <div class="total">À encaisser : ${fmtMoney(o.total, CURRENT.currency)}</div>
+      <table>
+        <thead><tr><th>Article</th><th style="text-align:center">Qté</th><th style="text-align:right">Prix unitaire</th><th style="text-align:right">Montant</th></tr></thead>
+        <tbody>${itemsHtml}</tbody>
+      </table>
+      <table class="totals">
+        <tr><td>Sous-total</td><td style="text-align:right">${fmtMoney(o.subtotal, CURRENT.currency)}</td></tr>
+        <tr><td>Frais de livraison</td><td style="text-align:right">${fmtMoney(o.delivery_fee_charged, CURRENT.currency)}</td></tr>
+        ${discount > 0 ? '<tr><td>Remise'+(o.promo_code?' ('+escapeHtml(o.promo_code)+')':'')+'</td><td style="text-align:right">-'+fmtMoney(discount, CURRENT.currency)+'</td></tr>' : ''}
+        <tr class="grand"><td>À encaisser</td><td style="text-align:right">${fmtMoney(o.total, CURRENT.currency)}</td></tr>
+      </table>
       <div class="muted" style="margin-top:14px">Paiement à la livraison (COD). Merci de vérifier le montant avec le client avant remise du colis.</div>
       <script>window.onload = () => window.print();<\/script>
       </body></html>`);
