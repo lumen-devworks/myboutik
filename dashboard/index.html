@@ -1397,7 +1397,12 @@ function renderSettings(bt) {
         <div style="margin-top:8px"><img id="setLogoPreview" src="${escapeHtml(bt.logo_url||'')}" style="max-width:100px;max-height:100px;border-radius:8px;display:${bt.logo_url?'block':'none'}"></div>
         <input type="hidden" id="setLogo" value="${escapeHtml(bt.logo_url||'')}">
       </div>
-      <div class="field"><label>Lien public de la boutique</label><input value="store/index.html?b=${escapeHtml(bt.slug)}" readonly></div>
+      <div class="field"><label>Lien public de la boutique</label>
+        <div class="field-row">
+          <input id="storeLinkInput" value="${window.location.origin + window.location.pathname.replace(/dashboard\/.*/, '')}store/index.html?b=${escapeHtml(bt.slug)}" readonly>
+          <button type="button" class="btn btn-ghost" onclick="copyInput('storeLinkInput')">Copier</button>
+        </div>
+      </div>
       <div class="field"><label>Frais de livraison par défaut (facturé au client)</label><input id="setDeliveryFee" type="number" min="0" value="${bt.default_delivery_fee||0}"></div>
       <label style="display:flex;align-items:center;gap:8px;margin-bottom:14px"><input type="checkbox" id="setCod" ${bt.cod_enabled?'checked':''}> Paiement à la livraison activé</label>
       <button class="btn btn-primary" onclick="saveSettings()">Enregistrer</button>
@@ -1616,8 +1621,9 @@ function renderAffiliate() {
     `;
   });
 }
-function copyRefLink() {
-  const input = document.getElementById('refLinkInput');
+function copyRefLink() { copyInput('refLinkInput'); }
+function copyInput(id) {
+  const input = document.getElementById(id);
   input.select();
   navigator.clipboard && navigator.clipboard.writeText(input.value);
 }

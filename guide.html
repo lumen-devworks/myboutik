@@ -144,6 +144,15 @@
       <h2><span class="badge">6</span>Partager sa boutique</h2>
       <p>Le lien de votre vitrine publique est indiqué en bas de la page <strong>Paramètres → Général</strong> — de la forme <code>store/index.html?b=nom-de-votre-boutique</code>. C'est ce lien que vous partagez sur WhatsApp, Instagram, Facebook, etc.</p>
       <p>Pour partager directement une fiche produit précise (ex: dans un message WhatsApp), ajoutez <code>&p=slug-du-produit</code> à la fin du lien — le slug de chaque produit est visible/modifiable dans sa fiche.</p>
+      <div class="card">
+        <strong>Lien spécial pour une campagne publicitaire</strong>
+        Pour suivre le retour d'une pub Facebook/TikTok (section 10), ajoutez <code>&utm_campaign=nom-de-la-campagne</code> :
+        <ul>
+          <li>Un seul produit : <code>store/index.html?b=votre-boutique&p=slug-produit&utm_campaign=nom-campagne</code></li>
+          <li>Plusieurs produits (promo générale) : <code>store/index.html?b=votre-boutique&utm_campaign=nom-campagne</code> (sans <code>&p=</code>)</li>
+        </ul>
+        Utilisez exactement le même <code>nom-campagne</code> que celui saisi dans « + Nouvelle dépense » sur la page Publicités & ROAS.
+      </div>
     </section>
 
     <section id="commandes">
