@@ -2454,7 +2454,7 @@ function finance_ads($pl) {
     $recent = q("SELECT ae.*, p.slug AS product_slug,
                  (SELECT COUNT(*) FROM ad_expense_products WHERE ad_expense_id=ae.id) AS product_count
                  FROM ad_expenses ae LEFT JOIN products p ON p.id = ae.product_id
-                 WHERE ae.boutique_id=? AND $pcAd ORDER BY ae.created_at DESC LIMIT 50", [$bt['id']])->fetchAll();
+                 WHERE ae.boutique_id=? AND $pcAdJoined ORDER BY ae.created_at DESC LIMIT 50", [$bt['id']])->fetchAll();
 
     ok([
         'depense_totale'=>$depenseTotale, 'revenu_attribue'=>$revenuAttribueTotal, 'roas_global'=>$roasGlobal,
