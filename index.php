@@ -2145,7 +2145,11 @@ function finance_ads($pl) {
     $revenuAttribueTotal = array_sum(array_column($byProduct, 'revenue')) + array_sum(array_column($byCampaign, 'revenue'));
     $roasGlobal = $depenseTotale > 0 ? round($revenuAttribueTotal / $depenseTotale, 2) : null;
 
-    $recent = q("SELECT * FROM ad_expenses WHERE boutique_id=? AND $pcAd ORDER BY created_at DESC LIMIT 50", [$bt['id']])->fetchAll();
+    // product_slug permet au tableau de bord de reconstituer le lien exact
+    // de la campagne (store/index.html?...&p=slug&utm_campaign=...) sans
+    // avoir a le retaper - voir "Dernieres depenses" cote frontend.
+    $recent = q("SELECT ae.*, p.slug AS product_slug FROM ad_expenses ae LEFT JOIN products p ON p.id = ae.product_id
+                 WHERE ae.boutique_id=? AND $pcAd ORDER BY ae.created_at DESC LIMIT 50", [$bt['id']])->fetchAll();
 
     ok([
         'depense_totale'=>$depenseTotale, 'revenu_attribue'=>$revenuAttribueTotal, 'roas_global'=>$roasGlobal,
