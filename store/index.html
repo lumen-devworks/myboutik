@@ -64,6 +64,7 @@
 
 <div class="overlay" id="productOverlay"><div class="sheet" id="productSheet"></div></div>
 <div class="overlay" id="cartOverlay"><div class="sheet" id="cartSheet"></div></div>
+<div class="overlay" id="trackOverlay"><div class="sheet" id="trackSheet"></div></div>
 
 <script src="../config.js"></script>
 <script>
@@ -131,7 +132,10 @@ function renderShop() {
         ${BOUTIQUE.logo_url ? '<img src="'+escapeHtml(BOUTIQUE.logo_url)+'" style="width:36px;height:36px;border-radius:8px;object-fit:cover">' : ''}
         <div class="shop-name">${escapeHtml(BOUTIQUE.name)}</div>
       </div>
-      <button id="cartBtn" onclick="openCart()">🛒 Panier<span id="cartCount">0</span></button>
+      <div style="display:flex;align-items:center;gap:8px">
+        <button class="btn btn-ghost btn-sm" onclick="openTrackOrder()">📦 Suivre ma commande</button>
+        <button id="cartBtn" onclick="openCart()">🛒 Panier<span id="cartCount">0</span></button>
+      </div>
     </div></header>
     <div class="wrap">
       ${BOUTIQUE.description ? '<p style="color:var(--gray);margin:16px 0 0">'+escapeHtml(BOUTIQUE.description)+'</p>' : ''}
@@ -199,11 +203,84 @@ function openProduct(id) {
     ${variantHtml}
     <div class="qty-row"><button onclick="stepQty(-1)">-</button><span id="pdQty">1</span><button onclick="stepQty(1)">+</button></div>
     <button class="btn btn-primary" id="pdAddBtn" onclick="addToCart('${p.id}')">Ajouter au panier</button>
+    <div id="pdRelated"></div>
+    <div id="pdReviewsSection"></div>
   `;
   document.getElementById('productOverlay').classList.add('open');
   window.__pdQty = 1;
   window.__pdResolvedVariant = null;
   if (useOptionSelectors) resolveVariantSelection(p.id);
+  loadProductExtras(p.id);
+}
+// Fiche produit chargee depuis le cache PRODUCTS (liste) qui ne porte pas les
+// produits associes ni les avis - un second appel cible recupere ces
+// donnees sans alourdir le chargement initial du catalogue entier.
+function loadProductExtras(productId) {
+  api('/shop?action=product&slug='+SLUG+'&id='+productId).then(({data}) => {
+    if (!data.success) return;
+    renderRelatedProducts(data.data.related||[]);
+  });
+  loadReviews(productId);
+}
+function openProductBySlug(slug) {
+  const p = PRODUCTS.find(x => x.slug === slug);
+  if (p) openProduct(p.id);
+}
+function renderRelatedProducts(related) {
+  const el = document.getElementById('pdRelated');
+  if (!el) return;
+  if (!related.length) { el.innerHTML = ''; return; }
+  el.innerHTML = `<h3 style="margin-top:18px;font-size:15px">Vous aimerez aussi</h3>
+    <div style="display:flex;gap:10px;overflow-x:auto;padding-bottom:4px">
+      ${related.map(r => `<div onclick="openProductBySlug('${escapeHtml(r.slug)}')" style="min-width:110px;max-width:110px;cursor:pointer">
+        ${r.image_url ? '<img src="'+escapeHtml(r.image_url)+'" style="width:110px;height:110px;object-fit:cover;border-radius:8px">' : '<div class="ph" style="width:110px;height:110px;border-radius:8px">🛍️</div>'}
+        <div style="font-size:12px;margin-top:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(r.name)}</div>
+        <div style="font-size:12px;font-weight:700">${fmtMoney(r.price, BOUTIQUE.currency)}</div>
+      </div>`).join('')}
+    </div>`;
+}
+function loadReviews(productId) {
+  api('/shop?action=reviews&slug='+SLUG+'&product_id='+productId).then(({data}) => {
+    const rows = data.success ? (data.data||[]) : [];
+    const avg = rows.length ? (rows.reduce((s,r)=>s+Number(r.rating),0)/rows.length) : 0;
+    const el = document.getElementById('pdReviewsSection');
+    if (!el) return;
+    el.innerHTML = `<h3 style="margin-top:18px;font-size:15px">Avis clients ${rows.length?'('+rows.length+')':''}</h3>
+      ${rows.length ? '<div style="color:var(--gray);font-size:13px;margin-bottom:6px">'+'★'.repeat(Math.round(avg))+'☆'.repeat(5-Math.round(avg))+' '+avg.toFixed(1)+'/5</div>' : ''}
+      <div style="max-height:160px;overflow-y:auto">
+        ${rows.length ? rows.map(r => `<div style="border-bottom:1px solid var(--border);padding:8px 0">
+            <div style="font-weight:600;font-size:13px">${escapeHtml(r.customer_name)} — ${'★'.repeat(r.rating)}${'☆'.repeat(5-r.rating)}</div>
+            ${r.comment ? '<div style="font-size:13px;color:var(--gray)">'+escapeHtml(r.comment)+'</div>' : ''}
+          </div>`).join('') : '<div class="empty" style="padding:10px 0">Aucun avis pour le moment.</div>'}
+      </div>
+      <button class="btn btn-ghost btn-sm" style="margin-top:8px" onclick="toggleReviewForm('${productId}')">Laisser un avis</button>
+      <div id="reviewFormWrap"></div>`;
+  });
+}
+function toggleReviewForm(productId) {
+  const wrap = document.getElementById('reviewFormWrap');
+  if (!wrap) return;
+  wrap.innerHTML = `<div style="margin-top:10px">
+    <div id="reviewMsg"></div>
+    <div class="field"><label>Votre nom</label><input id="rvName"></div>
+    <div class="field"><label>Note</label><select id="rvRating">
+      <option value="5">★★★★★ Excellent</option><option value="4">★★★★☆ Très bien</option>
+      <option value="3">★★★☆☆ Correct</option><option value="2">★★☆☆☆ Moyen</option><option value="1">★☆☆☆☆ Décevant</option>
+    </select></div>
+    <div class="field"><label>Commentaire (optionnel)</label><textarea id="rvComment" rows="2"></textarea></div>
+    <button class="btn btn-primary btn-sm" onclick="submitReview('${productId}')">Envoyer</button>
+  </div>`;
+}
+function submitReview(productId) {
+  const name = document.getElementById('rvName').value.trim();
+  if (!name) { document.getElementById('reviewMsg').innerHTML = '<div class="msg error">Votre nom est requis</div>'; return; }
+  post('/shop?action=review_add', {
+    slug: SLUG, product_id: productId, customer_name: name,
+    rating: Number(document.getElementById('rvRating').value), comment: document.getElementById('rvComment').value.trim(),
+  }).then(({data}) => {
+    if (!data.success) { document.getElementById('reviewMsg').innerHTML = '<div class="msg error">'+data.message+'</div>'; return; }
+    document.getElementById('reviewFormWrap').innerHTML = '<div class="msg success">'+data.message+'</div>';
+  });
 }
 function renderPriceHtml(price, compareAt) {
   const main = '<span style="font-weight:800;font-size:20px;color:var(--blue)">'+fmtMoney(price, BOUTIQUE.currency)+'</span>';
@@ -283,23 +360,49 @@ function computeDeliveryFee() {
   });
   return fee;
 }
+let APPLIED_PROMO = null; // {code, type, value, discount} - revalide de toute facon au checkout reel
+function cartTotalsHtml(subtotal, deliveryFee) {
+  const discount = APPLIED_PROMO ? Math.min(APPLIED_PROMO.discount, subtotal) : 0;
+  const total = Math.max(0, subtotal + deliveryFee - discount);
+  return `<div class="cart-line"><div>Sous-total</div><div>${fmtMoney(subtotal, BOUTIQUE.currency)}</div></div>
+       ${deliveryFee > 0 ? '<div class="cart-line"><div>Frais de livraison</div><div>'+fmtMoney(deliveryFee, BOUTIQUE.currency)+'</div></div>' : ''}
+       ${discount > 0 ? '<div class="cart-line" style="color:var(--green,#16a34a)"><div>Code '+escapeHtml(APPLIED_PROMO.code)+'</div><div>-'+fmtMoney(discount, BOUTIQUE.currency)+'</div></div>' : ''}
+       <div class="cart-total"><div>Total</div><div>${fmtMoney(total, BOUTIQUE.currency)}</div></div>`;
+}
+function promoFieldHtml() {
+  return `<div class="field-row" style="margin:10px 0">
+    <input id="promoInput" placeholder="Code promo" value="${APPLIED_PROMO?escapeHtml(APPLIED_PROMO.code):''}" ${APPLIED_PROMO?'disabled':''}>
+    ${APPLIED_PROMO
+      ? '<button class="btn btn-ghost" onclick="removePromoCode()">Retirer</button>'
+      : '<button class="btn btn-ghost" onclick="applyPromoCode()">Appliquer</button>'}
+  </div><div id="promoMsg"></div>`;
+}
+function applyPromoCode() {
+  const code = document.getElementById('promoInput').value.trim();
+  if (!code) return;
+  const subtotal = CART.reduce((s,l)=>s+l.price*l.qty, 0);
+  post('/shop?action=validate_promo', {slug:SLUG, code, subtotal}).then(({data}) => {
+    const msg = document.getElementById('promoMsg');
+    if (!data.success) { if (msg) msg.innerHTML = '<div class="msg error">'+data.message+'</div>'; return; }
+    APPLIED_PROMO = data.data;
+    renderCartSheet(window.__cartStep||'cart');
+  });
+}
+function removePromoCode() { APPLIED_PROMO = null; renderCartSheet(window.__cartStep||'cart'); }
+
 function renderCartSheet(step) {
   step = step || 'cart';
+  window.__cartStep = step;
   const subtotal = CART.reduce((s,l)=>s+l.price*l.qty, 0);
   const deliveryFee = computeDeliveryFee();
-  const total = subtotal + deliveryFee;
-  const totalsHtml = deliveryFee > 0
-    ? `<div class="cart-line"><div>Sous-total</div><div>${fmtMoney(subtotal, BOUTIQUE.currency)}</div></div>
-       <div class="cart-line"><div>Frais de livraison</div><div>${fmtMoney(deliveryFee, BOUTIQUE.currency)}</div></div>
-       <div class="cart-total"><div>Total</div><div>${fmtMoney(total, BOUTIQUE.currency)}</div></div>`
-    : `<div class="cart-total"><div>Total</div><div>${fmtMoney(total, BOUTIQUE.currency)}</div></div>`;
+  const totalsHtml = cartTotalsHtml(subtotal, deliveryFee);
   if (step === 'cart') {
     document.getElementById('cartSheet').innerHTML = `
       <button class="close" onclick="closeOverlay('cartOverlay')">✕</button>
       <h2>Votre panier</h2>
       ${CART.length ? CART.map(l => `<div class="cart-line"><div>${escapeHtml(l.name)} × ${l.qty}<br><span style="color:var(--gray)">${fmtMoney(l.price,BOUTIQUE.currency)}</span></div><button onclick="removeFromCart('${l.key}')">✕</button></div>`).join('')
         : '<div class="empty" style="padding:30px 0"><div class="big">🛒</div>Votre panier est vide.</div>'}
-      ${CART.length ? totalsHtml+'<button class="btn btn-primary" onclick="renderCartSheet(\'checkout\')">Commander (paiement à la livraison)</button>' : ''}
+      ${CART.length ? promoFieldHtml()+totalsHtml+'<button class="btn btn-primary" onclick="renderCartSheet(\'checkout\')">Commander (paiement à la livraison)</button>' : ''}
     `;
     if (CART.length) trackAbandoned();
   } else if (step === 'checkout') {
@@ -354,15 +457,48 @@ function submitCheckout() {
     customer: {name, phone, address},
     items: CART.map(l => ({product_id:l.product_id, variant_id:l.variant_id, qty:l.qty})),
     utm_source: params.get('utm_source')||'', utm_campaign: params.get('utm_campaign')||'',
+    promo_code: APPLIED_PROMO ? APPLIED_PROMO.code : '',
   }).then(({data}) => {
     btn.disabled = false; btn.textContent = 'Confirmer la commande (paiement à la livraison)';
     if (!data.success) { document.getElementById('checkoutMsg').innerHTML = '<div class="msg error">'+data.message+'</div>'; return; }
     window.__lastOrderRef = data.data.ref;
-    CART = []; saveCart();
+    CART = []; saveCart(); APPLIED_PROMO = null;
     renderCartSheet('confirm');
   });
 }
 
+const TRACK_STATUS_LABELS = {pending:'En attente', processing:'Validée', shipped:'Expédiée', delivered:'Livrée', refused:'Refusée', cancelled:'Annulée'};
+const TRACK_DELIVERY_LABELS = {to_assign:'En attente d\'un livreur', assigned:'Livreur assigné', in_delivery:'En cours de livraison', delivered:'Livrée', refused:'Refusée'};
+function openTrackOrder() {
+  document.getElementById('trackSheet').innerHTML = `
+    <button class="close" onclick="closeOverlay('trackOverlay')">✕</button>
+    <h2>Suivre ma commande</h2>
+    <div id="trackMsg"></div>
+    <div class="field"><label>Numéro de commande</label><input id="trkRef" placeholder="CMD-..."></div>
+    <div class="field"><label>Téléphone utilisé à la commande</label><input id="trkPhone"></div>
+    <button class="btn btn-primary" onclick="submitTrackOrder()">Rechercher</button>
+    <div id="trackResult"></div>
+  `;
+  document.getElementById('trackOverlay').classList.add('open');
+}
+function submitTrackOrder() {
+  const ref = document.getElementById('trkRef').value.trim();
+  const phone = document.getElementById('trkPhone').value.trim();
+  if (!ref || !phone) { document.getElementById('trackMsg').innerHTML = '<div class="msg error">Numéro de commande et téléphone requis</div>'; return; }
+  post('/shop?action=track_order', {slug:SLUG, ref, phone}).then(({data}) => {
+    if (!data.success) { document.getElementById('trackMsg').innerHTML = '<div class="msg error">'+data.message+'</div>'; document.getElementById('trackResult').innerHTML=''; return; }
+    document.getElementById('trackMsg').innerHTML = '';
+    const o = data.data;
+    document.getElementById('trackResult').innerHTML = `
+      <div style="margin-top:14px;border:1px solid var(--border);border-radius:12px;padding:14px">
+        <div><strong>${escapeHtml(o.ref)}</strong> — ${TRACK_STATUS_LABELS[o.status]||o.status}</div>
+        ${o.delivery_status ? '<div style="color:var(--gray);font-size:13px;margin-top:4px">Livraison : '+(TRACK_DELIVERY_LABELS[o.delivery_status]||o.delivery_status)+'</div>' : ''}
+        ${o.delivery_person_name ? '<div style="color:var(--gray);font-size:13px">Livreur : '+escapeHtml(o.delivery_person_name)+' ('+escapeHtml(o.delivery_person_phone||'')+')</div>' : ''}
+        <div style="margin-top:10px">${(o.items||[]).map(it=>'<div style="font-size:13px">'+it.qty+' × '+escapeHtml(it.product_name)+'</div>').join('')}</div>
+        <div style="font-weight:700;margin-top:8px">Total : ${fmtMoney(o.total, BOUTIQUE.currency)}</div>
+      </div>`;
+  });
+}
 function subscribeNewsletter() {
   const email = document.getElementById('nlEmail').value.trim();
   post('/shop?action=newsletter', {slug:SLUG, email}).then(({data}) => {

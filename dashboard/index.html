@@ -177,6 +177,22 @@ function api(path, opts) {
     });
 }
 function post(path, body) { return api(path, {method:'POST', body:JSON.stringify(body||{})}); }
+// Les exports CSV renvoient un fichier (pas du JSON) et exigent quand meme le
+// header Authorization - impossible via un simple <a href>, donc on
+// telecharge en fetch() puis on declenche l'enregistrement via un <a> cache
+// pointant sur un blob: local.
+function downloadCsv(path, filename) {
+  fetch(API_URL+path, {headers:{'Authorization':'Bearer '+TOKEN}}).then(r => {
+    if (!r.ok) throw new Error('export impossible');
+    return r.blob();
+  }).then(blob => {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+  }).catch(() => alert('Export impossible. Réessayez plus tard.'));
+}
 function logout() { localStorage.removeItem('myboutik_token'); localStorage.removeItem('myboutik_user'); window.location.href = '../index.html'; }
 
 function fmtMoney(n, currency) { return Math.round(n||0).toLocaleString('fr-FR') + ' ' + (currency||'FCFA'); }
@@ -419,11 +435,11 @@ function renderHome(bt) {
 
 function renderOrdersTable(rows, bt, compact) {
   if (!rows.length) return '<div class="empty"><div class="big">🛍️</div>Aucune commande pour l\'instant.</div>';
-  return `<table><thead><tr><th>Réf</th><th>Client</th><th>Total</th><th>Statut</th>${compact?'':'<th>Date</th><th></th>'}</tr></thead><tbody>
+  return `<table><thead><tr><th>Réf</th><th>Client</th><th>Total</th><th>Statut</th>${compact?'':'<th>Date</th><th></th><th></th>'}</tr></thead><tbody>
     ${rows.map(o => `<tr>
       <td>${escapeHtml(o.ref)}</td><td>${escapeHtml(o.customer_name)}<br><span class="muted">${escapeHtml(o.customer_phone)}</span></td>
       <td>${fmtMoney(o.total, bt.currency)}</td><td>${pill(o.status)}</td>
-      ${compact?'':'<td>'+fmtDate(o.created_at)+'</td><td>'+orderStatusSelect(o)+'</td>'}
+      ${compact?'':'<td>'+fmtDate(o.created_at)+'</td><td>'+orderStatusSelect(o)+'</td><td><button class="btn btn-ghost btn-sm" onclick="printOrderBordereau(\''+o.id+'\')">🖨️ Bordereau</button></td>'}
     </tr>`).join('')}
   </tbody></table>`;
 }
@@ -434,6 +450,45 @@ function orderStatusSelect(o) {
 }
 function updateOrderStatus(id, status) {
   post('/orders?action=update_status', {boutique_id:CURRENT.id, id, status}).then(() => route());
+}
+
+// Bordereau imprimable a remettre au livreur : recu dans une fenetre a part
+// (pas dans le tableau de bord lui-meme) pour que window.print() n'imprime
+// que ce contenu, pas toute la barre laterale/le reste de la page.
+function printOrderBordereau(orderId) {
+  api('/orders?action=get&boutique_id='+CURRENT.id+'&id='+orderId).then(({data}) => {
+    if (!data.success) { alert(data.message); return; }
+    const o = data.data;
+    const d = o.delivery || {};
+    const itemsHtml = (o.items||[]).map(it => `<tr><td>${escapeHtml(it.product_name)}</td><td style="text-align:center">${it.qty}</td><td style="text-align:right">${fmtMoney(it.unit_price, CURRENT.currency)}</td></tr>`).join('');
+    const win = window.open('', '_blank', 'width=420,height=650');
+    win.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Bordereau ${escapeHtml(o.ref)}</title>
+      <style>
+        body{font-family:Arial,sans-serif;font-size:13px;color:#111;padding:18px;max-width:380px}
+        h1{font-size:16px;margin:0 0 2px}
+        .muted{color:#666;font-size:12px;margin-bottom:14px}
+        table{width:100%;border-collapse:collapse;margin:10px 0}
+        th,td{padding:4px 2px;border-bottom:1px solid #ddd;font-size:12px;text-align:left}
+        .total{font-size:16px;font-weight:bold;text-align:right;margin-top:8px}
+        .box{border:1px solid #ccc;border-radius:8px;padding:10px;margin:10px 0}
+        .label{color:#666;font-size:11px;text-transform:uppercase;letter-spacing:.03em}
+      </style></head><body>
+      <h1>${escapeHtml(CURRENT.name)}</h1>
+      <div class="muted">Bordereau de livraison — ${escapeHtml(o.ref)}</div>
+      <div class="box">
+        <div class="label">Client</div>
+        <div><strong>${escapeHtml(o.customer_name)}</strong></div>
+        <div>${escapeHtml(o.customer_phone)}</div>
+        <div>${escapeHtml(o.customer_address||'')}</div>
+      </div>
+      ${d.delivery_person_name ? `<div class="box"><div class="label">Livreur</div><div>${escapeHtml(d.delivery_person_name)}</div><div>${escapeHtml(d.delivery_person_phone||'')}</div></div>` : ''}
+      <table><thead><tr><th>Article</th><th style="text-align:center">Qté</th><th style="text-align:right">Prix</th></tr></thead><tbody>${itemsHtml}</tbody></table>
+      <div class="total">À encaisser : ${fmtMoney(o.total, CURRENT.currency)}</div>
+      <div class="muted" style="margin-top:14px">Paiement à la livraison (COD). Merci de vérifier le montant avec le client avant remise du colis.</div>
+      <script>window.onload = () => window.print();<\/script>
+      </body></html>`);
+    win.document.close();
+  });
 }
 
 // ============================================================
@@ -649,6 +704,8 @@ function renderAbandoned(bt) {
           <div class="field-row">
             <div class="field"><label>Considérer comme abandonné après (minutes)</label><input type="number" id="capTimeout" value="${S.timeout_minutes||15}"></div>
           </div>
+          <label style="display:flex;align-items:center;gap:8px;margin-bottom:10px"><input type="checkbox" id="capCustomerReminder" ${S.customer_reminder_enabled?'checked':''}> Relancer automatiquement le client (email/WhatsApp) 30 min après l'abandon</label>
+          <div class="muted" style="margin:-4px 0 10px;font-size:12px">Nécessite qu'un fournisseur d'envoi email/WhatsApp soit branché côté serveur pour être réellement envoyé (voir le guide).</div>
           <button class="btn btn-primary btn-sm" onclick="saveAbandonedSettings()">Enregistrer</button>
         </div>
         <div class="card">
@@ -662,7 +719,7 @@ function renderAbandoned(bt) {
     });
 }
 function saveAbandonedSettings() {
-  post('/orders?action=abandoned_settings_save', {boutique_id:CURRENT.id, capture_enabled:document.getElementById('capEnabled').checked, timeout_minutes:Number(document.getElementById('capTimeout').value||15)}).then(()=>route());
+  post('/orders?action=abandoned_settings_save', {boutique_id:CURRENT.id, capture_enabled:document.getElementById('capEnabled').checked, timeout_minutes:Number(document.getElementById('capTimeout').value||15), customer_reminder_enabled:document.getElementById('capCustomerReminder').checked}).then(()=>route());
 }
 function markAbandonedConverted(id) { post('/orders?action=abandoned_mark', {boutique_id:CURRENT.id, id, converted:true}).then(()=>route()); }
 
@@ -845,7 +902,8 @@ function renderFinanceDetail(bt, period) {
     if (!data.success) { document.getElementById('content').innerHTML = '<div class="card">'+escapeHtml(data.message)+'</div>'; return; }
     const F = data.data;
     document.getElementById('content').innerHTML = `
-      <div class="row-between"><div><h2 class="page-title">Finance Détaillée</h2><div class="page-sub">${F.rows.length?('Marge par commande livrée.'):'Aucune commande livrée sur cette période.'}</div></div>${periodSelectHtml('finDetailPeriod', period)}</div>
+      <div class="row-between"><div><h2 class="page-title">Finance Détaillée</h2><div class="page-sub">${F.rows.length?('Marge par commande livrée.'):'Aucune commande livrée sur cette période.'}</div></div>
+        <div style="display:flex;gap:8px;align-items:center">${F.rows.length?'<button class="btn btn-ghost btn-sm" onclick="downloadCsv(\'/finance?action=export&boutique_id='+bt.id+'&period='+period+'\',\'finance-'+bt.slug+'.csv\')">⬇️ Exporter CSV</button>':''}${periodSelectHtml('finDetailPeriod', period)}</div></div>
       ${F.rows.length ? `
       <div class="kpi-grid">
         <div class="kpi"><div class="lbl">Revenu</div><div class="val">${fmtMoney(F.total_revenue, bt.currency)}</div></div>
@@ -1008,15 +1066,21 @@ function goReorder(productId) {
   window.location.hash = '#/'+CURRENT.slug+'/products/supplier-orders';
 }
 function openProductForm(id) {
-  if (!id) { renderProductFormModal({}); return; }
-  api('/products?action=get&boutique_id='+CURRENT.id+'&id='+id).then(({data}) => {
-    if (!data.success) { alert(data.message); return; }
-    renderProductFormModal(data.data);
+  api('/products?action=list&boutique_id='+CURRENT.id).then(({data}) => {
+    const allProducts = data.data || [];
+    if (!id) { renderProductFormModal({}, allProducts); return; }
+    api('/products?action=get&boutique_id='+CURRENT.id+'&id='+id).then(({data}) => {
+      if (!data.success) { alert(data.message); return; }
+      renderProductFormModal(data.data, allProducts);
+    });
   });
 }
-function renderProductFormModal(p) {
-  p = p || {};
+function renderProductFormModal(p, allProducts) {
+  p = p || {}; allProducts = allProducts || [];
   window.__editingProductId = p.id || null;
+  let relatedIds = [];
+  try { relatedIds = p.related_product_ids ? JSON.parse(p.related_product_ids) : []; } catch(e) {}
+  const pickableProducts = allProducts.filter(x => x.id !== p.id);
   const images = p.images || [];
   openModal(`<h2>${p.id?'Modifier le produit':'Nouveau produit'}</h2>
     <div id="prodMsg"></div>
@@ -1075,6 +1139,14 @@ function renderProductFormModal(p) {
       <button type="button" class="btn btn-ghost btn-sm" id="addOptionBtn" onclick="addOptionRow()">+ Ajouter une option</button>
       <button type="button" class="btn btn-primary btn-sm" style="margin-left:8px" onclick="generateVariants()">Générer les variantes</button>
       <div id="variantsTableWrap" style="margin-top:12px"></div>
+    </div>
+    <div class="field">
+      <label>Produits associés (upsell affiché sur la fiche produit de la vitrine)</label>
+      ${pickableProducts.length ? `<div style="max-height:150px;overflow-y:auto;border:1px solid var(--border);border-radius:9px;padding:8px">
+        ${pickableProducts.map(rp => `<label style="display:flex;align-items:center;gap:8px;padding:3px 0">
+          <input type="checkbox" class="relatedProductCheck" value="${rp.id}" ${relatedIds.includes(rp.id)?'checked':''}> ${escapeHtml(rp.name)}
+        </label>`).join('')}
+      </div>` : '<div class="muted">Ajoutez d\'autres produits au catalogue pour pouvoir les proposer ici.</div>'}
     </div>
     <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal()">Annuler</button><button class="btn btn-primary" onclick="submitProductForm('${p.id||''}')">Enregistrer</button></div>`);
   window.__optionRows = [];
@@ -1237,6 +1309,7 @@ function submitProductForm(id) {
     low_stock_threshold: document.getElementById('prodLowStock').value,
     options_json: JSON.stringify((window.__optionRows||[]).filter(r => r.name && r.name.trim() && r.values && r.values.length)),
     variants: window.__productVariants || [],
+    related_product_ids: Array.from(document.querySelectorAll('.relatedProductCheck:checked')).map(c=>c.value),
   };
   if (!id) payload.image_url = document.getElementById('prodImage').value.trim();
   const action = id ? '/products?action=update' : '/products?action=create';
@@ -1352,7 +1425,8 @@ function renderReports(bt, period) {
     if (!data.success) { document.getElementById('content').innerHTML = '<div class="card">'+escapeHtml(data.message)+'</div>'; return; }
     const R = data.data;
     document.getElementById('content').innerHTML = `
-      <div class="row-between"><div><h2 class="page-title">Rapports de ventes</h2><div class="page-sub">Suivez les performances de votre boutique.</div></div>${periodSelectHtml('reportPeriod', period)}</div>
+      <div class="row-between"><div><h2 class="page-title">Rapports de ventes</h2><div class="page-sub">Suivez les performances de votre boutique.</div></div>
+        <div style="display:flex;gap:8px;align-items:center"><button class="btn btn-ghost btn-sm" onclick="downloadCsv('/analytics?action=export&boutique_id='+bt.id+'&period='+period,'rapport-ventes-'+bt.slug+'.csv')">⬇️ Exporter CSV</button>${periodSelectHtml('reportPeriod', period)}</div></div>
       <div class="kpi-grid">
         <div class="kpi"><div class="lbl">Ventes brutes</div><div class="val">${fmtMoney(R.ventes_brutes, bt.currency)}</div></div>
         <div class="kpi"><div class="lbl">Commandes</div><div class="val">${R.commandes}</div></div>
@@ -1433,10 +1507,41 @@ function renderHistory(bt) {
 // ============================================================
 function renderMarketing(bt) {
   document.getElementById('content').innerHTML = '<div class="empty">Chargement…</div>';
-  Promise.all([api('/marketing?action=newsletter&boutique_id='+bt.id), api('/marketing?action=messages&boutique_id='+bt.id)]).then(([nl, msg]) => {
+  Promise.all([
+    api('/marketing?action=newsletter&boutique_id='+bt.id), api('/marketing?action=messages&boutique_id='+bt.id),
+    api('/marketing?action=promo_list&boutique_id='+bt.id), api('/marketing?action=review_list&boutique_id='+bt.id),
+  ]).then(([nl, msg, promo, rev]) => {
     const N = nl.data.data || []; const M = msg.data.data || [];
+    const P = promo.data.data || []; const R = rev.data.data || [];
+    window.__marketingReviews = R;
     document.getElementById('content').innerHTML = `
-      <h2 class="page-title">Messages & abonnés</h2><div class="page-sub">Signups de la newsletter et messages du formulaire de contact de votre boutique.</div>
+      <h2 class="page-title">Marketing</h2><div class="page-sub">Codes promo, avis clients, signups newsletter et messages de contact.</div>
+      <div class="card">
+        <div class="row-between"><h3>Codes promo (${P.length})</h3><button class="btn btn-primary btn-sm" onclick="openPromoForm()">+ Nouveau code</button></div>
+        ${P.length ? `<table><thead><tr><th>Code</th><th>Réduction</th><th>Utilisations</th><th>Expire</th><th>Statut</th><th></th></tr></thead><tbody>
+          ${P.map(p=>`<tr>
+            <td><strong>${escapeHtml(p.code)}</strong></td>
+            <td>${p.type==='percent' ? Number(p.value)+' %' : fmtMoney(p.value, bt.currency)}</td>
+            <td>${p.used_count}${p.max_uses?' / '+p.max_uses:''}</td>
+            <td>${p.expires_at ? fmtDate(p.expires_at) : '—'}</td>
+            <td>${Number(p.active) ? '<span class="pill pill-delivered">Actif</span>' : '<span class="pill pill-refused">Désactivé</span>'}</td>
+            <td><button class="btn btn-ghost btn-sm" onclick="togglePromo('${p.id}',${p.active?0:1})">${Number(p.active)?'Désactiver':'Activer'}</button>
+              <button class="btn btn-ghost btn-sm" onclick="deletePromo('${p.id}')">Supprimer</button></td>
+          </tr>`).join('')}</tbody></table>` : '<div class="empty">Aucun code promo. Créez-en un pour proposer une réduction à vos clients.</div>'}
+      </div>
+      <div class="card">
+        <h3>Avis clients (${R.length})</h3>
+        ${R.length ? `<table><thead><tr><th>Produit</th><th>Client</th><th>Note</th><th>Commentaire</th><th>Statut</th><th></th></tr></thead><tbody>
+          ${R.map(r=>`<tr>
+            <td>${escapeHtml(r.product_name||'—')}</td><td>${escapeHtml(r.customer_name)}</td>
+            <td>${'★'.repeat(r.rating)}${'☆'.repeat(5-r.rating)}</td>
+            <td>${escapeHtml(r.comment||'')}</td>
+            <td>${r.status==='approved'?'<span class="pill pill-delivered">Publié</span>':r.status==='rejected'?'<span class="pill pill-refused">Rejeté</span>':'<span class="pill pill-pending">En attente</span>'}</td>
+            <td>${r.status!=='approved'?'<button class="btn btn-ghost btn-sm" onclick="moderateReview(\''+r.id+'\',\'approved\')">Publier</button>':''}
+              ${r.status!=='rejected'?'<button class="btn btn-ghost btn-sm" onclick="moderateReview(\''+r.id+'\',\'rejected\')">Rejeter</button>':''}
+              <button class="btn btn-ghost btn-sm" onclick="deleteReview('${r.id}')">Supprimer</button></td>
+          </tr>`).join('')}</tbody></table>` : '<div class="empty">Aucun avis pour le moment.</div>'}
+      </div>
       <div class="card"><h3>Abonnés newsletter (${N.length})</h3>
         ${N.length ? '<table><thead><tr><th>Email</th><th>Inscrit le</th></tr></thead><tbody>'+N.map(n=>'<tr><td>'+escapeHtml(n.email)+'</td><td>'+fmtDate(n.created_at)+'</td></tr>').join('')+'</tbody></table>' : '<div class="empty">Aucun abonné pour le moment.</div>'}
       </div>
@@ -1445,6 +1550,38 @@ function renderMarketing(bt) {
       </div>
     `;
   });
+}
+function openPromoForm() {
+  openModal(`<h2>Nouveau code promo</h2>
+    <div id="promoMsg"></div>
+    <div class="field"><label>Code</label><input id="promoCode" placeholder="Ex: PROMO10" style="text-transform:uppercase"></div>
+    <div class="field-row">
+      <div class="field"><label>Type</label><select id="promoType"><option value="percent">Pourcentage (%)</option><option value="amount">Montant fixe</option></select></div>
+      <div class="field"><label>Valeur</label><input id="promoValue" type="number" min="1"></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>Nombre d'utilisations max (optionnel)</label><input id="promoMaxUses" type="number" min="1"></div>
+      <div class="field"><label>Expire le (optionnel)</label><input id="promoExpires" type="date"></div>
+    </div>
+    <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal()">Annuler</button><button class="btn btn-primary" onclick="submitPromoForm()">Créer</button></div>`);
+}
+function submitPromoForm() {
+  const code = document.getElementById('promoCode').value.trim();
+  const value = Number(document.getElementById('promoValue').value||0);
+  if (!code || value<=0) { document.getElementById('promoMsg').innerHTML = '<div class="msg error">Code et valeur requis</div>'; return; }
+  post('/marketing?action=promo_create', {
+    boutique_id: CURRENT.id, code, type: document.getElementById('promoType').value, value,
+    max_uses: document.getElementById('promoMaxUses').value || null,
+    expires_at: document.getElementById('promoExpires').value || null,
+  }).then(({data}) => {
+    if (!data.success) { document.getElementById('promoMsg').innerHTML = '<div class="msg error">'+escapeHtml(data.message)+'</div>'; return; }
+    closeModal(); route();
+  });
+}
+function togglePromo(id, active) { post('/marketing?action=promo_update', {boutique_id:CURRENT.id, id, active}).then(({data})=>{ if(!data.success){alert(data.message);return;} route(); }); }
+function deletePromo(id) { if(!confirm('Supprimer ce code promo ?')) return; post('/marketing?action=promo_delete', {boutique_id:CURRENT.id, id}).then(()=>route()); }
+function moderateReview(id, status) { post('/marketing?action=review_moderate', {boutique_id:CURRENT.id, id, status}).then(()=>route()); }
+function deleteReview(id) { if(!confirm('Supprimer cet avis ?')) return; post('/marketing?action=review_delete', {boutique_id:CURRENT.id, id}).then(()=>route());
 }
 
 // ============================================================
@@ -1482,6 +1619,7 @@ function renderSettings(bt) {
       <label style="display:flex;align-items:center;gap:8px;margin-bottom:10px"><input type="checkbox" id="setNotifyWhatsapp" ${bt.notify_whatsapp_enabled?'checked':''}> Recevoir une notification WhatsApp à chaque nouvelle commande</label>
       <div class="field"><label>Numéro WhatsApp (format international, ex: +225 07 00 00 00 00)</label><input id="setNotifyWhatsappNumber" value="${escapeHtml(bt.notify_whatsapp_number||'')}"></div>
       <div class="muted" style="margin:-6px 0 14px;font-size:12px">L'envoi réel n'est pas encore branché (nécessite un compte WhatsApp Business API) — en attendant, le message est journalisé côté serveur pour test.</div>
+      <label style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><input type="checkbox" id="setStockAlert" ${bt.stock_alert_enabled!=0?'checked':''}> M'alerter automatiquement quand un produit passe en stock limité (au plus 1 fois/jour)</label>
       <button class="btn btn-primary" onclick="saveSettings()">Enregistrer</button>
     </div>
   `;
@@ -1506,6 +1644,7 @@ function saveSettings() {
     notify_email:document.getElementById('setNotifyAddr').value.trim(),
     notify_whatsapp_enabled:document.getElementById('setNotifyWhatsapp').checked,
     notify_whatsapp_number:document.getElementById('setNotifyWhatsappNumber').value.trim(),
+    stock_alert_enabled:document.getElementById('setStockAlert').checked,
   }).then(({data}) => {
     if (!data.success) { document.getElementById('settingsMsg').innerHTML = '<div class="msg error">'+data.message+'</div>'; return; }
     document.getElementById('settingsMsg').innerHTML = '<div class="msg success">Enregistré</div>';

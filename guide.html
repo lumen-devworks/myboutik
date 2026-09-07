@@ -62,7 +62,8 @@
     <a href="#abonnement"><span class="num">15</span>Abonnement</a>
     <a href="#affiliation"><span class="num">16</span>Affiliation</a>
     <a href="#grade"><span class="num">17</span>Mon grade</a>
-    <a href="#faq"><span class="num">18</span>Questions fréquentes</a>
+    <a href="#marketing-avance"><span class="num">18</span>Codes promo & avis clients</a>
+    <a href="#faq"><span class="num">19</span>Questions fréquentes</a>
   </nav>
   <main>
     <h1>Guide d'utilisation MYBOUTIK</h1>
@@ -110,6 +111,7 @@
         <tr><td>Alerte stock limité</td><td>Seuil en dessous duquel vous serez alerté (page Produits) pour recommander.</td></tr>
       </table>
       <p><strong>Photos</strong> : jusqu'à 12 par produit. Utilisez « Choisir un fichier » (galerie) ou « 📷 Prendre une photo » (ouvre directement l'appareil photo sur téléphone). La première photo ajoutée devient l'image principale ; vous pouvez en définir une autre comme principale, ou en supprimer, à tout moment.</p>
+      <p><strong>Produits associés</strong> : en bas du formulaire, cochez d'autres produits de votre catalogue à proposer en « Vous aimerez aussi » sur la fiche de ce produit côté vitrine — utile pour l'upsell (ex: proposer une housse avec un téléphone).</p>
     </section>
 
     <section id="variantes">
@@ -167,11 +169,13 @@
         <tr><td>Refusée</td><td>Le client a refusé à la livraison.</td></tr>
       </table>
       <p><strong>Livraisons</strong> : assignez chaque commande à un livreur (à créer via « + Ajouter un livreur » — nom, téléphone, véhicule…), puis faites évoluer son statut à chaque étape.</p>
+      <p><strong>Bordereau de livraison</strong> : bouton « 🖨️ Bordereau » sur une commande (page Commandes) — ouvre une fiche imprimable avec les coordonnées du client, les articles et le montant à encaisser, à remettre au livreur.</p>
       <div class="card">
         <strong>Le stock ne bloque jamais une commande</strong>
         Une commande passe toujours, même si le stock est insuffisant — à vous de vous organiser une fois la commande reçue. Utilisez plutôt le seuil d'alerte de stock limité (section 3) pour anticiper les ruptures et recommander à temps (bouton « Commander » sur la page Produits/Stock).
       </div>
-      <p><strong>Commandes abandonnées</strong> : si un client tape son numéro sans finaliser sa commande, il apparaît ici — vous pouvez le rappeler pour récupérer la vente.</p>
+      <p><strong>Commandes abandonnées</strong> : si un client tape son numéro sans finaliser sa commande, il apparaît ici — vous pouvez le rappeler pour récupérer la vente. La case « Relancer automatiquement le client » (réglages en haut de cette page) envoie une relance email/WhatsApp 30 minutes après l'abandon dès qu'un fournisseur d'envoi est branché (voir section 13).</p>
+      <p><strong>Suivi de commande côté client</strong> : le bouton « 📦 Suivre ma commande » en haut de votre vitrine permet à vos clients de voir eux-mêmes le statut de leur commande en tapant leur numéro de commande et leur téléphone — sans avoir à vous contacter.</p>
     </section>
 
     <section id="stock">
@@ -197,6 +201,7 @@
         <tr><td>Finance Détaillée</td><td>La marge réelle de chaque commande livrée (nécessite d'avoir renseigné le prix de revient de vos produits).</td></tr>
         <tr><td>Publicités & ROAS</td><td>Voir la section dédiée ci-dessous.</td></tr>
       </table>
+      <p><strong>Exporter en CSV</strong> : le bouton « ⬇️ Exporter CSV » sur Finance Détaillée (et sur Rapports en Analytique) télécharge un fichier ouvrable directement dans Excel/Google Sheets, pour votre comptabilité ou une analyse plus poussée.</p>
       <h3>Comprendre Publicités & ROAS</h3>
       <ol>
         <li>Cliquez <strong>+ Nouvelle dépense</strong> à chaque campagne publicitaire lancée (Facebook, TikTok…).</li>
@@ -237,6 +242,11 @@
     <section id="notifications">
       <h2><span class="badge">13</span>Notifications</h2>
       <p>Menu <strong>Paramètres → Général</strong>, en bas : activez l'email et/ou WhatsApp pour être averti à chaque nouvelle commande. L'envoi WhatsApp réel nécessite un compte WhatsApp Business API — sans cela, le message est simplement journalisé pour test.</p>
+      <p><strong>Alerte de stock limité</strong> : case « M'alerter automatiquement quand un produit passe en stock limité » (même page) — vous prévient au maximum une fois par jour dès qu'un ou plusieurs produits passent sous leur seuil d'alerte.</p>
+      <div class="card">
+        <strong>Ces envois nécessitent un fournisseur email/WhatsApp branché côté serveur</strong>
+        Les cases de notification (commande, stock, relance panier abandonné) enregistrent bien votre préférence, mais l'envoi réel n'a lieu qu'une fois qu'un service d'email (Brevo/Resend/SMTP) et/ou un compte WhatsApp Business est configuré par l'opérateur de MYBOUTIK.
+      </div>
     </section>
 
     <section id="integrations">
@@ -269,8 +279,25 @@
       <p>Une simple récompense visuelle basée sur le total encaissé depuis l'ouverture de la boutique (Bronze à partir de 1 000 000 FCFA, jusqu'à Titan). Chaque palier est acquis pour de bon.</p>
     </section>
 
+    <section id="marketing-avance">
+      <h2><span class="badge">18</span>Codes promo & avis clients</h2>
+      <p>Menu <strong>Marketing</strong> (nouvelle page) : codes de réduction et modération des avis clients, en plus des abonnés newsletter et messages de contact déjà présents.</p>
+      <h3>Codes promo</h3>
+      <ol>
+        <li>Bouton <strong>+ Nouveau code</strong> : choisissez un code (ex: <code>PROMO10</code>), un type (pourcentage ou montant fixe) et une valeur.</li>
+        <li>Optionnel : un nombre d'utilisations maximum et/ou une date d'expiration.</li>
+        <li>Le client saisit ce code dans son panier sur la vitrine — la réduction s'applique immédiatement à l'affichage, puis est revérifiée au moment de valider la commande.</li>
+      </ol>
+      <div class="card">
+        <strong>Nombre de codes actifs limité selon votre abonnement</strong>
+        Starter : 1 code actif à la fois. Pro : 5. Premium : illimité. Désactivez ou supprimez un ancien code pour en créer un nouveau si vous atteignez la limite.
+      </div>
+      <h3>Avis clients</h3>
+      <p>Sur chaque fiche produit de la vitrine, un client peut laisser une note (1 à 5 étoiles) et un commentaire. Par défaut, un avis est <strong>en attente</strong> et n'est pas visible publiquement : ouvrez Marketing → Avis clients pour le <strong>publier</strong> ou le <strong>rejeter</strong>. Cela évite les faux avis ou le spam visibles immédiatement sur votre boutique.</p>
+    </section>
+
     <section id="faq">
-      <h2><span class="badge">18</span>Questions fréquentes</h2>
+      <h2><span class="badge">19</span>Questions fréquentes</h2>
       <h3>Un client ne peut pas ajouter un produit au panier</h3>
       <p>Vérifiez que le produit est en statut <strong>Actif</strong> (pas Brouillon). Si le produit a des variantes, la combinaison choisie doit avoir été générée (section 4).</p>
       <h3>Le total affiché au client ne correspond pas à ce que j'attendais</h3>

@@ -26,6 +26,11 @@ define('JWT_SECRET',  getenv('JWT_SECRET')  ?: null);
 // de JWT_SECRET par souci de coherence avec ROM_MONEY. Si INSTALL_KEY n'est
 // pas configuree, on retombe sur JWT_SECRET.
 define('INSTALL_KEY', getenv('INSTALL_KEY') ?: JWT_SECRET);
+// Cle pour declencher les taches planifiees (relances paniers abandonnes,
+// alertes de stock) - aucun worker en arriere-plan sur cet hebergement, donc
+// un service de cron externe (cron-job.org, etc.) appelle /cron?key=...&
+// action=... a intervalle regulier. Repli sur INSTALL_KEY, meme logique.
+define('CRON_KEY', getenv('CRON_KEY') ?: INSTALL_KEY);
 // Aucune valeur de repli codee en dur pour ce secret : un secret visible
 // dans le code source n'est plus un secret. Si JWT_SECRET n'est pas
 // configuree sur l'hebergeur, l'app s'arrete plutot que de tourner avec
@@ -276,9 +281,9 @@ function deny_roles($boutiqueRow, $roles) {
 // (subscription_requests) verifiee manuellement par l'operateur de
 // MYBOUTIK via /admin (voir route_admin()) avant d'etre activee.
 const PLANS = [
-    'starter' => ['name'=>'Starter', 'price'=>8900,  'boutique_limit'=>1],
-    'pro'     => ['name'=>'Pro',     'price'=>14900, 'boutique_limit'=>3],
-    'premium' => ['name'=>'Premium', 'price'=>34900, 'boutique_limit'=>10],
+    'starter' => ['name'=>'Starter', 'price'=>8900,  'boutique_limit'=>1,  'promo_limit'=>1],
+    'pro'     => ['name'=>'Pro',     'price'=>14900, 'boutique_limit'=>3,  'promo_limit'=>5],
+    'premium' => ['name'=>'Premium', 'price'=>34900, 'boutique_limit'=>10, 'promo_limit'=>999],
 ];
 // Une commission n'est "disponible" au retrait qu'apres un delai de
 // validation (le temps qu'un paiement Mobile Money litigieux soit
@@ -372,6 +377,7 @@ try {
         case 'billing':   route_billing($action); break;
         case 'admin':     route_admin($action); break;
         case 'integrations': route_integrations($action); break;
+        case 'cron':      route_cron($action); break;
         case 'health':    ok(['status'=>'up','time'=>date('c')]); break;
         default: fail('Module inconnu', 404);
     }
@@ -483,6 +489,11 @@ function route_install() {
     // "Importer maintenant" appelle la meme route a la demande.
     "ALTER TABLE boutiques ADD COLUMN IF NOT EXISTS sheet_url TEXT",
     "ALTER TABLE boutiques ADD COLUMN IF NOT EXISTS sheet_sync_enabled SMALLINT DEFAULT 0",
+    // Alerte de stock bas envoyee au marchand (email/WhatsApp selon ses
+    // reglages de notification) via /cron?action=stock_alerts - au plus une
+    // fois par jour par boutique (voir last_stock_alert_at).
+    "ALTER TABLE boutiques ADD COLUMN IF NOT EXISTS stock_alert_enabled SMALLINT DEFAULT 1",
+    "ALTER TABLE boutiques ADD COLUMN IF NOT EXISTS last_stock_alert_at TIMESTAMP",
     // Equipe : une boutique peut etre geree par plusieurs comptes MYBOUTIK
     // distincts (le proprietaire + des membres invites par email). status
     // reste 'pending' (avec un invite_token) tant que la personne invitee
@@ -541,6 +552,11 @@ function route_install() {
     // place, le marchand definit lui-meme un seuil pour etre alerte quand
     // le stock d'un produit devient bas.
     "ALTER TABLE products ADD COLUMN IF NOT EXISTS low_stock_threshold INT DEFAULT 5",
+    // Produits associes choisis a la main par le marchand pour l'upsell sur
+    // la fiche produit de la vitrine (liste d'ids JSON, resolue a l'affichage
+    // - voir shop_product()). Pas de suggestion automatique par categorie :
+    // aucune notion de categorie n'existe encore dans le modele.
+    "ALTER TABLE products ADD COLUMN IF NOT EXISTS related_product_ids TEXT",
     "CREATE UNIQUE INDEX IF NOT EXISTS idx_products_boutique_slug ON products(boutique_id, slug) WHERE slug IS NOT NULL AND slug <> ''",
     // Galerie de photos (plusieurs images par produit). products.image_url
     // reste en place et reflete toujours l'image marquee is_primary=1 ici -
@@ -618,6 +634,11 @@ function route_install() {
     // sert uniquement a ne jamais importer deux fois la meme ligne.
     "ALTER TABLE orders ADD COLUMN IF NOT EXISTS external_ref VARCHAR(64)",
     "CREATE UNIQUE INDEX IF NOT EXISTS idx_orders_boutique_external_ref ON orders(boutique_id, external_ref) WHERE external_ref IS NOT NULL AND external_ref <> ''",
+    // Code promo applique a la commande (reduction deja deduite dans total -
+    // subtotal/delivery_fee_charged restent les montants bruts, discount_amount
+    // est ce qui a ete retire).
+    "ALTER TABLE orders ADD COLUMN IF NOT EXISTS promo_code VARCHAR(40)",
+    "ALTER TABLE orders ADD COLUMN IF NOT EXISTS discount_amount DECIMAL(14,2) DEFAULT 0",
     "CREATE TABLE IF NOT EXISTS order_items (
         id VARCHAR(36) PRIMARY KEY,
         order_id VARCHAR(36) NOT NULL,
@@ -647,6 +668,11 @@ function route_install() {
         timeout_minutes INT DEFAULT 15,
         email_alert SMALLINT DEFAULT 0
     )",
+    // Relance automatique du CLIENT (par opposition a email_alert ci-dessus,
+    // qui prevenait le marchand) - envoyee une seule fois par panier via
+    // /cron?action=abandoned_reminders (voir abandoned_carts.reminded_at).
+    "ALTER TABLE abandoned_settings ADD COLUMN IF NOT EXISTS customer_reminder_enabled SMALLINT DEFAULT 0",
+    "ALTER TABLE abandoned_carts ADD COLUMN IF NOT EXISTS reminded_at TIMESTAMP",
     "CREATE TABLE IF NOT EXISTS delivery_persons (
         id VARCHAR(36) PRIMARY KEY,
         boutique_id VARCHAR(36) NOT NULL,
@@ -754,6 +780,39 @@ function route_install() {
     "INSERT INTO ad_expense_products (ad_expense_id, product_id)
      SELECT id, product_id FROM ad_expenses WHERE product_id IS NOT NULL
      ON CONFLICT DO NOTHING",
+    // Codes de reduction utilisables au panier de la vitrine (type
+    // percent = %, amount = montant fixe retire du sous-total). L'unicite du
+    // code par boutique ignore la casse (index sur UPPER(code)) pour eviter
+    // qu'un client tape "PROMO10" alors que le marchand a saisi "promo10".
+    "CREATE TABLE IF NOT EXISTS promo_codes (
+        id VARCHAR(36) PRIMARY KEY,
+        boutique_id VARCHAR(36) NOT NULL,
+        code VARCHAR(40) NOT NULL,
+        type VARCHAR(10) NOT NULL DEFAULT 'percent',
+        value DECIMAL(14,2) NOT NULL,
+        max_uses INT,
+        used_count INT DEFAULT 0,
+        expires_at TIMESTAMP,
+        active SMALLINT DEFAULT 1,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )",
+    "CREATE UNIQUE INDEX IF NOT EXISTS idx_promocodes_boutique_code ON promo_codes(boutique_id, UPPER(code))",
+    "CREATE INDEX IF NOT EXISTS idx_promocodes_boutique ON promo_codes(boutique_id)",
+    // Avis clients sur une fiche produit - modere par le marchand
+    // (status pending/approved/rejected) avant d'apparaitre sur la vitrine,
+    // pour eviter le spam/les faux avis visibles immediatement.
+    "CREATE TABLE IF NOT EXISTS product_reviews (
+        id VARCHAR(36) PRIMARY KEY,
+        boutique_id VARCHAR(36) NOT NULL,
+        product_id VARCHAR(36) NOT NULL,
+        customer_name VARCHAR(150) NOT NULL,
+        rating INT NOT NULL,
+        comment TEXT,
+        status VARCHAR(20) DEFAULT 'pending',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )",
+    "CREATE INDEX IF NOT EXISTS idx_reviews_product ON product_reviews(product_id)",
+    "CREATE INDEX IF NOT EXISTS idx_reviews_boutique ON product_reviews(boutique_id)",
     "CREATE TABLE IF NOT EXISTS newsletter_subscribers (
         id VARCHAR(36) PRIMARY KEY,
         boutique_id VARCHAR(36) NOT NULL,
@@ -1030,10 +1089,11 @@ function boutiques_update($pl) {
     $notifyEmail = trim($b['notify_email'] ?? $row['notify_email']);
     $notifyWhatsappEnabled = isset($b['notify_whatsapp_enabled']) ? (int)!!$b['notify_whatsapp_enabled'] : $row['notify_whatsapp_enabled'];
     $notifyWhatsappNumber = trim($b['notify_whatsapp_number'] ?? $row['notify_whatsapp_number']);
+    $stockAlertEnabled = isset($b['stock_alert_enabled']) ? (int)!!$b['stock_alert_enabled'] : $row['stock_alert_enabled'];
     q("UPDATE boutiques SET name=?, cod_enabled=?, currency=?, default_delivery_fee=?, description=?, logo_url=?,
-       notify_order_email=?, notify_email=?, notify_whatsapp_enabled=?, notify_whatsapp_number=? WHERE id=?",
+       notify_order_email=?, notify_email=?, notify_whatsapp_enabled=?, notify_whatsapp_number=?, stock_alert_enabled=? WHERE id=?",
       [$name, $codEnabled, $currency, $deliveryFee, $description, $logoUrl, $notifyOrderEmail, $notifyEmail,
-       $notifyWhatsappEnabled, $notifyWhatsappNumber, $id]);
+       $notifyWhatsappEnabled, $notifyWhatsappNumber, $stockAlertEnabled, $id]);
     ok(q("SELECT * FROM boutiques WHERE id=?", [$id])->fetch(), 'Boutique mise a jour');
 }
 
@@ -1121,6 +1181,19 @@ function unique_product_slug($boutiqueId, $base, $excludeId = null) {
     }
 }
 
+// Ne garde que des ids qui appartiennent bien a cette boutique (jamais le
+// produit lui-meme) - un id invalide/etranger est silencieusement ignore
+// plutot que de faire echouer toute la sauvegarde du produit.
+function related_product_ids_json($boutiqueId, $ids, $excludeId) {
+    $ids = array_values(array_unique(array_filter((array)$ids)));
+    if (!$ids) return null;
+    $placeholders = implode(',', array_fill(0, count($ids), '?'));
+    $valid = q("SELECT id FROM products WHERE boutique_id=? AND id IN ($placeholders)", array_merge([$boutiqueId], $ids))
+             ->fetchAll(PDO::FETCH_COLUMN);
+    $valid = array_values(array_filter($valid, fn($id) => $id !== $excludeId));
+    return $valid ? json_encode(array_slice($valid, 0, 8), JSON_UNESCAPED_UNICODE) : null;
+}
+
 function products_create($pl) {
     $b = body();
     $bt = require_boutique_owned($b['boutique_id'] ?? '', $pl['sub']);
@@ -1131,9 +1204,10 @@ function products_create($pl) {
     $slug = unique_product_slug($bt['id'], slugify($slugInput !== '' ? $slugInput : $name));
     $optionsJson = trim($b['options_json'] ?? '');
     if ($optionsJson !== '' && json_decode($optionsJson) === null) $optionsJson = '';
+    $relatedJson = related_product_ids_json($bt['id'], $b['related_product_ids'] ?? [], null);
     q("INSERT INTO products (id,boutique_id,name,description,price,compare_at_price,cost_price,stock_qty,
-       image_url,status,sku,barcode,slug,track_inventory,allow_backorder,is_physical,delivery_fee,options_json,low_stock_threshold)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+       image_url,status,sku,barcode,slug,track_inventory,allow_backorder,is_physical,delivery_fee,options_json,low_stock_threshold,related_product_ids)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
       [$id, $bt['id'], $name, trim($b['description'] ?? ''), (float)($b['price'] ?? 0),
        isset($b['compare_at_price']) && $b['compare_at_price'] !== '' ? (float)$b['compare_at_price'] : null,
        isset($b['cost_price']) && $b['cost_price'] !== '' ? (float)$b['cost_price'] : null,
@@ -1142,7 +1216,7 @@ function products_create($pl) {
        (int)!!($b['track_inventory'] ?? 1), (int)!!($b['allow_backorder'] ?? 0), (int)!!($b['is_physical'] ?? 1),
        isset($b['delivery_fee']) && $b['delivery_fee'] !== '' ? (float)$b['delivery_fee'] : null,
        $optionsJson !== '' ? $optionsJson : null,
-       (int)($b['low_stock_threshold'] ?? 5)]);
+       (int)($b['low_stock_threshold'] ?? 5), $relatedJson]);
     foreach (($b['variants'] ?? []) as $v) {
         if (trim($v['name'] ?? '') === '') continue;
         q("INSERT INTO product_variants (id,product_id,name,price,stock_qty) VALUES (?,?,?,?,?)",
@@ -1178,8 +1252,11 @@ function products_update($pl) {
     } else {
         $optionsJson = $p['options_json'];
     }
+    $relatedJson = array_key_exists('related_product_ids', $b)
+        ? related_product_ids_json($bt['id'], $b['related_product_ids'], $p['id'])
+        : $p['related_product_ids'];
     q("UPDATE products SET name=?, description=?, price=?, compare_at_price=?, cost_price=?, stock_qty=?,
-       image_url=?, status=?, sku=?, barcode=?, slug=?, track_inventory=?, allow_backorder=?, is_physical=?, delivery_fee=?, options_json=?, low_stock_threshold=?
+       image_url=?, status=?, sku=?, barcode=?, slug=?, track_inventory=?, allow_backorder=?, is_physical=?, delivery_fee=?, options_json=?, low_stock_threshold=?, related_product_ids=?
        WHERE id=?",
       [$name, trim($b['description'] ?? $p['description']), (float)($b['price'] ?? $p['price']),
        isset($b['compare_at_price']) && $b['compare_at_price'] !== '' ? (float)$b['compare_at_price'] : $p['compare_at_price'],
@@ -1191,7 +1268,7 @@ function products_update($pl) {
        isset($b['is_physical']) ? (int)!!$b['is_physical'] : $p['is_physical'],
        isset($b['delivery_fee']) && $b['delivery_fee'] !== '' ? (float)$b['delivery_fee'] : null,
        $optionsJson, isset($b['low_stock_threshold']) && $b['low_stock_threshold'] !== '' ? (int)$b['low_stock_threshold'] : $p['low_stock_threshold'],
-       $p['id']]);
+       $relatedJson, $p['id']]);
     // Remplacement complet des variantes si le champ est fourni (le
     // generateur d'options cote tableau de bord envoie toujours la liste
     // complete a jour, y compris les variantes inchangees).
@@ -1360,6 +1437,10 @@ function route_shop($action) {
         case 'track_abandoned':  shop_track_abandoned(); break;
         case 'newsletter':       shop_newsletter(); break;
         case 'contact_message':  shop_contact_message(); break;
+        case 'validate_promo':   shop_validate_promo(); break;
+        case 'track_order':      shop_track_order(); break;
+        case 'reviews':          shop_reviews(); break;
+        case 'review_add':       shop_review_add(); break;
         default: fail('Action inconnue', 404);
     }
 }
@@ -1387,12 +1468,55 @@ function shop_products() {
 
 function shop_product() {
     $bt = public_boutique_by_slug($_GET['slug'] ?? '');
-    $p = q("SELECT id,name,description,price,compare_at_price,stock_qty,image_url,slug,track_inventory,allow_backorder,is_physical,delivery_fee,options_json
+    $p = q("SELECT id,name,description,price,compare_at_price,stock_qty,image_url,slug,track_inventory,allow_backorder,is_physical,delivery_fee,options_json,related_product_ids
             FROM products WHERE id=? AND boutique_id=? AND status='active'", [$_GET['id'] ?? '', $bt['id']])->fetch();
     if (!$p) fail('Produit introuvable', 404);
     $p['variants'] = q("SELECT id,name,price,stock_qty FROM product_variants WHERE product_id=? ORDER BY name", [$p['id']])->fetchAll();
     $p['images'] = q("SELECT id,data FROM product_images WHERE product_id=? ORDER BY position", [$p['id']])->fetchAll();
+    // Produits associes (upsell) choisis a la main par le marchand sur la
+    // fiche produit du tableau de bord - seuls les produits toujours actifs
+    // sont proposes a l'achat, un produit retire du catalogue disparait donc
+    // silencieusement de cette liste.
+    $relatedIds = json_decode($p['related_product_ids'] ?: '[]', true);
+    $p['related'] = [];
+    if (is_array($relatedIds) && $relatedIds) {
+        $placeholders = implode(',', array_fill(0, count($relatedIds), '?'));
+        $p['related'] = q("SELECT id,name,slug,price,compare_at_price,image_url
+                            FROM products WHERE boutique_id=? AND status='active' AND id IN ($placeholders)",
+                           array_merge([$bt['id']], $relatedIds))->fetchAll();
+    }
+    unset($p['related_product_ids']);
+    $ratingRow = q("SELECT COUNT(*) c, COALESCE(AVG(rating),0) a FROM product_reviews WHERE product_id=? AND status='approved'", [$p['id']])->fetch();
+    $p['review_count'] = (int)$ratingRow['c'];
+    $p['review_avg'] = round((float)$ratingRow['a'], 1);
     ok($p);
+}
+
+// $code potentiellement invalide/expire -> null (jamais d'exception ici,
+// c'est a l'appelant de decider si c'est bloquant). La casse est ignoree
+// (voir l'index UPPER(code) dans route_install()).
+function find_active_promo($boutiqueId, $code) {
+    $code = trim($code ?? '');
+    if ($code === '') return null;
+    $promo = q("SELECT * FROM promo_codes WHERE boutique_id=? AND UPPER(code)=UPPER(?) AND active=1", [$boutiqueId, $code])->fetch();
+    if (!$promo) return null;
+    if ($promo['expires_at'] && strtotime($promo['expires_at']) < time()) return null;
+    if ($promo['max_uses'] !== null && (int)$promo['used_count'] >= (int)$promo['max_uses']) return null;
+    return $promo;
+}
+function promo_discount_amount($promo, $subtotal) {
+    $discount = $promo['type'] === 'amount' ? (float)$promo['value'] : round($subtotal * ((float)$promo['value'] / 100), 2);
+    return max(0, min($discount, $subtotal));
+}
+// Apercu du rabais avant de valider la commande (affiche au panier) - ne
+// consomme pas le code (used_count n'est incremente qu'au checkout reel).
+function shop_validate_promo() {
+    $b = body();
+    $bt = public_boutique_by_slug($b['slug'] ?? '');
+    $subtotal = max(0, (float)($b['subtotal'] ?? 0));
+    $promo = find_active_promo($bt['id'], $b['code'] ?? '');
+    if (!$promo) fail('Code promo invalide ou expire', 404);
+    ok(['code'=>$promo['code'], 'type'=>$promo['type'], 'value'=>(float)$promo['value'], 'discount'=>promo_discount_amount($promo, $subtotal)]);
 }
 
 // Commande a la livraison : cree/retrouve le client par telephone, cree la
@@ -1461,15 +1585,29 @@ function shop_checkout() {
             $fee = ($productFee !== null) ? (float)$productFee : (float)$bt['default_delivery_fee'];
             $deliveryFee = max($deliveryFee, $fee);
         }
-        $total = $subtotal + $deliveryFee;
+        // Code promo revalide ici (dans la transaction, sur le vrai
+        // sous-total serveur) plutot que de faire confiance a un montant de
+        // reduction envoye par le client - shop_validate_promo() ne sert
+        // qu'a l'affichage anticipe au panier.
+        $discountAmount = 0;
+        $promoCodeUsed = null;
+        $promoInput = trim($b['promo_code'] ?? '');
+        if ($promoInput !== '') {
+            $promo = find_active_promo($bt['id'], $promoInput);
+            if (!$promo) throw new Exception('Code promo invalide ou expire');
+            $discountAmount = promo_discount_amount($promo, $subtotal);
+            $promoCodeUsed = $promo['code'];
+            q("UPDATE promo_codes SET used_count = used_count + 1 WHERE id=?", [$promo['id']]);
+        }
+        $total = $subtotal + $deliveryFee - $discountAmount;
 
         $orderId = uid();
         $ref = order_ref();
         q("INSERT INTO orders (id,boutique_id,customer_id,ref,status,payment_method,subtotal,delivery_fee_charged,total,
-           customer_name,customer_phone,customer_address,utm_source,utm_campaign)
-           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+           customer_name,customer_phone,customer_address,utm_source,utm_campaign,promo_code,discount_amount)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
           [$orderId, $bt['id'], $customerId, $ref, 'pending', 'cod', $subtotal, $deliveryFee, $total,
-           $name, $phone, $address, trim($b['utm_source'] ?? ''), trim($b['utm_campaign'] ?? '')]);
+           $name, $phone, $address, trim($b['utm_source'] ?? ''), trim($b['utm_campaign'] ?? ''), $promoCodeUsed, $discountAmount]);
 
         foreach ($lineData as $l) {
             q("INSERT INTO order_items (id,order_id,product_id,product_name,variant_id,unit_price,unit_cost,qty)
@@ -1572,6 +1710,53 @@ function shop_contact_message() {
     ok(null, 'Message envoye');
 }
 
+// Suivi de commande public : le client doit connaitre a la fois la
+// reference ET le telephone utilise a la commande - empeche quiconque
+// devinant/enumerant des references de voir les commandes des autres
+// clients de la boutique.
+function shop_track_order() {
+    rate_limit_check('shop_track_order', 20, 300);
+    $b = body();
+    $bt = public_boutique_by_slug($b['slug'] ?? '');
+    $ref = trim($b['ref'] ?? '');
+    $phone = trim($b['phone'] ?? '');
+    if ($ref === '' || $phone === '') fail('Numero de commande et telephone requis');
+    $o = q("SELECT id,ref,status,total,subtotal,delivery_fee_charged,discount_amount,customer_name,created_at,delivered_at
+            FROM orders WHERE boutique_id=? AND ref=? AND customer_phone=?", [$bt['id'], $ref, $phone])->fetch();
+    if (!$o) fail('Aucune commande trouvee avec ces informations', 404);
+    $o['items'] = q("SELECT product_name,qty,unit_price FROM order_items WHERE order_id=?", [$o['id']])->fetchAll();
+    $delivery = q("SELECT da.status AS delivery_status, dp.name AS delivery_person_name, dp.phone AS delivery_person_phone
+                   FROM delivery_assignments da LEFT JOIN delivery_persons dp ON dp.id = da.delivery_person_id
+                   WHERE da.order_id=?", [$o['id']])->fetch();
+    $o['delivery_status'] = $delivery['delivery_status'] ?? null;
+    $o['delivery_person_name'] = $delivery['delivery_person_name'] ?? null;
+    $o['delivery_person_phone'] = $delivery['delivery_person_phone'] ?? null;
+    ok($o);
+}
+
+function shop_reviews() {
+    $bt = public_boutique_by_slug($_GET['slug'] ?? '');
+    $productId = $_GET['product_id'] ?? '';
+    $rows = q("SELECT customer_name,rating,comment,created_at FROM product_reviews
+               WHERE boutique_id=? AND product_id=? AND status='approved' ORDER BY created_at DESC LIMIT 100",
+              [$bt['id'], $productId])->fetchAll();
+    ok($rows);
+}
+
+function shop_review_add() {
+    rate_limit_check('shop_review_add', 10, 600);
+    $b = body();
+    $bt = public_boutique_by_slug($b['slug'] ?? '');
+    $product = product_owned($b['product_id'] ?? '', $bt['id']);
+    $name = trim($b['customer_name'] ?? '');
+    $rating = (int)($b['rating'] ?? 0);
+    if ($name === '') fail('Votre nom est requis');
+    if ($rating < 1 || $rating > 5) fail('Note invalide (1 a 5)');
+    q("INSERT INTO product_reviews (id,boutique_id,product_id,customer_name,rating,comment) VALUES (?,?,?,?,?,?)",
+      [uid(), $bt['id'], $product['id'], $name, $rating, trim($b['comment'] ?? '')]);
+    ok(null, 'Merci pour votre avis ! Il sera visible apres validation par la boutique.');
+}
+
 // ============================================================
 // COMMANDES — gestion cote marchand (liste, statut, creation manuelle) +
 // commandes abandonnees
@@ -1618,7 +1803,9 @@ function orders_get($pl) {
     $bt = require_boutique_owned($_GET['boutique_id'] ?? '', $pl['sub']);
     $o = order_owned($_GET['id'] ?? '', $bt['id']);
     $o['items'] = q("SELECT * FROM order_items WHERE order_id=?", [$o['id']])->fetchAll();
-    $o['delivery'] = q("SELECT * FROM delivery_assignments WHERE order_id=?", [$o['id']])->fetch();
+    $o['delivery'] = q("SELECT da.*, dp.name AS delivery_person_name, dp.phone AS delivery_person_phone
+                         FROM delivery_assignments da LEFT JOIN delivery_persons dp ON dp.id = da.delivery_person_id
+                         WHERE da.order_id=?", [$o['id']])->fetch();
     ok($o);
 }
 
@@ -1703,15 +1890,17 @@ function abandoned_mark($pl) {
 function abandoned_settings_get($pl) {
     $bt = require_boutique_owned($_GET['boutique_id'] ?? '', $pl['sub']);
     $row = q("SELECT * FROM abandoned_settings WHERE boutique_id=?", [$bt['id']])->fetch();
-    ok($row ?: ['boutique_id'=>$bt['id'],'capture_enabled'=>1,'timeout_minutes'=>15,'email_alert'=>0]);
+    ok($row ?: ['boutique_id'=>$bt['id'],'capture_enabled'=>1,'timeout_minutes'=>15,'email_alert'=>0,'customer_reminder_enabled'=>0]);
 }
 function abandoned_settings_save($pl) {
     $b = body();
     $bt = require_boutique_owned($b['boutique_id'] ?? '', $pl['sub']);
-    q("INSERT INTO abandoned_settings (boutique_id,capture_enabled,timeout_minutes,email_alert) VALUES (?,?,?,?)
+    q("INSERT INTO abandoned_settings (boutique_id,capture_enabled,timeout_minutes,email_alert,customer_reminder_enabled) VALUES (?,?,?,?,?)
        ON CONFLICT (boutique_id) DO UPDATE SET capture_enabled=EXCLUDED.capture_enabled,
-       timeout_minutes=EXCLUDED.timeout_minutes, email_alert=EXCLUDED.email_alert",
-      [$bt['id'], (int)!!($b['capture_enabled'] ?? 1), (int)($b['timeout_minutes'] ?? 15), (int)!!($b['email_alert'] ?? 0)]);
+       timeout_minutes=EXCLUDED.timeout_minutes, email_alert=EXCLUDED.email_alert,
+       customer_reminder_enabled=EXCLUDED.customer_reminder_enabled",
+      [$bt['id'], (int)!!($b['capture_enabled'] ?? 1), (int)($b['timeout_minutes'] ?? 15), (int)!!($b['email_alert'] ?? 0),
+       (int)!!($b['customer_reminder_enabled'] ?? 0)]);
     ok(null, 'Reglages enregistres');
 }
 
@@ -1959,8 +2148,37 @@ function route_finance($action) {
         case 'ads':                finance_ads($pl); break;
         case 'ad_expense_create':  finance_ad_expense_create($pl); break;
         case 'ad_expense_detail':  finance_ad_expense_detail($pl); break;
+        case 'export':             finance_export($pl); break;
         default: fail('Action inconnue', 404);
     }
+}
+// Sort un CSV (ouvrable directement dans Excel/LibreOffice/Google Sheets)
+// au lieu du JSON habituel - seule route de l'API qui ne repond pas via
+// ok()/fail(), donc le Content-Type JSON pose en tete de fichier est
+// volontairement ecrase ici avant le premier echo.
+function csv_output($filename, $headers, $rows) {
+    header('Content-Type: text/csv; charset=utf-8');
+    header('Content-Disposition: attachment; filename="'.$filename.'"');
+    $out = fopen('php://output', 'w');
+    fwrite($out, "\xEF\xBB\xBF"); // BOM UTF-8 : Excel affiche correctement les accents avec.
+    fputcsv($out, $headers);
+    foreach ($rows as $row) fputcsv($out, $row);
+    fclose($out);
+    exit;
+}
+function finance_export($pl) {
+    $bt = require_boutique_owned($_GET['boutique_id'] ?? '', $pl['sub']);
+    $period = $_GET['period'] ?? '30d';
+    $pc = period_clause($period, 'delivered_at');
+    $orders = q("SELECT * FROM orders WHERE boutique_id=? AND status='delivered' AND $pc ORDER BY delivered_at DESC", [$bt['id']])->fetchAll();
+    $rows = [];
+    foreach ($orders as $o) {
+        $cost = (float)q("SELECT COALESCE(SUM(unit_cost*qty),0) s FROM order_items WHERE order_id=?", [$o['id']])->fetch()['s'];
+        $rows[] = [$o['ref'], $o['delivered_at'], $o['customer_name'], $o['customer_phone'], $o['subtotal'],
+                   $o['delivery_fee_charged'], $o['discount_amount'], $o['total'], $cost, (float)$o['total']-$cost];
+    }
+    csv_output('finance-detaillee-'.$bt['slug'].'.csv',
+        ['Reference','Livree le','Client','Telephone','Sous-total','Frais livraison','Remise','Total','Cout produits','Marge'], $rows);
 }
 
 function finance_overview($pl) {
@@ -2245,8 +2463,19 @@ function route_analytics($action) {
         case 'report':   analytics_report($pl); break;
         case 'live':     analytics_live($pl); break;
         case 'activity_log': analytics_activity_log($pl); break;
+        case 'export':       analytics_export($pl); break;
         default: fail('Action inconnue', 404);
     }
+}
+function analytics_export($pl) {
+    $bt = require_boutique_owned($_GET['boutique_id'] ?? '', $pl['sub']);
+    $period = $_GET['period'] ?? '30d';
+    $pc = period_clause($period);
+    $sales = q("SELECT DATE(created_at) d, COUNT(*) commandes, COALESCE(SUM(total),0) ventes
+                FROM orders WHERE boutique_id=? AND status<>'cancelled' AND $pc
+                GROUP BY DATE(created_at) ORDER BY d", [$bt['id']])->fetchAll();
+    $rows = array_map(fn($r) => [$r['d'], $r['commandes'], $r['ventes']], $sales);
+    csv_output('rapport-ventes-'.$bt['slug'].'.csv', ['Date','Commandes','Ventes'], $rows);
 }
 
 function analytics_report($pl) {
@@ -2323,8 +2552,104 @@ function route_marketing($action) {
         case 'newsletter':     marketing_newsletter($pl); break;
         case 'messages':       marketing_messages($pl); break;
         case 'message_mark_read': marketing_message_mark_read($pl); break;
+        case 'promo_list':     marketing_promo_list($pl); break;
+        case 'promo_create':   marketing_promo_create($pl); break;
+        case 'promo_update':   marketing_promo_update($pl); break;
+        case 'promo_delete':   marketing_promo_delete($pl); break;
+        case 'review_list':    marketing_review_list($pl); break;
+        case 'review_moderate':marketing_review_moderate($pl); break;
+        case 'review_delete':  marketing_review_delete($pl); break;
         default: fail('Action inconnue', 404);
     }
+}
+function marketing_promo_list($pl) {
+    $bt = require_boutique_owned($_GET['boutique_id'] ?? '', $pl['sub']);
+    ok(q("SELECT * FROM promo_codes WHERE boutique_id=? ORDER BY created_at DESC", [$bt['id']])->fetchAll());
+}
+// Limite le nombre de codes ACTIFS simultanement selon le plan du
+// proprietaire (voir PLANS.promo_limit) - un code desactive ou expire ne
+// compte plus dans la limite.
+function assert_promo_limit_not_reached($bt, $userId) {
+    $plan = q("SELECT plan FROM users WHERE id=?", [$userId])->fetchColumn() ?: 'starter';
+    $limit = PLANS[$plan]['promo_limit'] ?? 1;
+    $count = (int)q("SELECT COUNT(*) c FROM promo_codes WHERE boutique_id=? AND active=1
+                      AND (expires_at IS NULL OR expires_at > NOW())", [$bt['id']])->fetch()['c'];
+    if ($count >= $limit) {
+        fail('Limite de codes promo actifs atteinte pour votre plan ('.$limit.'). Passez a un plan superieur ou desactivez un code existant.', 403);
+    }
+}
+function marketing_promo_create($pl) {
+    $b = body();
+    $bt = require_boutique_owned($b['boutique_id'] ?? '', $pl['sub']);
+    assert_promo_limit_not_reached($bt, $pl['sub']);
+    $code = trim($b['code'] ?? '');
+    $type = in_array($b['type'] ?? '', ['percent','amount'], true) ? $b['type'] : 'percent';
+    $value = (float)($b['value'] ?? 0);
+    if ($code === '') fail('Le code est requis');
+    if ($value <= 0) fail('La valeur doit etre superieure a 0');
+    if ($type === 'percent' && $value > 100) fail('Un pourcentage ne peut pas depasser 100');
+    if (q("SELECT 1 FROM promo_codes WHERE boutique_id=? AND UPPER(code)=UPPER(?)", [$bt['id'], $code])->fetch()) {
+        fail('Ce code existe deja pour cette boutique');
+    }
+    $id = uid();
+    q("INSERT INTO promo_codes (id,boutique_id,code,type,value,max_uses,expires_at,active) VALUES (?,?,?,?,?,?,?,1)",
+      [$id, $bt['id'], strtoupper($code), $type, $value,
+       isset($b['max_uses']) && $b['max_uses'] !== '' ? (int)$b['max_uses'] : null,
+       isset($b['expires_at']) && $b['expires_at'] !== '' ? $b['expires_at'] : null]);
+    log_activity($bt['id'], 'Code promo cree: '.strtoupper($code), $pl['sub']);
+    ok(q("SELECT * FROM promo_codes WHERE id=?", [$id])->fetch(), 'Code promo cree', 201);
+}
+function promo_owned($id, $boutiqueId) {
+    $row = q("SELECT * FROM promo_codes WHERE id=? AND boutique_id=?", [$id, $boutiqueId])->fetch();
+    if (!$row) fail('Code promo introuvable', 404);
+    return $row;
+}
+function marketing_promo_update($pl) {
+    $b = body();
+    $bt = require_boutique_owned($b['boutique_id'] ?? '', $pl['sub']);
+    $promo = promo_owned($b['id'] ?? '', $bt['id']);
+    $wasActive = (bool)$promo['active'];
+    $nowActive = isset($b['active']) ? (bool)!!$b['active'] : $wasActive;
+    if (!$wasActive && $nowActive) assert_promo_limit_not_reached($bt, $pl['sub']);
+    q("UPDATE promo_codes SET type=?, value=?, max_uses=?, expires_at=?, active=? WHERE id=?",
+      [in_array($b['type'] ?? '', ['percent','amount'], true) ? $b['type'] : $promo['type'],
+       isset($b['value']) && $b['value'] !== '' ? (float)$b['value'] : $promo['value'],
+       isset($b['max_uses']) && $b['max_uses'] !== '' ? (int)$b['max_uses'] : null,
+       isset($b['expires_at']) && $b['expires_at'] !== '' ? $b['expires_at'] : null,
+       (int)$nowActive, $promo['id']]);
+    ok(q("SELECT * FROM promo_codes WHERE id=?", [$promo['id']])->fetch(), 'Code promo mis a jour');
+}
+function marketing_promo_delete($pl) {
+    $b = body();
+    $bt = require_boutique_owned($b['boutique_id'] ?? '', $pl['sub']);
+    $promo = promo_owned($b['id'] ?? '', $bt['id']);
+    q("DELETE FROM promo_codes WHERE id=?", [$promo['id']]);
+    ok(null, 'Code promo supprime');
+}
+function marketing_review_list($pl) {
+    $bt = require_boutique_owned($_GET['boutique_id'] ?? '', $pl['sub']);
+    $rows = q("SELECT r.*, p.name AS product_name FROM product_reviews r
+               LEFT JOIN products p ON p.id = r.product_id
+               WHERE r.boutique_id=? ORDER BY r.created_at DESC LIMIT 300", [$bt['id']])->fetchAll();
+    ok($rows);
+}
+function marketing_review_moderate($pl) {
+    $b = body();
+    $bt = require_boutique_owned($b['boutique_id'] ?? '', $pl['sub']);
+    $row = q("SELECT id FROM product_reviews WHERE id=? AND boutique_id=?", [$b['id'] ?? '', $bt['id']])->fetch();
+    if (!$row) fail('Avis introuvable', 404);
+    $status = $b['status'] ?? '';
+    if (!in_array($status, ['approved','rejected','pending'], true)) fail('Statut invalide');
+    q("UPDATE product_reviews SET status=? WHERE id=?", [$status, $row['id']]);
+    ok(null, 'Avis mis a jour');
+}
+function marketing_review_delete($pl) {
+    $b = body();
+    $bt = require_boutique_owned($b['boutique_id'] ?? '', $pl['sub']);
+    $row = q("SELECT id FROM product_reviews WHERE id=? AND boutique_id=?", [$b['id'] ?? '', $bt['id']])->fetch();
+    if (!$row) fail('Avis introuvable', 404);
+    q("DELETE FROM product_reviews WHERE id=?", [$row['id']]);
+    ok(null, 'Avis supprime');
 }
 function marketing_newsletter($pl) {
     $bt = require_boutique_owned($_GET['boutique_id'] ?? '', $pl['sub']);
@@ -2715,4 +3040,71 @@ function integrations_sheet_import($pl) {
         }
     }
     ok(['imported' => $imported, 'skipped' => $skipped], $imported.' commande(s) importee(s), '.count($skipped).' ligne(s) ignoree(s)');
+}
+
+// ============================================================
+// CRON — taches planifiees declenchees par un service externe (cron-job.org
+// ou equivalent), aucun worker en arriere-plan n'existe sur cet hebergement.
+// Protegee par CRON_KEY (jamais un token utilisateur : personne n'est
+// connecte quand le service de cron appelle cette route).
+// ============================================================
+function route_cron($action) {
+    $key = $_GET['key'] ?? '';
+    if (!hash_equals((string)CRON_KEY, (string)$key)) fail('Non autorise', 403);
+    switch ($action) {
+        case 'abandoned_reminders': cron_abandoned_reminders(); break;
+        case 'stock_alerts':        cron_stock_alerts(); break;
+        default: fail('Action inconnue', 404);
+    }
+}
+
+// Une seule relance par panier (reminded_at), envoyee entre 30 minutes et 48h
+// apres capture - au-dela le client a probablement deja renonce ou commande
+// ailleurs, en dessous on le derange trop tot.
+function cron_abandoned_reminders() {
+    $carts = q("SELECT ac.*, b.slug, b.name AS boutique_name, b.currency
+                FROM abandoned_carts ac
+                JOIN boutiques b ON b.id = ac.boutique_id
+                JOIN abandoned_settings s ON s.boutique_id = ac.boutique_id
+                WHERE ac.converted=0 AND ac.reminded_at IS NULL AND s.customer_reminder_enabled=1
+                AND ac.captured_at <= NOW() - INTERVAL '30 minutes'
+                AND ac.captured_at >= NOW() - INTERVAL '48 hours'")->fetchAll();
+    $sent = 0;
+    foreach ($carts as $c) {
+        $total = number_format((float)$c['total'], 0, ',', ' ').' '.($c['currency'] ?: 'XOF');
+        $message = "Bonjour, vous avez laisse des articles dans votre panier chez ".$c['boutique_name']." (".$total."). Revenez finaliser votre commande !";
+        if ($c['email']) send_email($c['email'], 'Votre panier vous attend - '.$c['boutique_name'], $message);
+        if ($c['phone']) send_whatsapp($c['phone'], $message);
+        q("UPDATE abandoned_carts SET reminded_at=NOW() WHERE id=?", [$c['id']]);
+        $sent++;
+    }
+    ok(['reminders_sent' => $sent]);
+}
+
+// Au plus une alerte par boutique toutes les 20h (voir last_stock_alert_at) -
+// evite de spammer le marchand a chaque appel du cron (typiquement toutes
+// les heures) tant que le stock reste bas.
+function cron_stock_alerts() {
+    $boutiques = q("SELECT * FROM boutiques WHERE status='active' AND stock_alert_enabled=1
+                     AND (last_stock_alert_at IS NULL OR last_stock_alert_at <= NOW() - INTERVAL '20 hours')")->fetchAll();
+    $sent = 0;
+    foreach ($boutiques as $bt) {
+        $low = q("SELECT name, stock_qty, low_stock_threshold FROM products
+                   WHERE boutique_id=? AND status='active' AND track_inventory=1 AND stock_qty <= low_stock_threshold
+                   ORDER BY stock_qty ASC LIMIT 30", [$bt['id']])->fetchAll();
+        if (!$low) continue;
+        $lines = array_map(fn($p) => '- '.$p['name'].' : '.$p['stock_qty'].' restant(s)', $low);
+        $message = "Stock limite sur ".count($low)." produit(s) de ".$bt['name'].":\n".implode("\n", $lines);
+        $settings = q("SELECT notify_order_email, notify_email, notify_whatsapp_enabled, notify_whatsapp_number FROM boutiques WHERE id=?", [$bt['id']])->fetch();
+        if ($settings['notify_order_email']) {
+            $to = $settings['notify_email'] ?: (q("SELECT email FROM users WHERE id=?", [$bt['owner_user_id']])->fetchColumn() ?: null);
+            if ($to) send_email($to, 'Alerte stock limite - '.$bt['name'], $message);
+        }
+        if ($settings['notify_whatsapp_enabled'] && $settings['notify_whatsapp_number']) {
+            send_whatsapp($settings['notify_whatsapp_number'], $message);
+        }
+        q("UPDATE boutiques SET last_stock_alert_at=NOW() WHERE id=?", [$bt['id']]);
+        $sent++;
+    }
+    ok(['boutiques_alerted' => $sent]);
 }
