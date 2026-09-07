@@ -421,6 +421,7 @@ function renderCartSheet(step) {
       <div id="checkoutMsg"></div>
       <div class="field"><label>Nom complet</label><input id="coName"></div>
       <div class="field"><label>Téléphone</label><input id="coPhone" oninput="onCheckoutPhoneInput()"></div>
+      <div id="personalPromoHint"></div>
       <div class="field"><label>Adresse de livraison</label><textarea id="coAddress" rows="2"></textarea></div>
       ${promoFieldHtml()}
       ${totalsHtml}
@@ -442,10 +443,41 @@ function renderCartSheet(step) {
 }
 function removeFromCart(key) { CART = CART.filter(l => l.key !== key); saveCart(); renderCartSheet('cart'); }
 
-let abandonedTimer = null;
+let abandonedTimer = null, personalPromoTimer = null;
 function onCheckoutPhoneInput() {
   clearTimeout(abandonedTimer);
   abandonedTimer = setTimeout(trackAbandoned, 1200);
+  clearTimeout(personalPromoTimer);
+  const hint = document.getElementById('personalPromoHint');
+  if (hint) hint.innerHTML = '';
+  personalPromoTimer = setTimeout(checkPersonalPromo, 800);
+}
+// Des qu'un client tape son telephone, on verifie discretement s'il a un
+// code promo qui lui a ete reserve personnellement (voir Marketing ->
+// Ciblage cote marchand) et on le lui propose directement - il n'a pas
+// besoin de le connaitre a l'avance ni que le marchand l'appelle.
+function checkPersonalPromo() {
+  const phone = (document.getElementById('coPhone')||{}).value.trim();
+  const hint = document.getElementById('personalPromoHint');
+  if (!hint) return;
+  if (!phone) { hint.innerHTML = ''; return; }
+  post('/shop?action=promo_for_phone', {slug:SLUG, phone}).then(({data}) => {
+    const rows = (data.success && data.data) || [];
+    if (!rows.length || APPLIED_PROMO) { hint.innerHTML = ''; return; }
+    hint.innerHTML = rows.map(p => {
+      const label = p.type === 'percent' ? Number(p.value)+'%' : fmtMoney(p.value, BOUTIQUE.currency);
+      return `<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:9px;padding:8px 10px;margin:8px 0;font-size:13px;display:flex;justify-content:space-between;align-items:center;gap:8px">
+        <span>🎁 Code personnel <strong>${escapeHtml(p.code)}</strong> : -${label} disponible pour vous</span>
+        <button class="btn btn-primary btn-sm" onclick="applyDiscoveredPromo('${escapeHtml(p.code)}')" style="width:auto;flex-shrink:0">Utiliser</button>
+      </div>`;
+    }).join('');
+  });
+}
+function applyDiscoveredPromo(code) {
+  document.getElementById('promoInput').value = code;
+  applyPromoCode();
+  const hint = document.getElementById('personalPromoHint');
+  if (hint) hint.innerHTML = '';
 }
 function trackAbandoned() {
   const phone = (document.getElementById('coPhone')||{}).value || '';

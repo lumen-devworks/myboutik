@@ -1510,6 +1510,7 @@ function route_shop($action) {
         case 'contact_message':  shop_contact_message(); break;
         case 'validate_promo':   shop_validate_promo(); break;
         case 'active_promos':    shop_active_promos(); break;
+        case 'promo_for_phone':  shop_promo_for_phone(); break;
         case 'track_order':      shop_track_order(); break;
         case 'reviews':          shop_reviews(); break;
         case 'review_add':       shop_review_add(); break;
@@ -1613,6 +1614,24 @@ function shop_active_promos() {
           AND (max_uses IS NULL OR used_count < max_uses)
           AND NOT EXISTS (SELECT 1 FROM promo_code_customers WHERE promo_code_id=pc.id)
           ORDER BY created_at DESC LIMIT 5", [$bt['id']])->fetchAll());
+}
+// Des qu'un client tape son telephone au checkout, on lui revele lui-meme
+// tout code qui lui a ete personnellement reserve - le marchand n'a donc
+// pas besoin de le contacter un par un pour le prevenir. Rate-limite : sans
+// ca, un tiers pourrait essayer des numeros en serie pour decouvrir qui a
+// un code (peu grave en soi, mais autant limiter le bruit).
+function shop_promo_for_phone() {
+    rate_limit_check('shop_promo_for_phone', 30, 300);
+    $b = body();
+    $bt = public_boutique_by_slug($b['slug'] ?? '');
+    $phone = trim($b['phone'] ?? '');
+    if ($phone === '') ok([]);
+    ok(q("SELECT pc.code, pc.type, pc.value FROM promo_codes pc
+          JOIN promo_code_customers pcc ON pcc.promo_code_id = pc.id
+          WHERE pc.boutique_id=? AND pcc.phone=? AND pc.active=1
+          AND (pc.expires_at IS NULL OR pc.expires_at > NOW())
+          AND (pc.max_uses IS NULL OR pc.used_count < pc.max_uses)
+          ORDER BY pc.created_at DESC", [$bt['id'], $phone])->fetchAll());
 }
 
 // Commande a la livraison : cree/retrouve le client par telephone, cree la
