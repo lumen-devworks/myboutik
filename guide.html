@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MYBOUTIK — Guide d'utilisation</title>
+<style>
+  :root{ --blue:#2563eb; --blue-dark:#1d4ed8; --ink:#0f172a; --gray:#64748b; --border:#e2e8f0; --bg:#f8fafc; --amber-bg:#fffbeb; }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,'Segoe UI',Roboto,Arial,sans-serif;color:var(--ink);background:#fff;line-height:1.6}
+  a{color:var(--blue)}
+  code{background:var(--bg);border:1px solid var(--border);border-radius:5px;padding:1px 6px;font-size:13px;font-family:Consolas,Menlo,monospace}
+  .layout{display:flex;max-width:1100px;margin:0 auto}
+  nav{width:230px;flex-shrink:0;padding:24px 16px;position:sticky;top:0;align-self:flex-start;max-height:100vh;overflow-y:auto}
+  nav .brand{display:flex;align-items:center;gap:8px;font-weight:800;font-size:16px;margin-bottom:20px}
+  nav .mark{width:26px;height:26px;border-radius:7px;background:linear-gradient(135deg,#3b82f6,#1e40af);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:13px}
+  nav a{display:block;color:var(--gray);text-decoration:none;font-size:13px;padding:5px 0}
+  nav a:hover{color:var(--blue)}
+  nav .num{display:inline-block;width:18px;color:var(--border);font-weight:700}
+  main{flex:1;min-width:0;padding:40px 32px 100px;border-left:1px solid var(--border)}
+  h1{font-size:26px;margin-bottom:6px}
+  .subtitle{color:var(--gray);font-size:15px;margin-bottom:36px}
+  section{margin-bottom:44px;scroll-margin-top:20px}
+  h2{font-size:20px;margin-bottom:14px;padding-bottom:8px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px}
+  h2 .badge{background:var(--blue);color:#fff;width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0}
+  h3{font-size:15px;margin:18px 0 8px}
+  p{margin-bottom:10px;font-size:14px}
+  ol,ul{margin:0 0 12px 22px;font-size:14px}
+  li{margin-bottom:6px}
+  .card{background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:14px 16px;margin:14px 0;font-size:13.5px}
+  .card.warn{background:var(--amber-bg);border-color:#fde68a}
+  .card strong{display:block;margin-bottom:4px}
+  table{width:100%;border-collapse:collapse;font-size:13.5px;margin:12px 0}
+  th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--border)}
+  th{color:var(--gray);font-size:12px;text-transform:uppercase}
+  .top{display:none}
+  @media (max-width: 820px){
+    .layout{display:block}
+    nav{position:static;width:auto;max-height:none;border-bottom:1px solid var(--border)}
+    main{border-left:none;padding:24px 18px 80px}
+  }
+</style>
+</head>
+<body>
+<div class="layout">
+  <nav>
+    <div class="brand"><div class="mark">M</div> MYBOUTIK</div>
+    <a href="#compte"><span class="num">1</span>Créer son compte</a>
+    <a href="#boutique"><span class="num">2</span>Créer une boutique</a>
+    <a href="#produits"><span class="num">3</span>Ajouter des produits</a>
+    <a href="#variantes"><span class="num">4</span>Variantes (Taille, Couleur…)</a>
+    <a href="#general"><span class="num">5</span>Personnaliser (logo, livraison)</a>
+    <a href="#partager"><span class="num">6</span>Partager sa boutique</a>
+    <a href="#commandes"><span class="num">7</span>Commandes & livraisons</a>
+    <a href="#stock"><span class="num">8</span>Stock & fournisseurs</a>
+    <a href="#clients"><span class="num">9</span>Clients & contacts</a>
+    <a href="#finances"><span class="num">10</span>Finances</a>
+    <a href="#analytique"><span class="num">11</span>Analytique & historique</a>
+    <a href="#equipe"><span class="num">12</span>Équipe & rôles</a>
+    <a href="#notifications"><span class="num">13</span>Notifications</a>
+    <a href="#integrations"><span class="num">14</span>Google Sheets</a>
+    <a href="#abonnement"><span class="num">15</span>Abonnement</a>
+    <a href="#affiliation"><span class="num">16</span>Affiliation</a>
+    <a href="#grade"><span class="num">17</span>Mon grade</a>
+    <a href="#faq"><span class="num">18</span>Questions fréquentes</a>
+  </nav>
+  <main>
+    <h1>Guide d'utilisation MYBOUTIK</h1>
+    <p class="subtitle">Tout ce qu'il faut savoir pour créer sa boutique, vendre en ligne et suivre son activité. Cliquez une section à gauche pour y aller directement.</p>
+
+    <section id="compte">
+      <h2><span class="badge">1</span>Créer son compte</h2>
+      <ol>
+        <li>Sur la page d'accueil, cliquez sur <strong>Démarrer gratuitement</strong>.</li>
+        <li>Renseignez votre nom, votre email et un mot de passe (6 caractères minimum).</li>
+        <li>Un lien de vérification est envoyé à votre email — cliquez dessus pour activer votre compte.</li>
+        <li>Connectez-vous avec <strong>Se connecter</strong>.</li>
+      </ol>
+      <div class="card">
+        <strong>Pas reçu l'email ?</strong>
+        Vérifiez vos spams, ou cliquez sur « Renvoyer l'email de confirmation » depuis l'écran d'inscription.
+      </div>
+    </section>
+
+    <section id="boutique">
+      <h2><span class="badge">2</span>Créer sa première boutique</h2>
+      <p>Une fois connecté, vous arrivez sur <strong>Mes boutiques</strong> — l'endroit où sont listées toutes vos boutiques.</p>
+      <ol>
+        <li>Cliquez sur <strong>+ Créer une boutique</strong>.</li>
+        <li>Donnez-lui un nom (ex: « Boutik de Rom ») — une adresse web est générée automatiquement à partir du nom.</li>
+        <li>Vous arrivez directement sur le tableau de bord de cette boutique.</li>
+      </ol>
+      <div class="card">
+        <strong>Plusieurs boutiques ?</strong>
+        Vous pouvez en créer plusieurs depuis un seul compte (selon votre plan, voir la section Abonnement) et basculer entre elles avec le sélecteur en haut du menu de gauche.
+      </div>
+    </section>
+
+    <section id="produits">
+      <h2><span class="badge">3</span>Ajouter des produits</h2>
+      <p>Menu <strong>Produits</strong> → <strong>+ Nouveau produit</strong>. Les champs les plus importants :</p>
+      <table>
+        <tr><th>Champ</th><th>À quoi il sert</th></tr>
+        <tr><td>Prix de vente</td><td>Prix affiché au client sur la vitrine.</td></tr>
+        <tr><td>Prix barré</td><td>Optionnel — affiche un prix « avant réduction » barré à côté du prix de vente.</td></tr>
+        <tr><td>Prix de revient</td><td>Ce que le produit vous coûte — reste interne, sert à calculer votre marge (Finance Détaillée).</td></tr>
+        <tr><td>Frais de livraison</td><td>Optionnel — si vide, le frais par défaut de la boutique s'applique (voir section 5).</td></tr>
+        <tr><td>Statut</td><td><strong>Brouillon</strong> = invisible sur la vitrine. <strong>Actif</strong> = visible et achetable.</td></tr>
+        <tr><td>Suivre la quantité</td><td>Décochez pour un produit à stock illimité (ex: service, produit numérique).</td></tr>
+        <tr><td>Alerte stock limité</td><td>Seuil en dessous duquel vous serez alerté (page Produits) pour recommander.</td></tr>
+      </table>
+      <p><strong>Photos</strong> : jusqu'à 12 par produit. Utilisez « Choisir un fichier » (galerie) ou « 📷 Prendre une photo » (ouvre directement l'appareil photo sur téléphone). La première photo ajoutée devient l'image principale ; vous pouvez en définir une autre comme principale, ou en supprimer, à tout moment.</p>
+    </section>
+
+    <section id="variantes">
+      <h2><span class="badge">4</span>Variantes (Taille, Couleur…)</h2>
+      <p>Si votre produit existe en plusieurs tailles/couleurs, utilisez le générateur d'options dans la fiche produit :</p>
+      <ol>
+        <li>Dans « Options », tapez un nom d'option (ex: <code>Taille</code>) puis <strong>Entrée</strong> pour valider.</li>
+        <li>Tapez chaque valeur (<code>S</code>, <code>M</code>, <code>L</code>…), une par une, en appuyant sur Entrée après chacune — elles apparaissent comme des étiquettes.</li>
+        <li>Ajoutez une deuxième option si besoin (ex: <code>Couleur</code> avec <code>Rouge</code>, <code>Bleu</code>…), jusqu'à 3 options.</li>
+        <li>Cliquez sur <strong>Générer les variantes</strong> — toutes les combinaisons sont créées automatiquement (ex: 3 tailles × 2 couleurs = 6 variantes).</li>
+        <li>Ajustez le prix (optionnel) et le stock de chaque variante, puis <strong>Enregistrer</strong>.</li>
+      </ol>
+      <div class="card warn">
+        <strong>Piège fréquent</strong>
+        Chaque valeur doit être validée par Entrée séparément. Écrire « S, M, L » dans le champ sans appuyer sur Entrée entre chaque ne crée qu'une seule valeur fourre-tout — les combinaisons ne fonctionneront pas côté vitrine.
+      </div>
+      <p>Côté acheteur, chaque option apparaît comme un menu déroulant séparé (un pour Taille, un pour Couleur). S'il choisit une combinaison qui n'a pas été générée, le bouton « Ajouter au panier » reste désactivé.</p>
+    </section>
+
+    <section id="general">
+      <h2><span class="badge">5</span>Personnaliser sa boutique</h2>
+      <p>Menu <strong>Paramètres → Général</strong> :</p>
+      <ul>
+        <li><strong>Logo</strong> : affiché en haut de votre vitrine publique.</li>
+        <li><strong>Description</strong> : un texte de présentation affiché sous l'en-tête de la vitrine.</li>
+        <li><strong>Frais de livraison par défaut</strong> : ajouté automatiquement au panier du client, sauf si un produit a son propre frais de livraison défini (qui prend alors le dessus).</li>
+        <li><strong>Paiement à la livraison</strong> : à laisser activé — c'est le seul mode de paiement pris en charge actuellement.</li>
+      </ul>
+    </section>
+
+    <section id="partager">
+      <h2><span class="badge">6</span>Partager sa boutique</h2>
+      <p>Le lien de votre vitrine publique est indiqué en bas de la page <strong>Paramètres → Général</strong> — de la forme <code>store/index.html?b=nom-de-votre-boutique</code>. C'est ce lien que vous partagez sur WhatsApp, Instagram, Facebook, etc.</p>
+      <p>Pour partager directement une fiche produit précise (ex: dans un message WhatsApp), ajoutez <code>&p=slug-du-produit</code> à la fin du lien — le slug de chaque produit est visible/modifiable dans sa fiche.</p>
+    </section>
+
+    <section id="commandes">
+      <h2><span class="badge">7</span>Commandes & livraisons</h2>
+      <p>Chaque commande passée sur votre vitrine apparaît dans <strong>Commandes</strong>. Le statut évolue au fil du traitement :</p>
+      <table>
+        <tr><th>Statut</th><th>Sens</th></tr>
+        <tr><td>En attente</td><td>Commande reçue, pas encore traitée.</td></tr>
+        <tr><td>Validée</td><td>Vous avez confirmé la commande (généralement automatique dès qu'un livreur est assigné).</td></tr>
+        <tr><td>Expédiée</td><td>Le livreur est en route.</td></tr>
+        <tr><td>Livrée</td><td>Le client a reçu et payé — l'argent est compté comme encaissé dans vos finances.</td></tr>
+        <tr><td>Refusée</td><td>Le client a refusé à la livraison.</td></tr>
+      </table>
+      <p><strong>Livraisons</strong> : assignez chaque commande à un livreur (à créer via « + Ajouter un livreur » — nom, téléphone, véhicule…), puis faites évoluer son statut à chaque étape.</p>
+      <div class="card">
+        <strong>Le stock ne bloque jamais une commande</strong>
+        Une commande passe toujours, même si le stock est insuffisant — à vous de vous organiser une fois la commande reçue. Utilisez plutôt le seuil d'alerte de stock limité (section 3) pour anticiper les ruptures et recommander à temps (bouton « Commander » sur la page Produits/Stock).
+      </div>
+      <p><strong>Commandes abandonnées</strong> : si un client tape son numéro sans finaliser sa commande, il apparaît ici — vous pouvez le rappeler pour récupérer la vente.</p>
+    </section>
+
+    <section id="stock">
+      <h2><span class="badge">8</span>Stock & fournisseurs</h2>
+      <p>Menu <strong>Produits → Stock</strong> : ajustez les quantités (+1/-1/autre) ; les produits sous leur seuil d'alerte affichent un badge et un bouton <strong>Commander</strong>.</p>
+      <p>Cliquer sur <strong>Commander</strong> ouvre directement une commande fournisseur pré-remplie (produit + quantité suggérée). Il faut avoir créé au moins un fournisseur au préalable (menu <strong>Fournisseurs</strong>).</p>
+      <p>Une commande fournisseur marquée <strong>Reçue</strong> réapprovisionne automatiquement le stock du produit concerné.</p>
+    </section>
+
+    <section id="clients">
+      <h2><span class="badge">9</span>Clients & contacts</h2>
+      <p><strong>Clients</strong> : liste automatique de tous les acheteurs (créée dès leur première commande), avec le nombre de commandes et le total dépensé.</p>
+      <p><strong>Carnet d'adresses</strong> : contacts utiles à votre activité mais qui ne sont pas des clients (avocat, comptable, transporteur…). Créez d'abord un « rôle » (ex: Comptable), puis ajoutez les contacts sous ce rôle.</p>
+    </section>
+
+    <section id="finances">
+      <h2><span class="badge">10</span>Finances</h2>
+      <table>
+        <tr><th>Page</th><th>À quoi elle sert</th></tr>
+        <tr><td>Vue Globale</td><td>Votre résultat net sur la période : revenus encaissés moins coût des produits, frais de livraison, publicité et autres dépenses.</td></tr>
+        <tr><td>Livre de Compte</td><td>Vos comptes (caisse, banque, mobile money) et leurs mouvements — entrées, sorties, transferts entre comptes.</td></tr>
+        <tr><td>Frais de livraison</td><td>Ce que <strong>vous</strong> payez aux livreurs/transporteurs (différent du frais facturé au client).</td></tr>
+        <tr><td>Finance Détaillée</td><td>La marge réelle de chaque commande livrée (nécessite d'avoir renseigné le prix de revient de vos produits).</td></tr>
+        <tr><td>Publicités & ROAS</td><td>Voir la section dédiée ci-dessous.</td></tr>
+      </table>
+      <h3>Comprendre Publicités & ROAS</h3>
+      <ol>
+        <li>Cliquez <strong>+ Nouvelle dépense</strong> à chaque campagne publicitaire lancée (Facebook, TikTok…).</li>
+        <li>Renseignez le montant dépensé, et si possible le produit mis en avant.</li>
+        <li>MYBOUTIK calcule le revenu attribué (ventes livrées de ce produit sur la période) et le ROAS = revenu ÷ dépense.</li>
+        <li>Pour suivre une campagne précise (pas juste un produit), ajoutez <code>&utm_campaign=nom-campagne</code> au lien de votre boutique dans votre publicité.</li>
+      </ol>
+      <p>Un ROAS supérieur à 1 = la publicité rapporte plus qu'elle ne coûte.</p>
+    </section>
+
+    <section id="analytique">
+      <h2><span class="badge">11</span>Analytique & historique</h2>
+      <p><strong>Rapports</strong> : ventes, panier moyen, meilleures ventes sur une période choisie. <strong>Live</strong> : activité du jour, mise à jour automatique. <strong>Historique</strong> (réservé au propriétaire et aux administrateurs) : la liste des 300 dernières actions sur la boutique, avec qui les a faites et quand — utile pour suivre le travail de votre équipe.</p>
+    </section>
+
+    <section id="equipe">
+      <h2><span class="badge">12</span>Équipe & rôles</h2>
+      <p>Menu <strong>Paramètres → Équipe → Inviter un membre</strong>. Chaque personne garde son propre compte MYBOUTIK (à créer avec la même adresse email que celle invitée).</p>
+      <table>
+        <tr><th>Rôle</th><th>Accès</th></tr>
+        <tr><td>Admin</td><td>Accès complet, y compris équipe et paramètres.</td></tr>
+        <tr><td>Manager</td><td>Tout sauf équipe, paramètres et abonnement.</td></tr>
+        <tr><td>Closeuse</td><td>Commandes, clients et produits/stock uniquement.</td></tr>
+        <tr><td>Comptable</td><td>Finances et analytique uniquement.</td></tr>
+        <tr><td>Livreur</td><td>Voit et met à jour uniquement les livraisons qui lui sont assignées.</td></tr>
+      </table>
+      <p>Pour un livreur, associez-le à sa fiche livreur (créée dans Livraisons) au moment de l'invitation, sinon il ne verra aucune livraison tant que ce lien n'est pas fait.</p>
+    </section>
+
+    <section id="notifications">
+      <h2><span class="badge">13</span>Notifications</h2>
+      <p>Menu <strong>Paramètres → Général</strong>, en bas : activez l'email et/ou WhatsApp pour être averti à chaque nouvelle commande. L'envoi WhatsApp réel nécessite un compte WhatsApp Business API — sans cela, le message est simplement journalisé pour test.</p>
+    </section>
+
+    <section id="integrations">
+      <h2><span class="badge">14</span>Import Google Sheets</h2>
+      <p>Menu <strong>Paramètres → Intégrations</strong>. Utile si vous notez encore des commandes prises sur WhatsApp dans un tableur.</p>
+      <ol>
+        <li>Dans Google Sheets : <strong>Fichier → Partager → Publier sur le web</strong>, choisissez le format CSV, publiez, et copiez le lien.</li>
+        <li>Collez ce lien dans MYBOUTIK et enregistrez.</li>
+        <li>Première ligne de votre feuille = les noms de colonnes : <code>id_commande</code>, <code>client</code>, <code>telephone</code> et <code>sku</code> sont obligatoires (le SKU doit correspondre exactement à un produit existant).</li>
+        <li>Cliquez <strong>Importer maintenant</strong> à chaque fois que vous voulez récupérer les nouvelles lignes — une ligne déjà importée ne l'est jamais deux fois.</li>
+      </ol>
+    </section>
+
+    <section id="abonnement">
+      <h2><span class="badge">15</span>Abonnement</h2>
+      <p>Le plan choisi limite le nombre de boutiques que vous pouvez créer. Menu <strong>Paramètres → Abonnement</strong> : choisissez un plan, effectuez le paiement Mobile Money selon les instructions affichées, puis votre plan est activé après vérification manuelle (généralement rapide).</p>
+    </section>
+
+    <section id="affiliation">
+      <h2><span class="badge">16</span>Affiliation</h2>
+      <p>Menu <strong>Paramètres → Affiliation</strong> : partagez votre lien personnel. Vous gagnez 10% de chaque abonnement payé par les personnes inscrites via ce lien.</p>
+      <ul>
+        <li>Une commission reste « en attente de validation » 7 jours, puis devient « disponible au retrait ».</li>
+        <li>Retrait minimum : 5 000 FCFA, versé en Mobile Money après vérification manuelle.</li>
+      </ul>
+    </section>
+
+    <section id="grade">
+      <h2><span class="badge">17</span>Mon grade</h2>
+      <p>Une simple récompense visuelle basée sur le total encaissé depuis l'ouverture de la boutique (Bronze à partir de 1 000 000 FCFA, jusqu'à Titan). Chaque palier est acquis pour de bon.</p>
+    </section>
+
+    <section id="faq">
+      <h2><span class="badge">18</span>Questions fréquentes</h2>
+      <h3>Un client ne peut pas ajouter un produit au panier</h3>
+      <p>Vérifiez que le produit est en statut <strong>Actif</strong> (pas Brouillon). Si le produit a des variantes, la combinaison choisie doit avoir été générée (section 4).</p>
+      <h3>Le total affiché au client ne correspond pas à ce que j'attendais</h3>
+      <p>Le frais de livraison affiché est le plus élevé parmi les produits physiques du panier (pas la somme) — voir section 5.</p>
+      <h3>Je ne vois pas certaines pages du menu</h3>
+      <p>Votre rôle sur cette boutique limite les pages accessibles (section 12) — demandez à un administrateur si vous pensez avoir besoin d'un accès plus large.</p>
+      <h3>Une page reste bloquée sur « Chargement… »</h3>
+      <p>Rechargez la page. Si ça persiste, contactez la personne qui gère l'hébergement technique de votre boutique.</p>
+    </section>
+  </main>
+</div>
+</body>
+</html>
