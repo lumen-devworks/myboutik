@@ -57,6 +57,22 @@ base).
    - `ADMIN_PASSWORD` — optionnel, protège `admin.html` (validation manuelle
      des demandes d'abonnement). Sans elle, `admin.html` répond juste
      "panneau non configuré" — pas de risque à la laisser absente au début.
+   - `CRON_KEY` — optionnel, sinon `INSTALL_KEY`/`JWT_SECRET` est réutilisée pour
+     protéger `/cron` (relances paniers abandonnés + alertes de stock, voir
+     section "Tâches planifiées" plus bas).
+   - `BREVO_API_KEY`, `BREVO_SENDER_EMAIL`, `BREVO_SENDER_NAME` — optionnels,
+     activent l'envoi réel des emails (vérification de compte, invitations
+     d'équipe, notifications de commande) via [Brevo](https://app.brevo.com).
+     Sans eux, les emails restent journalisés (`error_log`) sans être envoyés.
+   - `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_WHATSAPP_FROM` —
+     optionnels, activent l'envoi réel des notifications WhatsApp via
+     [Twilio](https://console.twilio.com). `TWILIO_WHATSAPP_FROM` est le
+     numéro expéditeur au format `whatsapp:+14155238886` (sandbox de test)
+     ou `whatsapp:+...` (numéro WhatsApp Business approuvé). Le sandbox
+     Twilio n'envoie qu'aux numéros ayant rejoint le sandbox (`join <code>`
+     envoyé depuis WhatsApp) — suffisant pour tester les alertes marchand
+     (envoyées à son propre numéro), pas pour relancer de vrais clients en
+     production.
    - `APP_ENV` — laissez absent ou mettez `production` en ligne. Ne mettez `development` qu'en local.
 4. Une fois déployé, initialisez les tables en visitant :
    `https://votre-backend.example.com/install?key=VOTRE_INSTALL_KEY`
@@ -96,19 +112,37 @@ Le plan prévoyait aussi une bascule future vers un sous-domaine par boutique
 public dans les deux cas, donc aucun changement de modèle de données ne sera
 nécessaire le jour où vous configurez le DNS wildcard.
 
-## 3. Envoi réel de l'email de vérification
+## 3. Envoi réel d'email / WhatsApp
 
-Non branché dans cette version : `auth_register()` (dans `index.php`)
-journalise le lien de vérification côté serveur (`error_log`) au lieu de
-l'envoyer par email. Pour l'activer :
-1. Choisissez un fournisseur transactionnel (Brevo, SendGrid, Resend…) ou un
-   compte SMTP.
-2. Dans `auth_register()`, remplacez le `error_log(...)` par un appel à
-   l'API de ce fournisseur (ou `PHPMailer` pour du SMTP classique).
+`send_email()` et `send_whatsapp()` (dans `index.php`) envoient réellement dès
+que les variables d'environnement Brevo/Twilio (section 1) sont configurées —
+sinon elles se contentent de journaliser (`error_log`) comme avant, sans
+jamais faire échouer l'action qui les déclenche (inscription, commande,
+relance…). Aucune modification de code n'est nécessaire une fois les clés
+posées sur Render.
 
-En attendant, en local (`APP_ENV=development`), la réponse de
-`/auth?action=register` renvoie directement `verify_link_dev_only` — la page
-`index.html` l'affiche pour pouvoir tester le parcours complet sans email.
+En local (`APP_ENV=development`), la réponse de `/auth?action=register`
+renvoie en plus `verify_link_dev_only` — la page `index.html` l'affiche pour
+pouvoir tester le parcours complet même sans email configuré.
+
+## 3bis. Tâches planifiées (cron)
+
+Aucun worker en arrière-plan sur cet hébergement : deux tâches doivent être
+déclenchées de l'extérieur par un service de cron gratuit (ex:
+[cron-job.org](https://cron-job.org)) :
+
+- `https://votre-backend.example.com/cron?action=abandoned_reminders&key=VOTRE_CRON_KEY`
+  — toutes les 15-30 minutes. Relance par email/WhatsApp les clients ayant
+  abandonné un panier depuis 30 min à 48h (boutiques avec le réglage
+  "Relancer automatiquement" activé).
+- `https://votre-backend.example.com/cron?action=stock_alerts&key=VOTRE_CRON_KEY`
+  — toutes les heures (l'envoi réel reste limité à 1 fois/jour par boutique
+  côté serveur, un appel plus fréquent est donc sans danger). Alerte le
+  marchand par email/WhatsApp des produits en stock limité.
+
+Ces deux routes ne répondent qu'un petit JSON de confirmation — elles ne sont
+pas destinées à être visitées par un humain, seulement appelées par le
+service de cron.
 
 ## 4. Tester en local
 

@@ -241,11 +241,11 @@
 
     <section id="notifications">
       <h2><span class="badge">13</span>Notifications</h2>
-      <p>Menu <strong>Paramètres → Général</strong>, en bas : activez l'email et/ou WhatsApp pour être averti à chaque nouvelle commande. L'envoi WhatsApp réel nécessite un compte WhatsApp Business API — sans cela, le message est simplement journalisé pour test.</p>
+      <p>Menu <strong>Paramètres → Général</strong>, en bas : activez l'email et/ou WhatsApp pour être averti à chaque nouvelle commande.</p>
       <p><strong>Alerte de stock limité</strong> : case « M'alerter automatiquement quand un produit passe en stock limité » (même page) — vous prévient au maximum une fois par jour dès qu'un ou plusieurs produits passent sous leur seuil d'alerte.</p>
       <div class="card">
-        <strong>Ces envois nécessitent un fournisseur email/WhatsApp branché côté serveur</strong>
-        Les cases de notification (commande, stock, relance panier abandonné) enregistrent bien votre préférence, mais l'envoi réel n'a lieu qu'une fois qu'un service d'email (Brevo/Resend/SMTP) et/ou un compte WhatsApp Business est configuré par l'opérateur de MYBOUTIK.
+        <strong>Envoi réel email/WhatsApp</strong>
+        Les emails (vérification de compte, invitations, notifications de commande) et les WhatsApp partent réellement une fois que l'opérateur de MYBOUTIK a connecté un fournisseur (Brevo pour l'email, Twilio pour WhatsApp). Avec le numéro WhatsApp de test (sandbox), seules les alertes envoyées à votre propre numéro fonctionnent immédiatement ; relancer de vrais clients par WhatsApp nécessite un numéro WhatsApp Business approuvé.
       </div>
     </section>
 

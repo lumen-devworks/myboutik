@@ -54,6 +54,20 @@ define('APP_DEBUG', APP_ENV === 'development');
 // routes /admin repondent "non configure" tant qu'il n'est pas defini.
 define('ADMIN_PASSWORD', getenv('ADMIN_PASSWORD') ?: null);
 
+// Envoi d'email transactionnel (Brevo, https://app.brevo.com/settings/keys/api)
+// - optionnel : en son absence, send_email() se contente de journaliser
+// comme avant (voir plus bas), rien ne casse.
+define('BREVO_API_KEY',     getenv('BREVO_API_KEY')     ?: null);
+define('BREVO_SENDER_EMAIL',getenv('BREVO_SENDER_EMAIL')?: null);
+define('BREVO_SENDER_NAME', getenv('BREVO_SENDER_NAME') ?: 'MYBOUTIK');
+// Envoi WhatsApp (Twilio, https://console.twilio.com) - TWILIO_WHATSAPP_FROM
+// est le numero expediteur au format "whatsapp:+14155238886" (sandbox de
+// test) ou "whatsapp:+..." (numero WhatsApp Business valide une fois
+// approuve). Meme principe : optionnel, repli sur le journal si absent.
+define('TWILIO_ACCOUNT_SID',    getenv('TWILIO_ACCOUNT_SID')    ?: null);
+define('TWILIO_AUTH_TOKEN',     getenv('TWILIO_AUTH_TOKEN')     ?: null);
+define('TWILIO_WHATSAPP_FROM',  getenv('TWILIO_WHATSAPP_FROM')  ?: null);
+
 // CORS restreint : seules les origines listees ici peuvent appeler l'API
 // directement depuis un navigateur. A completer avec le(s) domaine(s) ou
 // sont hebergees index.html / dashboard / store une fois deployees.
@@ -297,23 +311,65 @@ const REFERRAL_VALIDATION_DAYS = 7;
 const REFERRAL_MIN_PAYOUT = 5000;
 const TEAM_ROLES = ['admin','manager','livreur','closeuse','comptable'];
 
-// Point unique d'envoi d'email. Aucun fournisseur transactionnel branche
-// pour l'instant (voir README) : le contenu est journalise au lieu d'etre
-// envoye, comme deja fait pour les liens de verification. Brancher un vrai
-// envoi ici (Brevo/SendGrid/Resend/SMTP) active d'un coup la verification
-// de compte, les invitations d'equipe ET les notifications de commande.
+// Point unique d'envoi d'email. Journalise toujours (utile pour deboguer
+// meme quand Brevo est branche), puis envoie reellement via l'API Brevo si
+// BREVO_API_KEY/BREVO_SENDER_EMAIL sont configures - sinon se comporte comme
+// avant (log seul). Ne remonte jamais d'erreur a l'appelant : une commande
+// ou une inscription ne doit jamais echouer a cause d'un email qui n'est
+// pas parti.
 function send_email($to, $subject, $body) {
     error_log('[MYBOUTIK] Email a envoyer -> '.$to.' | Sujet: '.$subject."\n".$body);
+    if (!BREVO_API_KEY || !BREVO_SENDER_EMAIL || !$to) return;
+    try {
+        $ch = curl_init('https://api.brevo.com/v3/smtp/email');
+        curl_setopt_array($ch, [
+            CURLOPT_POST => true,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT => 10,
+            CURLOPT_HTTPHEADER => ['accept: application/json', 'content-type: application/json', 'api-key: '.BREVO_API_KEY],
+            CURLOPT_POSTFIELDS => json_encode([
+                'sender' => ['email' => BREVO_SENDER_EMAIL, 'name' => BREVO_SENDER_NAME],
+                'to' => [['email' => $to]],
+                'subject' => $subject,
+                'textContent' => $body,
+            ], JSON_UNESCAPED_UNICODE),
+        ]);
+        $res = curl_exec($ch);
+        $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        if ($code >= 300) error_log('[MYBOUTIK] Brevo erreur HTTP '.$code.': '.$res);
+        curl_close($ch);
+    } catch (Throwable $e) {
+        error_log('[MYBOUTIK] Brevo exception: '.$e->getMessage());
+    }
 }
 
-// Meme principe que send_email() : aucun envoi reel pour l'instant (une
-// vraie notification WhatsApp business-initiee necessite un compte
-// WhatsApp Business API - Meta Cloud API ou un prestataire comme Twilio/
-// 360dialog - avec un modele de message pre-approuve). Le numero et le
-// reglage sont deja geres cote boutique, prets pour le jour ou un vrai
-// fournisseur est branche ici.
+// Meme principe que send_email(), via l'API Twilio si TWILIO_ACCOUNT_SID/
+// TWILIO_AUTH_TOKEN/TWILIO_WHATSAPP_FROM sont configures. Avec le numero
+// "sandbox" gratuit de Twilio, seuls les numeros ayant rejoint le sandbox
+// (join <code> envoye au numero sandbox depuis WhatsApp) recoivent
+// reellement le message - suffisant pour tester les alertes marchand
+// (envoyees a son propre numero), mais pas pour relancer de vrais clients
+// en production (necessite un numero WhatsApp Business approuve).
 function send_whatsapp($to, $message) {
     error_log('[MYBOUTIK] WhatsApp a envoyer -> '.$to.' : '.$message);
+    if (!TWILIO_ACCOUNT_SID || !TWILIO_AUTH_TOKEN || !TWILIO_WHATSAPP_FROM || !$to) return;
+    try {
+        $toFormatted = 'whatsapp:'.preg_replace('/[^0-9+]/', '', $to);
+        $ch = curl_init('https://api.twilio.com/2010-04-01/Accounts/'.TWILIO_ACCOUNT_SID.'/Messages.json');
+        curl_setopt_array($ch, [
+            CURLOPT_POST => true,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT => 10,
+            CURLOPT_USERPWD => TWILIO_ACCOUNT_SID.':'.TWILIO_AUTH_TOKEN,
+            CURLOPT_POSTFIELDS => http_build_query(['From' => TWILIO_WHATSAPP_FROM, 'To' => $toFormatted, 'Body' => $message]),
+        ]);
+        $res = curl_exec($ch);
+        $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        if ($code >= 300) error_log('[MYBOUTIK] Twilio erreur HTTP '.$code.': '.$res);
+        curl_close($ch);
+    } catch (Throwable $e) {
+        error_log('[MYBOUTIK] Twilio exception: '.$e->getMessage());
+    }
 }
 
 // Paliers de grade (gamification), calcules sur le cumul "vie" des revenus

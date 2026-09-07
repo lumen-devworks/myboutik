@@ -4,9 +4,12 @@
 # exactement comme en local (meme commande que router.php / Procfile).
 FROM php:8.3-cli
 
+# libcurl4-openssl-dev + ext-curl : necessaires pour les appels sortants
+# vers les API Brevo (email) et Twilio (WhatsApp) - voir send_email()/
+# send_whatsapp() dans index.php.
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends libpq-dev \
-    && docker-php-ext-install pdo pdo_pgsql \
+    && apt-get install -y --no-install-recommends libpq-dev libcurl4-openssl-dev \
+    && docker-php-ext-install pdo pdo_pgsql curl \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
