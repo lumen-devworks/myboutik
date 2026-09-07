@@ -483,7 +483,7 @@ function printOrderBordereau(orderId) {
         <div>${escapeHtml(o.customer_address||'')}</div>
       </div>
       ${d.delivery_person_name ? `<div class="box"><div class="label">Livreur</div><div>${escapeHtml(d.delivery_person_name)}</div><div>${escapeHtml(d.delivery_person_phone||'')}</div></div>` : ''}
-      <table><thead><tr><th>Article</th><th style="text-align:center">Qté</th><th style="text-align:right">Prix</th></tr></thead><tbody>${itemsHtml}</tbody></table>
+      <table><thead><tr><th>Article</th><th style="text-align:center">Qté</th><th style="text-align:right">Prix unitaire</th></tr></thead><tbody>${itemsHtml}</tbody></table>
       <div class="total">À encaisser : ${fmtMoney(o.total, CURRENT.currency)}</div>
       <div class="muted" style="margin-top:14px">Paiement à la livraison (COD). Merci de vérifier le montant avec le client avant remise du colis.</div>
       <script>window.onload = () => window.print();<\/script>
