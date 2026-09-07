@@ -382,25 +382,34 @@ function promoFieldHtml() {
       : '<button class="btn btn-ghost" onclick="applyPromoCode()">Appliquer</button>'}
   </div><div id="promoMsg"></div>`;
 }
+// Capture ce que le client a deja tape avant un re-rendu du panier
+// (applique/retire un code promo) pour pouvoir le remettre en place -
+// renderCartSheet() reconstruit tout le HTML du formulaire, ce qui videait
+// sinon nom/telephone/adresse deja saisis.
+function checkoutFieldValues() {
+  return {
+    name: (document.getElementById('coName')||{}).value || '',
+    phone: (document.getElementById('coPhone')||{}).value || '',
+    address: (document.getElementById('coAddress')||{}).value || '',
+  };
+}
 function applyPromoCode() {
   const code = document.getElementById('promoInput').value.trim();
   if (!code) return;
   const subtotal = CART.reduce((s,l)=>s+l.price*l.qty, 0);
-  // Le telephone n'existe que sur l'etape checkout (le champ n'apparait
-  // qu'a ce moment) - necessaire pour verifier un code reserve a un client
-  // precis (voir find_active_promo() cote serveur).
-  const phone = (document.getElementById('coPhone')||{}).value || '';
-  post('/shop?action=validate_promo', {slug:SLUG, code, subtotal, phone}).then(({data}) => {
+  const fields = checkoutFieldValues();
+  post('/shop?action=validate_promo', {slug:SLUG, code, subtotal, phone:fields.phone}).then(({data}) => {
     const msg = document.getElementById('promoMsg');
     if (!data.success) { if (msg) msg.innerHTML = '<div class="msg error">'+data.message+'</div>'; return; }
     APPLIED_PROMO = data.data;
-    renderCartSheet(window.__cartStep||'cart');
+    renderCartSheet(window.__cartStep||'cart', fields);
   });
 }
-function removePromoCode() { APPLIED_PROMO = null; renderCartSheet(window.__cartStep||'cart'); }
+function removePromoCode() { const fields = checkoutFieldValues(); APPLIED_PROMO = null; renderCartSheet(window.__cartStep||'cart', fields); }
 
-function renderCartSheet(step) {
+function renderCartSheet(step, prefill) {
   step = step || 'cart';
+  prefill = prefill || {};
   window.__cartStep = step;
   const subtotal = CART.reduce((s,l)=>s+l.price*l.qty, 0);
   const deliveryFee = computeDeliveryFee();
@@ -419,10 +428,10 @@ function renderCartSheet(step) {
       <button class="close" onclick="closeOverlay('cartOverlay')">✕</button>
       <h2>Vos informations</h2>
       <div id="checkoutMsg"></div>
-      <div class="field"><label>Nom complet</label><input id="coName"></div>
-      <div class="field"><label>Téléphone</label><input id="coPhone" oninput="onCheckoutPhoneInput()"></div>
+      <div class="field"><label>Nom complet</label><input id="coName" value="${escapeHtml(prefill.name||'')}"></div>
+      <div class="field"><label>Téléphone</label><input id="coPhone" value="${escapeHtml(prefill.phone||'')}" oninput="onCheckoutPhoneInput()"></div>
       <div id="personalPromoHint"></div>
-      <div class="field"><label>Adresse de livraison</label><textarea id="coAddress" rows="2"></textarea></div>
+      <div class="field"><label>Adresse de livraison</label><textarea id="coAddress" rows="2">${escapeHtml(prefill.address||'')}</textarea></div>
       ${promoFieldHtml()}
       ${totalsHtml}
       <button class="btn btn-primary" id="coSubmitBtn" onclick="submitCheckout()">Confirmer la commande (paiement à la livraison)</button>
