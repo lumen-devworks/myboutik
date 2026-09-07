@@ -100,21 +100,49 @@
   .grades-list .grade-row{display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid var(--border)}
   .grades-list .grade-row:last-child{border-bottom:none}
   .muted{color:var(--gray);font-size:13px}
+
+  #menuToggle{display:none;font-size:18px;padding:6px 10px}
+  #sidebarBackdrop{display:none}
+
+  /* Telephones/petites tablettes : la barre laterale devient un tiroir qui
+     se superpose au contenu au lieu de lui voler en permanence 230px de
+     large - bascule via le bouton ☰ du haut, ou en touchant le fond noir. */
+  @media (max-width: 860px) {
+    #menuToggle{display:inline-flex;align-items:center;justify-content:center}
+    #sidebar{position:fixed;left:0;top:0;z-index:45;transform:translateX(-100%);transition:transform .2s ease;box-shadow:2px 0 12px rgba(0,0,0,.15)}
+    #sidebar.open{transform:translateX(0)}
+    #sidebarBackdrop.open{display:block;position:fixed;inset:0;background:rgba(15,23,42,.45);z-index:40}
+    #topbar{padding:10px 14px}
+    #topbar h1{font-size:14px}
+    #content{padding:14px}
+    .field-row{grid-template-columns:1fr}
+    .kpi-grid{grid-template-columns:1fr 1fr}
+    /* Les tableaux larges (finances, commandes...) defilent horizontalement
+       au lieu de deborder de l'ecran ou d'ecraser les colonnes. */
+    .card table{display:block;overflow-x:auto;white-space:nowrap}
+  }
+  @media (max-width: 480px) {
+    .kpi-grid{grid-template-columns:1fr}
+  }
 </style>
 </head>
 <body>
 <div id="app">
+  <div id="sidebarBackdrop" onclick="toggleSidebar()"></div>
   <div id="sidebar">
     <div class="side-top">
       <div class="logo"><div class="mark">M</div> MYBOUTIK</div>
       <select id="boutiqueSwitch" onchange="switchBoutique(this.value)"></select>
     </div>
-    <a class="side-back" href="#/boutiques">← Toutes mes boutiques</a>
+    <a class="side-back" href="#/boutiques" onclick="closeSidebar()">← Toutes mes boutiques</a>
     <nav class="side-nav" id="sideNav"></nav>
   </div>
   <div id="main">
     <div id="topbar">
-      <h1 id="topTitle">Tableau de bord</h1>
+      <div style="display:flex;align-items:center;gap:10px">
+        <button id="menuToggle" class="btn btn-ghost btn-sm" onclick="toggleSidebar()" aria-label="Menu">☰</button>
+        <h1 id="topTitle">Tableau de bord</h1>
+      </div>
       <div class="top-actions">
         <span class="muted" id="userEmail"></span>
         <button class="btn btn-ghost btn-sm" onclick="logout()">Se déconnecter</button>
@@ -179,7 +207,7 @@ function loadBoutiques() {
     return BOUTIQUES;
   });
 }
-function switchBoutique(slug) { if (slug) window.location.hash = '#/'+slug+'/home'; }
+function switchBoutique(slug) { if (slug) { window.location.hash = '#/'+slug+'/home'; closeSidebar(); } }
 
 function route() {
   const hash = window.location.hash.replace(/^#\/?/, '');
@@ -253,9 +281,19 @@ function renderSidebar(bt, current) {
     if (!items.length) return '';
     return (g.group ? '<div class="side-group">'+g.group+'</div>' : '') +
       items.map(([key,icon,label]) =>
-        '<a class="side-link'+(current===key?' active':'')+'" href="#/'+bt.slug+'/'+key+'">'+icon+' '+label+'</a>'
+        '<a class="side-link'+(current===key?' active':'')+'" href="#/'+bt.slug+'/'+key+'" onclick="closeSidebar()">'+icon+' '+label+'</a>'
       ).join('');
   }).join('');
+}
+// Tiroir mobile (voir la media query @max-width:860px) - sans effet sur
+// desktop ou la barre laterale reste de toute facon visible en permanence.
+function toggleSidebar() {
+  document.getElementById('sidebar').classList.toggle('open');
+  document.getElementById('sidebarBackdrop').classList.toggle('open');
+}
+function closeSidebar() {
+  document.getElementById('sidebar').classList.remove('open');
+  document.getElementById('sidebarBackdrop').classList.remove('open');
 }
 
 // ============================================================
@@ -951,9 +989,15 @@ function renderProductFormModal(p) {
               : '<button type="button" onclick="setPrimaryProductImage(\''+img.id+'\')" style="position:absolute;bottom:2px;left:2px;background:#fff;border:1px solid var(--border);font-size:9px;padding:1px 4px;border-radius:4px;cursor:pointer">Définir</button>'}
             <button type="button" onclick="deleteProductImage('${img.id}')" style="position:absolute;top:-6px;right:-6px;width:18px;height:18px;border-radius:50%;background:var(--red);color:#fff;border:none;font-size:11px;cursor:pointer;line-height:1">✕</button>
           </div>`).join('')}
-        ${images.length < 12 ? `<label style="width:72px;height:72px;border:2px dashed var(--border);border-radius:8px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--gray);font-size:24px">+<input type="file" accept="image/*" multiple style="display:none" onchange="addProductImage(this)"></label>` : ''}
+        ${images.length < 12 ? `
+          <label title="Choisir depuis la galerie" style="width:72px;height:72px;border:2px dashed var(--border);border-radius:8px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--gray);font-size:24px">+<input type="file" accept="image/*" multiple style="display:none" onchange="addProductImage(this)"></label>
+          <label title="Prendre une photo" style="width:72px;height:72px;border:2px dashed var(--border);border-radius:8px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--gray);font-size:24px">📷<input type="file" accept="image/*" capture="environment" style="display:none" onchange="addProductImage(this)"></label>
+        ` : ''}
       </div>` : `
-      <input type="file" accept="image/*" multiple onchange="handleNewProductImageFile(this)">
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <input type="file" accept="image/*" multiple onchange="handleNewProductImageFile(this)">
+        <label class="btn btn-ghost btn-sm" style="cursor:pointer">📷 Prendre une photo<input type="file" accept="image/*" capture="environment" style="display:none" onchange="handleNewProductImageFile(this)"></label>
+      </div>
       <div class="muted" style="margin-top:6px">Enregistrez une première fois pour ajouter d'autres photos.</div>
       <input type="hidden" id="prodImage" value="">`}
     </div>
@@ -1345,7 +1389,10 @@ function renderSettings(bt) {
       <div class="field"><label>Nom de la boutique</label><input id="setName" value="${escapeHtml(bt.name)}"></div>
       <div class="field"><label>Description publique</label><textarea id="setDescription" rows="2">${escapeHtml(bt.description||'')}</textarea></div>
       <div class="field"><label>Logo</label>
-        <input type="file" accept="image/*" onchange="handleLogoFile(this)">
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <input type="file" accept="image/*" onchange="handleLogoFile(this)">
+          <label class="btn btn-ghost btn-sm" style="cursor:pointer">📷 Prendre une photo<input type="file" accept="image/*" capture="environment" style="display:none" onchange="handleLogoFile(this)"></label>
+        </div>
         <div style="margin-top:8px"><img id="setLogoPreview" src="${escapeHtml(bt.logo_url||'')}" style="max-width:100px;max-height:100px;border-radius:8px;display:${bt.logo_url?'block':'none'}"></div>
         <input type="hidden" id="setLogo" value="${escapeHtml(bt.logo_url||'')}">
       </div>
