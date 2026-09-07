@@ -1133,8 +1133,48 @@ function route_boutiques($action) {
         case 'update': boutiques_update($pl); break;
         case 'get':    boutiques_get($pl); break;
         case 'grade':  boutiques_grade($pl); break;
+        case 'export_backup': boutiques_export_backup($pl); break;
         default: fail('Action inconnue', 404);
     }
+}
+
+// Sauvegarde complete d'une boutique en JSON - reservee au proprietaire/admin
+// (donnees clients/commandes/finances sensibles, voir require_boutique_admin).
+// Les photos (base64) sont volontairement exclues pour garder le fichier
+// leger et rapide a generer ; tout le reste (catalogue, clients, commandes,
+// finances, marketing) y est.
+function boutiques_export_backup($pl) {
+    $bt = require_boutique_admin($_GET['boutique_id'] ?? '', $pl['sub']);
+    $bid = $bt['id'];
+    $data = [
+        'exported_at' => date('c'),
+        'boutique' => q("SELECT id,slug,name,description,currency,cod_enabled,default_delivery_fee,status,created_at FROM boutiques WHERE id=?", [$bid])->fetch(),
+        'products' => q("SELECT id,name,description,price,compare_at_price,cost_price,stock_qty,status,sku,barcode,slug,track_inventory,is_physical,delivery_fee,low_stock_threshold,category_id,created_at FROM products WHERE boutique_id=?", [$bid])->fetchAll(),
+        'product_variants' => q("SELECT v.* FROM product_variants v JOIN products p ON p.id=v.product_id WHERE p.boutique_id=?", [$bid])->fetchAll(),
+        'product_categories' => q("SELECT * FROM product_categories WHERE boutique_id=?", [$bid])->fetchAll(),
+        'customers' => q("SELECT * FROM customers WHERE boutique_id=?", [$bid])->fetchAll(),
+        'orders' => q("SELECT * FROM orders WHERE boutique_id=?", [$bid])->fetchAll(),
+        'order_items' => q("SELECT oi.* FROM order_items oi JOIN orders o ON o.id=oi.order_id WHERE o.boutique_id=?", [$bid])->fetchAll(),
+        'contacts' => q("SELECT * FROM contacts WHERE boutique_id=?", [$bid])->fetchAll(),
+        'contact_roles' => q("SELECT * FROM contact_roles WHERE boutique_id=?", [$bid])->fetchAll(),
+        'delivery_persons' => q("SELECT id,name,phone,email,vehicle_type,plate_number,active,notes,created_at FROM delivery_persons WHERE boutique_id=?", [$bid])->fetchAll(),
+        'delivery_assignments' => q("SELECT * FROM delivery_assignments WHERE boutique_id=?", [$bid])->fetchAll(),
+        'delivery_fees_paid' => q("SELECT * FROM delivery_fees_paid WHERE boutique_id=?", [$bid])->fetchAll(),
+        'accounts' => q("SELECT * FROM accounts WHERE boutique_id=?", [$bid])->fetchAll(),
+        'account_transactions' => q("SELECT * FROM account_transactions WHERE boutique_id=?", [$bid])->fetchAll(),
+        'expenses' => q("SELECT * FROM expenses WHERE boutique_id=?", [$bid])->fetchAll(),
+        'ad_expenses' => q("SELECT * FROM ad_expenses WHERE boutique_id=?", [$bid])->fetchAll(),
+        'suppliers' => q("SELECT * FROM suppliers WHERE boutique_id=?", [$bid])->fetchAll(),
+        'supplier_orders' => q("SELECT * FROM supplier_orders WHERE boutique_id=?", [$bid])->fetchAll(),
+        'promo_codes' => q("SELECT * FROM promo_codes WHERE boutique_id=?", [$bid])->fetchAll(),
+        'product_reviews' => q("SELECT * FROM product_reviews WHERE boutique_id=?", [$bid])->fetchAll(),
+        'newsletter_subscribers' => q("SELECT * FROM newsletter_subscribers WHERE boutique_id=?", [$bid])->fetchAll(),
+        'contact_messages' => q("SELECT * FROM contact_messages WHERE boutique_id=?", [$bid])->fetchAll(),
+    ];
+    header('Content-Type: application/json; charset=utf-8');
+    header('Content-Disposition: attachment; filename="sauvegarde-'.$bt['slug'].'-'.date('Y-m-d').'.json"');
+    echo json_encode($data, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+    exit;
 }
 
 function boutiques_list($pl) {

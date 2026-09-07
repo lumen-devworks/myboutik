@@ -1911,9 +1911,14 @@ function renderSettings(bt) {
       <div class="field"><label>Adresse de réception (vide = email de votre compte)</label><input id="setNotifyAddr" type="email" value="${escapeHtml(bt.notify_email||'')}"></div>
       <label style="display:flex;align-items:center;gap:8px;margin-bottom:10px"><input type="checkbox" id="setNotifyWhatsapp" ${bt.notify_whatsapp_enabled?'checked':''}> Recevoir une notification WhatsApp à chaque nouvelle commande</label>
       <div class="field"><label>Numéro WhatsApp (format international, ex: +225 07 00 00 00 00)</label><input id="setNotifyWhatsappNumber" value="${escapeHtml(bt.notify_whatsapp_number||'')}"></div>
-      <div class="muted" style="margin:-6px 0 14px;font-size:12px">L'envoi réel n'est pas encore branché (nécessite un compte WhatsApp Business API) — en attendant, le message est journalisé côté serveur pour test.</div>
+      <div class="muted" style="margin:-6px 0 14px;font-size:12px">En attente d'un numéro WhatsApp Business approuvé — en attendant, le message est journalisé côté serveur pour test.</div>
       <label style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><input type="checkbox" id="setStockAlert" ${bt.stock_alert_enabled!=0?'checked':''}> M'alerter automatiquement quand un produit passe en stock limité (au plus 1 fois/jour)</label>
       <button class="btn btn-primary" onclick="saveSettings('settingsMsg2')">Enregistrer</button>
+    </div>
+    <div class="card">
+      <h3>Sauvegarde</h3>
+      <div class="page-sub" style="margin-bottom:10px">Téléchargez toutes les données de cette boutique (produits, clients, commandes, finances…) dans un seul fichier, au cas où. Les photos ne sont pas incluses (fichier trop volumineux sinon).</div>
+      <button class="btn btn-ghost" onclick="downloadCsv('/boutiques?action=export_backup&boutique_id='+CURRENT.id,'sauvegarde-'+CURRENT.slug+'.json')">⬇️ Exporter une sauvegarde complète</button>
     </div>
   `;
 }
