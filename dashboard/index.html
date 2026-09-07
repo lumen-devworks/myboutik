@@ -957,7 +957,7 @@ function openAddAdExpense() {
       <div class="field"><label>Produit(s) lié(s) (optionnel — cochez-en plusieurs pour un carrousel/une promo groupée)</label>
         <div style="max-height:160px;overflow-y:auto;border:1px solid var(--border);border-radius:9px;padding:8px">
           ${products.length ? products.map(p=>`<label style="display:flex;align-items:center;gap:8px;padding:4px 0;font-size:13px">
-            <input type="checkbox" class="adProductCheck" value="${p.id}" data-slug="${escapeHtml(p.slug||'')}" onchange="updateAdCampaignLink()"> ${escapeHtml(p.name)}
+            <input type="checkbox" class="adProductCheck" style="width:auto;flex-shrink:0" value="${p.id}" data-slug="${escapeHtml(p.slug||'')}" onchange="updateAdCampaignLink()"> <span>${escapeHtml(p.name)}</span>
           </label>`).join('') : '<div class="muted">Aucun produit dans le catalogue.</div>'}
         </div>
       </div>
@@ -1144,7 +1144,7 @@ function renderProductFormModal(p, allProducts) {
       <label>Produits associés (upsell affiché sur la fiche produit de la vitrine)</label>
       ${pickableProducts.length ? `<div style="max-height:150px;overflow-y:auto;border:1px solid var(--border);border-radius:9px;padding:8px">
         ${pickableProducts.map(rp => `<label style="display:flex;align-items:center;gap:8px;padding:3px 0">
-          <input type="checkbox" class="relatedProductCheck" value="${rp.id}" ${relatedIds.includes(rp.id)?'checked':''}> ${escapeHtml(rp.name)}
+          <input type="checkbox" class="relatedProductCheck" style="width:auto;flex-shrink:0" value="${rp.id}" ${relatedIds.includes(rp.id)?'checked':''}> <span>${escapeHtml(rp.name)}</span>
         </label>`).join('')}
       </div>` : '<div class="muted">Ajoutez d\'autres produits au catalogue pour pouvoir les proposer ici.</div>'}
     </div>
@@ -1642,7 +1642,7 @@ function openPromotionForm(pr) {
       <label>Produits concernés</label>
       <div style="max-height:180px;overflow-y:auto;border:1px solid var(--border);border-radius:9px;padding:8px">
         ${products.length ? products.map(p => `<label style="display:flex;align-items:center;gap:8px;padding:3px 0">
-          <input type="checkbox" class="promotionProductCheck" value="${p.id}" ${selectedIds.includes(p.id)?'checked':''}> ${escapeHtml(p.name)}
+          <input type="checkbox" class="promotionProductCheck" style="width:auto;flex-shrink:0" value="${p.id}" ${selectedIds.includes(p.id)?'checked':''}> <span>${escapeHtml(p.name)}</span>
         </label>`).join('') : '<div class="muted">Ajoutez des produits à votre catalogue avant de créer une promotion.</div>'}
       </div>
     </div>
