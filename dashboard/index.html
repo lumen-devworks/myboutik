@@ -1610,17 +1610,18 @@ function renderSettings(bt) {
       </div>
       <div class="field"><label>Frais de livraison par défaut (facturé au client)</label><input id="setDeliveryFee" type="number" min="0" value="${bt.default_delivery_fee||0}"></div>
       <label style="display:flex;align-items:center;gap:8px;margin-bottom:14px"><input type="checkbox" id="setCod" ${bt.cod_enabled?'checked':''}> Paiement à la livraison activé</label>
-      <button class="btn btn-primary" onclick="saveSettings()">Enregistrer</button>
+      <button class="btn btn-primary" onclick="saveSettings('settingsMsg')">Enregistrer</button>
     </div>
     <div class="card">
       <h3>Notifications de commande</h3>
+      <div id="settingsMsg2"></div>
       <label style="display:flex;align-items:center;gap:8px;margin-bottom:10px"><input type="checkbox" id="setNotifyEmail" ${bt.notify_order_email!=0?'checked':''}> Recevoir un email à chaque nouvelle commande</label>
       <div class="field"><label>Adresse de réception (vide = email de votre compte)</label><input id="setNotifyAddr" type="email" value="${escapeHtml(bt.notify_email||'')}"></div>
       <label style="display:flex;align-items:center;gap:8px;margin-bottom:10px"><input type="checkbox" id="setNotifyWhatsapp" ${bt.notify_whatsapp_enabled?'checked':''}> Recevoir une notification WhatsApp à chaque nouvelle commande</label>
       <div class="field"><label>Numéro WhatsApp (format international, ex: +225 07 00 00 00 00)</label><input id="setNotifyWhatsappNumber" value="${escapeHtml(bt.notify_whatsapp_number||'')}"></div>
       <div class="muted" style="margin:-6px 0 14px;font-size:12px">L'envoi réel n'est pas encore branché (nécessite un compte WhatsApp Business API) — en attendant, le message est journalisé côté serveur pour test.</div>
       <label style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><input type="checkbox" id="setStockAlert" ${bt.stock_alert_enabled!=0?'checked':''}> M'alerter automatiquement quand un produit passe en stock limité (au plus 1 fois/jour)</label>
-      <button class="btn btn-primary" onclick="saveSettings()">Enregistrer</button>
+      <button class="btn btn-primary" onclick="saveSettings('settingsMsg2')">Enregistrer</button>
     </div>
   `;
 }
@@ -1633,7 +1634,13 @@ function handleLogoFile(input) {
     preview.src = dataUrl; preview.style.display = 'block';
   });
 }
-function saveSettings() {
+// targetMsgId : deux boutons "Enregistrer" distincts partagent ce meme
+// formulaire (General + Notifications) - le message de confirmation doit
+// s'afficher pres de celui reellement clique, pas seulement en haut de page
+// (sinon un clic sur le 2e bouton donnait l'impression que rien ne se
+// passait, le message apparaissant hors de vue plus haut).
+function saveSettings(targetMsgId) {
+  const msgEl = document.getElementById(targetMsgId || 'settingsMsg');
   post('/boutiques?action=update', {
     id:CURRENT.id, name:document.getElementById('setName').value.trim(),
     description:document.getElementById('setDescription').value.trim(),
@@ -1646,8 +1653,8 @@ function saveSettings() {
     notify_whatsapp_number:document.getElementById('setNotifyWhatsappNumber').value.trim(),
     stock_alert_enabled:document.getElementById('setStockAlert').checked,
   }).then(({data}) => {
-    if (!data.success) { document.getElementById('settingsMsg').innerHTML = '<div class="msg error">'+data.message+'</div>'; return; }
-    document.getElementById('settingsMsg').innerHTML = '<div class="msg success">Enregistré</div>';
+    if (!data.success) { msgEl.innerHTML = '<div class="msg error">'+data.message+'</div>'; return; }
+    msgEl.innerHTML = '<div class="msg success">Enregistré</div>';
     loadBoutiques();
   });
 }
