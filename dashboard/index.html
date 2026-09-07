@@ -938,17 +938,29 @@ function renderFinanceDeliveryFees(bt, period) {
         <button class="btn btn-primary" onclick="openAddDeliveryFee()">+ Ajouter des frais</button></div>
       <div class="kpi-grid"><div class="kpi"><div class="lbl">Total ce mois-ci</div><div class="val">${fmtMoney(F.total_month, bt.currency)}</div></div>
         <div class="kpi"><div class="lbl">Total (${F.count} entrée${F.count>1?'s':''})</div><div class="val">${fmtMoney(F.total_all, bt.currency)}</div></div></div>
-      <div class="card">${F.rows.length ? '<table><thead><tr><th>Date</th><th>Montant</th><th>Note</th></tr></thead><tbody>'+
-        F.rows.map(r=>'<tr><td>'+fmtDate(r.created_at)+'</td><td>'+fmtMoney(r.amount, bt.currency)+'</td><td>'+escapeHtml(r.note||'')+'</td></tr>').join('')+'</tbody></table>'
+      <div class="card">${F.rows.length ? '<table><thead><tr><th>Date</th><th>Montant</th><th>Commande</th><th>Livreur</th><th>Note</th></tr></thead><tbody>'+
+        F.rows.map(r=>'<tr><td>'+fmtDate(r.created_at)+'</td><td>'+fmtMoney(r.amount, bt.currency)+'</td><td>'+escapeHtml(r.order_ref||'—')+'</td><td>'+escapeHtml(r.delivery_person_name||'—')+'</td><td>'+escapeHtml(r.note||'')+'</td></tr>').join('')+'</tbody></table>'
         : '<div class="empty"><div class="big">🚛</div>Aucun frais de livraison. Ajoutez le total que vous avez payé en livraison.</div>'}</div>
     `;
   });
 }
 function openAddDeliveryFee() {
-  api('/finance?action=accounts&boutique_id='+CURRENT.id).then(({data}) => {
-    const accounts = data.data || [];
+  Promise.all([
+    api('/finance?action=accounts&boutique_id='+CURRENT.id),
+    api('/orders?action=list&boutique_id='+CURRENT.id),
+    api('/deliveries?action=persons&boutique_id='+CURRENT.id),
+  ]).then(([accRes, ordRes, dpRes]) => {
+    const accounts = accRes.data.data || [];
+    const orders = (ordRes.data.data || []).slice(0, 50);
+    const persons = dpRes.data.data || [];
     openModal(`<h2>Ajouter des frais de livraison</h2>
       <div class="field"><label>Montant</label><input id="dfAmount" type="number" min="1"></div>
+      <div class="field"><label>Commande liée (optionnel — pour retrouver ce frais en cas de litige)</label>
+        <select id="dfOrder"><option value="">—</option>${orders.map(o=>'<option value="'+o.id+'">'+escapeHtml(o.ref)+' — '+escapeHtml(o.customer_name)+'</option>').join('')}</select>
+      </div>
+      <div class="field"><label>Livreur payé (optionnel)</label>
+        <select id="dfDeliveryPerson"><option value="">—</option>${persons.map(p=>'<option value="'+p.id+'">'+escapeHtml(p.name)+'</option>').join('')}</select>
+      </div>
       <div class="field"><label>Note</label><input id="dfNote" placeholder="Ex: Livraisons du jour"></div>
       <div class="field"><label>Débiter le compte</label><select id="dfAccount"><option value="">—</option>${accounts.map(a=>'<option value="'+a.id+'">'+escapeHtml(a.name)+'</option>').join('')}</select></div>
       <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal()">Annuler</button><button class="btn btn-primary" onclick="submitAddDeliveryFee()">Enregistrer</button></div>`);
@@ -956,7 +968,12 @@ function openAddDeliveryFee() {
 }
 function submitAddDeliveryFee() {
   const amount = Number(document.getElementById('dfAmount').value||0); if (amount<=0) return;
-  post('/finance?action=delivery_fee_create', {boutique_id:CURRENT.id, amount, note:document.getElementById('dfNote').value.trim(), account_id:document.getElementById('dfAccount').value||null}).then(()=>{closeModal(); route();});
+  post('/finance?action=delivery_fee_create', {
+    boutique_id:CURRENT.id, amount, note:document.getElementById('dfNote').value.trim(),
+    account_id:document.getElementById('dfAccount').value||null,
+    order_id:document.getElementById('dfOrder').value||null,
+    delivery_person_id:document.getElementById('dfDeliveryPerson').value||null,
+  }).then(()=>{closeModal(); route();});
 }
 function renderFinanceDetail(bt, period) {
   period = period || '30d';

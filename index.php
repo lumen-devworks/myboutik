@@ -799,6 +799,11 @@ function route_install() {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )",
     "CREATE INDEX IF NOT EXISTS idx_deliveryfees_boutique ON delivery_fees_paid(boutique_id)",
+    // Livreur a qui ce frais a ete verse - permet de retrouver qui a ete
+    // paye pour quelle livraison en cas de litige/malentendu (order_id
+    // existait deja mais n'etait jamais rempli par le formulaire du
+    // tableau de bord, voir finance_delivery_fee_create()).
+    "ALTER TABLE delivery_fees_paid ADD COLUMN IF NOT EXISTS delivery_person_id VARCHAR(36)",
     "CREATE TABLE IF NOT EXISTS expenses (
         id VARCHAR(36) PRIMARY KEY,
         boutique_id VARCHAR(36) NOT NULL,
@@ -2482,8 +2487,12 @@ function finance_account_transfer($pl) {
 function finance_delivery_fees($pl) {
     $bt = require_boutique_owned($_GET['boutique_id'] ?? '', $pl['sub']);
     $period = $_GET['period'] ?? '30d';
-    $rows = q("SELECT * FROM delivery_fees_paid WHERE boutique_id=? AND ".period_clause($period,'created_at')."
-               ORDER BY created_at DESC", [$bt['id']])->fetchAll();
+    $rows = q("SELECT dfp.*, o.ref AS order_ref, dp.name AS delivery_person_name
+               FROM delivery_fees_paid dfp
+               LEFT JOIN orders o ON o.id = dfp.order_id
+               LEFT JOIN delivery_persons dp ON dp.id = dfp.delivery_person_id
+               WHERE dfp.boutique_id=? AND ".period_clause($period,'dfp.created_at')."
+               ORDER BY dfp.created_at DESC", [$bt['id']])->fetchAll();
     $totalMonth = (float)q("SELECT COALESCE(SUM(amount),0) s FROM delivery_fees_paid
                              WHERE boutique_id=? AND created_at >= date_trunc('month', NOW())", [$bt['id']])->fetch()['s'];
     $total = (float)q("SELECT COALESCE(SUM(amount),0) s FROM delivery_fees_paid WHERE boutique_id=?", [$bt['id']])->fetch()['s'];
@@ -2494,10 +2503,16 @@ function finance_delivery_fee_create($pl) {
     $bt = require_boutique_owned($b['boutique_id'] ?? '', $pl['sub']);
     $amount = (float)($b['amount'] ?? 0);
     if ($amount <= 0) fail('Montant invalide');
+    if (!empty($b['order_id'])) order_owned($b['order_id'], $bt['id']);
+    if (!empty($b['delivery_person_id'])) {
+        $dp = q("SELECT id FROM delivery_persons WHERE id=? AND boutique_id=?", [$b['delivery_person_id'], $bt['id']])->fetch();
+        if (!$dp) fail('Livreur introuvable', 404);
+    }
     $id = uid();
-    q("INSERT INTO delivery_fees_paid (id,boutique_id,order_id,amount,note,account_id,paid_at)
-       VALUES (?,?,?,?,?,?,COALESCE(?,CURRENT_DATE))",
-      [$id, $bt['id'], $b['order_id'] ?? null, $amount, trim($b['note'] ?? ''), $b['account_id'] ?? null, $b['paid_at'] ?? null]);
+    q("INSERT INTO delivery_fees_paid (id,boutique_id,order_id,delivery_person_id,amount,note,account_id,paid_at)
+       VALUES (?,?,?,?,?,?,?,COALESCE(?,CURRENT_DATE))",
+      [$id, $bt['id'], $b['order_id'] ?? null, $b['delivery_person_id'] ?? null, $amount,
+       trim($b['note'] ?? ''), $b['account_id'] ?? null, $b['paid_at'] ?? null]);
     if (!empty($b['account_id'])) {
         account_owned($b['account_id'], $bt['id']);
         q("UPDATE accounts SET balance = balance - ? WHERE id=?", [$amount, $b['account_id']]);
