@@ -614,6 +614,17 @@ function route_install() {
     // aucune notion de categorie n'existe encore dans le modele.
     "ALTER TABLE products ADD COLUMN IF NOT EXISTS related_product_ids TEXT",
     "CREATE UNIQUE INDEX IF NOT EXISTS idx_products_boutique_slug ON products(boutique_id, slug) WHERE slug IS NOT NULL AND slug <> ''",
+    // Categories de produits, pour organiser/filtrer le catalogue une fois
+    // qu'il grandit (menu Produits + filtre sur la vitrine publique).
+    "CREATE TABLE IF NOT EXISTS product_categories (
+        id VARCHAR(36) PRIMARY KEY,
+        boutique_id VARCHAR(36) NOT NULL,
+        name VARCHAR(100) NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )",
+    "CREATE INDEX IF NOT EXISTS idx_productcategories_boutique ON product_categories(boutique_id)",
+    "ALTER TABLE products ADD COLUMN IF NOT EXISTS category_id VARCHAR(36)",
+    "CREATE INDEX IF NOT EXISTS idx_products_category ON products(category_id)",
     // Galerie de photos (plusieurs images par produit). products.image_url
     // reste en place et reflete toujours l'image marquee is_primary=1 ici -
     // tout le code existant qui lit deja image_url (liste produits, vitrine,
@@ -1228,8 +1239,49 @@ function route_products($action) {
         case 'supplier_orders_list':  supplier_orders_list($pl); break;
         case 'supplier_order_create': supplier_order_create($pl); break;
         case 'supplier_order_update_status': supplier_order_update_status($pl); break;
+        case 'categories_list':  categories_list($pl); break;
+        case 'category_create':  category_create($pl); break;
+        case 'category_update':  category_update($pl); break;
+        case 'category_delete':  category_delete($pl); break;
         default: fail('Action inconnue', 404);
     }
+}
+
+function categories_list($pl) {
+    $bt = require_boutique_owned($_GET['boutique_id'] ?? '', $pl['sub']);
+    ok(q("SELECT c.*, (SELECT COUNT(*) FROM products WHERE category_id=c.id) AS product_count
+          FROM product_categories c WHERE c.boutique_id=? ORDER BY c.name", [$bt['id']])->fetchAll());
+}
+function category_create($pl) {
+    $b = body();
+    $bt = require_boutique_owned($b['boutique_id'] ?? '', $pl['sub']);
+    $name = trim($b['name'] ?? '');
+    if ($name === '') fail('Le nom de la categorie est requis');
+    $id = uid();
+    q("INSERT INTO product_categories (id,boutique_id,name) VALUES (?,?,?)", [$id, $bt['id'], $name]);
+    ok(q("SELECT * FROM product_categories WHERE id=?", [$id])->fetch(), 'Categorie creee', 201);
+}
+function category_owned($id, $boutiqueId) {
+    $row = q("SELECT * FROM product_categories WHERE id=? AND boutique_id=?", [$id, $boutiqueId])->fetch();
+    if (!$row) fail('Categorie introuvable', 404);
+    return $row;
+}
+function category_update($pl) {
+    $b = body();
+    $bt = require_boutique_owned($b['boutique_id'] ?? '', $pl['sub']);
+    $cat = category_owned($b['id'] ?? '', $bt['id']);
+    $name = trim($b['name'] ?? $cat['name']);
+    if ($name === '') fail('Le nom de la categorie est requis');
+    q("UPDATE product_categories SET name=? WHERE id=?", [$name, $cat['id']]);
+    ok(q("SELECT * FROM product_categories WHERE id=?", [$cat['id']])->fetch(), 'Categorie mise a jour');
+}
+function category_delete($pl) {
+    $b = body();
+    $bt = require_boutique_owned($b['boutique_id'] ?? '', $pl['sub']);
+    $cat = category_owned($b['id'] ?? '', $bt['id']);
+    q("UPDATE products SET category_id=NULL WHERE category_id=?", [$cat['id']]);
+    q("DELETE FROM product_categories WHERE id=?", [$cat['id']]);
+    ok(null, 'Categorie supprimee');
 }
 
 function products_list($pl) {
@@ -1239,10 +1291,12 @@ function products_list($pl) {
     // transferee ici (elle alourdissait chaque page qui liste les produits,
     // meme celles qui ne montrent qu'un menu deroulant sans photo). Elle
     // reste disponible via products_get() pour la fiche d'un seul produit.
-    $rows = q("SELECT id,boutique_id,name,description,price,compare_at_price,cost_price,stock_qty,status,
-               sku,barcode,slug,track_inventory,allow_backorder,is_physical,delivery_fee,low_stock_threshold,
-               options_json,created_at, (image_url IS NOT NULL AND image_url<>'') AS has_image
-               FROM products WHERE boutique_id=? ORDER BY created_at DESC", [$row['id']])->fetchAll();
+    $rows = q("SELECT p.id,p.boutique_id,p.name,p.description,p.price,p.compare_at_price,p.cost_price,p.stock_qty,p.status,
+               p.sku,p.barcode,p.slug,p.track_inventory,p.allow_backorder,p.is_physical,p.delivery_fee,p.low_stock_threshold,
+               p.options_json,p.created_at,p.category_id, c.name AS category_name,
+               (p.image_url IS NOT NULL AND p.image_url<>'') AS has_image
+               FROM products p LEFT JOIN product_categories c ON c.id = p.category_id
+               WHERE p.boutique_id=? ORDER BY p.created_at DESC", [$row['id']])->fetchAll();
     foreach ($rows as &$p) {
         $p['variants'] = q("SELECT * FROM product_variants WHERE product_id=? ORDER BY name", [$p['id']])->fetchAll();
     }
@@ -1301,9 +1355,10 @@ function products_create($pl) {
     $optionsJson = trim($b['options_json'] ?? '');
     if ($optionsJson !== '' && json_decode($optionsJson) === null) $optionsJson = '';
     $relatedJson = related_product_ids_json($bt['id'], $b['related_product_ids'] ?? [], null);
+    $categoryId = !empty($b['category_id']) ? category_owned($b['category_id'], $bt['id'])['id'] : null;
     q("INSERT INTO products (id,boutique_id,name,description,price,compare_at_price,cost_price,stock_qty,
-       image_url,status,sku,barcode,slug,track_inventory,allow_backorder,is_physical,delivery_fee,options_json,low_stock_threshold,related_product_ids)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+       image_url,status,sku,barcode,slug,track_inventory,allow_backorder,is_physical,delivery_fee,options_json,low_stock_threshold,related_product_ids,category_id)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
       [$id, $bt['id'], $name, trim($b['description'] ?? ''), (float)($b['price'] ?? 0),
        isset($b['compare_at_price']) && $b['compare_at_price'] !== '' ? (float)$b['compare_at_price'] : null,
        isset($b['cost_price']) && $b['cost_price'] !== '' ? (float)$b['cost_price'] : null,
@@ -1312,7 +1367,7 @@ function products_create($pl) {
        (int)!!($b['track_inventory'] ?? 1), (int)!!($b['allow_backorder'] ?? 0), (int)!!($b['is_physical'] ?? 1),
        isset($b['delivery_fee']) && $b['delivery_fee'] !== '' ? (float)$b['delivery_fee'] : null,
        $optionsJson !== '' ? $optionsJson : null,
-       (int)($b['low_stock_threshold'] ?? 5), $relatedJson]);
+       (int)($b['low_stock_threshold'] ?? 5), $relatedJson, $categoryId]);
     foreach (($b['variants'] ?? []) as $v) {
         if (trim($v['name'] ?? '') === '') continue;
         q("INSERT INTO product_variants (id,product_id,name,price,stock_qty) VALUES (?,?,?,?,?)",
@@ -1351,8 +1406,12 @@ function products_update($pl) {
     $relatedJson = array_key_exists('related_product_ids', $b)
         ? related_product_ids_json($bt['id'], $b['related_product_ids'], $p['id'])
         : $p['related_product_ids'];
+    $categoryId = $p['category_id'];
+    if (array_key_exists('category_id', $b)) {
+        $categoryId = !empty($b['category_id']) ? category_owned($b['category_id'], $bt['id'])['id'] : null;
+    }
     q("UPDATE products SET name=?, description=?, price=?, compare_at_price=?, cost_price=?, stock_qty=?,
-       image_url=?, status=?, sku=?, barcode=?, slug=?, track_inventory=?, allow_backorder=?, is_physical=?, delivery_fee=?, options_json=?, low_stock_threshold=?, related_product_ids=?
+       image_url=?, status=?, sku=?, barcode=?, slug=?, track_inventory=?, allow_backorder=?, is_physical=?, delivery_fee=?, options_json=?, low_stock_threshold=?, related_product_ids=?, category_id=?
        WHERE id=?",
       [$name, trim($b['description'] ?? $p['description']), (float)($b['price'] ?? $p['price']),
        isset($b['compare_at_price']) && $b['compare_at_price'] !== '' ? (float)$b['compare_at_price'] : $p['compare_at_price'],
@@ -1364,7 +1423,7 @@ function products_update($pl) {
        isset($b['is_physical']) ? (int)!!$b['is_physical'] : $p['is_physical'],
        isset($b['delivery_fee']) && $b['delivery_fee'] !== '' ? (float)$b['delivery_fee'] : null,
        $optionsJson, isset($b['low_stock_threshold']) && $b['low_stock_threshold'] !== '' ? (int)$b['low_stock_threshold'] : $p['low_stock_threshold'],
-       $relatedJson, $p['id']]);
+       $relatedJson, $categoryId, $p['id']]);
     // Remplacement complet des variantes si le champ est fourni (le
     // generateur d'options cote tableau de bord envoie toujours la liste
     // complete a jour, y compris les variantes inchangees).
@@ -1535,6 +1594,7 @@ function route_shop($action) {
         case 'contact_message':  shop_contact_message(); break;
         case 'validate_promo':   shop_validate_promo(); break;
         case 'active_promos':    shop_active_promos(); break;
+        case 'categories':       shop_categories(); break;
         case 'promo_for_phone':  shop_promo_for_phone(); break;
         case 'track_order':      shop_track_order(); break;
         case 'reviews':          shop_reviews(); break;
@@ -1585,10 +1645,23 @@ function apply_active_promotion(&$p) {
     }
 }
 
+// Categories visibles publiquement (uniquement celles ayant au moins un
+// produit actif, pour ne pas afficher un filtre menant a une liste vide).
+function shop_categories() {
+    $bt = public_boutique_by_slug($_GET['slug'] ?? '');
+    ok(q("SELECT DISTINCT c.id, c.name FROM product_categories c
+          JOIN products p ON p.category_id = c.id
+          WHERE c.boutique_id=? AND p.status='active' ORDER BY c.name", [$bt['id']])->fetchAll());
+}
+
 function shop_products() {
     $bt = public_boutique_by_slug($_GET['slug'] ?? '');
-    $rows = q("SELECT id,name,description,price,compare_at_price,stock_qty,image_url,slug,track_inventory,allow_backorder,is_physical,delivery_fee,options_json
-               FROM products WHERE boutique_id=? AND status='active' ORDER BY created_at DESC", [$bt['id']])->fetchAll();
+    $sql = "SELECT id,name,description,price,compare_at_price,stock_qty,image_url,slug,track_inventory,allow_backorder,is_physical,delivery_fee,options_json,category_id
+            FROM products WHERE boutique_id=? AND status='active'";
+    $params = [$bt['id']];
+    if (!empty($_GET['category_id'])) { $sql .= " AND category_id=?"; $params[] = $_GET['category_id']; }
+    $sql .= " ORDER BY created_at DESC";
+    $rows = q($sql, $params)->fetchAll();
     foreach ($rows as &$p) {
         $p['variants'] = q("SELECT id,name,price,stock_qty FROM product_variants WHERE product_id=? ORDER BY name", [$p['id']])->fetchAll();
         $p['images'] = q("SELECT id,data FROM product_images WHERE product_id=? ORDER BY position", [$p['id']])->fetchAll();

@@ -1113,26 +1113,68 @@ function openAdExpenseDetail(id) {
 // ============================================================
 // Produits / Stock / Fournisseurs / Commandes fournisseurs
 // ============================================================
-function renderProducts(bt) {
+function renderProducts(bt, categoryFilter) {
+  categoryFilter = categoryFilter || '';
   document.getElementById('content').innerHTML = '<div class="empty">Chargement…</div>';
-  api('/products?action=list&boutique_id='+bt.id).then(({data}) => {
-    const rows = data.data || [];
-    const lowStock = rows.filter(p => p.track_inventory && Number(p.stock_qty) <= Number(p.low_stock_threshold ?? 5));
+  Promise.all([
+    api('/products?action=list&boutique_id='+bt.id),
+    api('/products?action=categories_list&boutique_id='+bt.id),
+  ]).then(([prodRes, catRes]) => {
+    const allRows = prodRes.data.data || [];
+    const categories = catRes.data.data || [];
+    window.__productCategories = categories;
+    const rows = categoryFilter ? allRows.filter(p => p.category_id === categoryFilter) : allRows;
+    const lowStock = allRows.filter(p => p.track_inventory && Number(p.stock_qty) <= Number(p.low_stock_threshold ?? 5));
     document.getElementById('content').innerHTML = `
-      <div class="row-between"><div><h2 class="page-title">Produits</h2><div class="page-sub">${rows.length} produit(s)</div></div>
-        <button class="btn btn-primary" onclick="openProductForm()">+ Nouveau produit</button></div>
+      <div class="row-between"><div><h2 class="page-title">Produits</h2><div class="page-sub">${allRows.length} produit(s)</div></div>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-ghost" onclick="openCategoriesManager()">Catégories</button>
+          <button class="btn btn-primary" onclick="openProductForm()">+ Nouveau produit</button>
+        </div></div>
       ${lowStock.length ? '<div class="card" style="background:var(--amber-bg);border-color:#fde68a">⚠️ Stock limité sur '+lowStock.length+' produit(s) :<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px">'+
         lowStock.map(p=>'<span>'+escapeHtml(p.name)+' <button class="btn btn-ghost btn-sm" onclick="goReorder(\''+p.id+'\')">Commander</button></span>').join('')+'</div></div>' : ''}
-      <div class="card">${rows.length ? `<table><thead><tr><th>Produit</th><th>Prix</th><th>Stock</th><th>Statut</th><th></th></tr></thead><tbody>
+      ${categories.length ? `<div class="field" style="max-width:260px"><label>Filtrer par catégorie</label>
+        <select onchange="renderProducts(CURRENT, this.value)">
+          <option value="">Toutes (${allRows.length})</option>
+          ${categories.map(c=>'<option value="'+c.id+'" '+(c.id===categoryFilter?'selected':'')+'>'+escapeHtml(c.name)+' ('+c.product_count+')</option>').join('')}
+        </select></div>` : ''}
+      <div class="card">${rows.length ? `<table><thead><tr><th>Produit</th><th>Catégorie</th><th>Prix</th><th>Stock</th><th>Statut</th><th></th></tr></thead><tbody>
         ${rows.map(p=>`<tr><td>${escapeHtml(p.name)}${p.variants.length?' <span class="muted">('+p.variants.length+' variantes)</span>':''}</td>
+          <td>${escapeHtml(p.category_name||'—')}</td>
           <td>${fmtMoney(p.price, bt.currency)}${p.compare_at_price && Number(p.compare_at_price) > Number(p.price) ? ' <span class="muted" style="text-decoration:line-through">'+fmtMoney(p.compare_at_price, bt.currency)+'</span>' : ''}</td>
           <td>${stockBadge(p)}</td>
           <td>${p.status==='active'?'<span class="pill pill-delivered">Actif</span>':'<span class="pill pill-to_assign">Brouillon</span>'}</td>
           <td><button class="btn btn-ghost btn-sm" onclick="openProductForm('${p.id}')">Modifier</button>
               <button class="btn btn-danger btn-sm" onclick="deleteProduct('${p.id}')">Suppr.</button></td></tr>`).join('')}
-        </tbody></table>` : '<div class="empty"><div class="big">📦</div>Aucun produit. Ajoutez votre premier produit.</div>'}</div>
+        </tbody></table>` : '<div class="empty"><div class="big">📦</div>Aucun produit dans cette catégorie.</div>'}</div>
     `;
   });
+}
+function openCategoriesManager() {
+  const categories = window.__productCategories || [];
+  openModal(`<h2>Catégories de produits</h2>
+    <div id="catMsg"></div>
+    ${categories.length ? categories.map(c => `<div class="field-row" style="align-items:center;margin-bottom:8px">
+        <div style="flex:1">${escapeHtml(c.name)} <span class="muted">(${c.product_count} produit(s))</span></div>
+        <button class="btn btn-ghost btn-sm" onclick="deleteCategory('${c.id}')">Supprimer</button>
+      </div>`).join('') : '<div class="empty">Aucune catégorie pour le moment.</div>'}
+    <div class="field-row" style="margin-top:10px">
+      <input id="newCategoryName" placeholder="Nom de la nouvelle catégorie">
+      <button class="btn btn-primary" onclick="submitNewCategory()">Ajouter</button>
+    </div>
+    <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal()">Fermer</button></div>`);
+}
+function submitNewCategory() {
+  const name = document.getElementById('newCategoryName').value.trim();
+  if (!name) return;
+  post('/products?action=category_create', {boutique_id:CURRENT.id, name}).then(({data}) => {
+    if (!data.success) { document.getElementById('catMsg').innerHTML = '<div class="msg error">'+escapeHtml(data.message)+'</div>'; return; }
+    closeModal(); renderProducts(CURRENT);
+  });
+}
+function deleteCategory(id) {
+  if (!confirm('Supprimer cette catégorie ? Les produits qui l\'utilisent ne seront pas supprimés, juste sans catégorie.')) return;
+  post('/products?action=category_delete', {boutique_id:CURRENT.id, id}).then(()=>{ closeModal(); renderProducts(CURRENT); });
 }
 function stockBadge(p) {
   if (!p.track_inventory) return '<span class="muted">—</span>';
@@ -1151,17 +1193,21 @@ function goReorder(productId) {
   window.location.hash = '#/'+CURRENT.slug+'/products/supplier-orders';
 }
 function openProductForm(id) {
-  api('/products?action=list&boutique_id='+CURRENT.id).then(({data}) => {
-    const allProducts = data.data || [];
-    if (!id) { renderProductFormModal({}, allProducts); return; }
+  Promise.all([
+    api('/products?action=list&boutique_id='+CURRENT.id),
+    api('/products?action=categories_list&boutique_id='+CURRENT.id),
+  ]).then(([prodRes, catRes]) => {
+    const allProducts = prodRes.data.data || [];
+    const categories = catRes.data.data || [];
+    if (!id) { renderProductFormModal({}, allProducts, categories); return; }
     api('/products?action=get&boutique_id='+CURRENT.id+'&id='+id).then(({data}) => {
       if (!data.success) { alert(data.message); return; }
-      renderProductFormModal(data.data, allProducts);
+      renderProductFormModal(data.data, allProducts, categories);
     });
   });
 }
-function renderProductFormModal(p, allProducts) {
-  p = p || {}; allProducts = allProducts || [];
+function renderProductFormModal(p, allProducts, categories) {
+  p = p || {}; allProducts = allProducts || []; categories = categories || [];
   window.__editingProductId = p.id || null;
   let relatedIds = [];
   try { relatedIds = p.related_product_ids ? JSON.parse(p.related_product_ids) : []; } catch(e) {}
@@ -1190,6 +1236,12 @@ function renderProductFormModal(p, allProducts) {
     <div class="field-row">
       <div class="field"><label>Statut</label><select id="prodStatus"><option value="draft" ${p.status==='draft'?'selected':''}>Brouillon</option><option value="active" ${p.status==='active'?'selected':''}>Actif</option></select></div>
       <div class="field"><label>Slug (URL)</label><input id="prodSlug" value="${escapeHtml(p.slug||'')}" placeholder="genere automatiquement si vide"></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>Catégorie (optionnel)</label><select id="prodCategory">
+        <option value="">—</option>
+        ${categories.map(c=>'<option value="'+c.id+'" '+(c.id===p.category_id?'selected':'')+'>'+escapeHtml(c.name)+'</option>').join('')}
+      </select></div>
     </div>
     <label style="display:flex;align-items:center;gap:8px;margin-bottom:10px"><input type="checkbox" id="prodTrackInv" ${p.track_inventory!=0?'checked':''}> Suivre la quantité en stock</label>
     <label style="display:flex;align-items:center;gap:8px;margin-bottom:14px"><input type="checkbox" id="prodPhysical" ${p.is_physical!=0?'checked':''}> Produit physique (nécessite une livraison)</label>
@@ -1395,6 +1447,7 @@ function submitProductForm(id) {
     options_json: JSON.stringify((window.__optionRows||[]).filter(r => r.name && r.name.trim() && r.values && r.values.length)),
     variants: window.__productVariants || [],
     related_product_ids: Array.from(document.querySelectorAll('.relatedProductCheck:checked')).map(c=>c.value),
+    category_id: document.getElementById('prodCategory').value || null,
   };
   if (!id) payload.image_url = document.getElementById('prodImage').value.trim();
   const action = id ? '/products?action=update' : '/products?action=create';

@@ -18,6 +18,8 @@
   #cartCount{position:absolute;top:-8px;right:-8px;background:var(--blue);color:#fff;border-radius:999px;font-size:11px;padding:1px 6px}
 
   .products-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:18px;padding:28px 0}
+  .cat-pill{flex-shrink:0;padding:7px 14px;border-radius:999px;border:1px solid var(--border);background:#fff;font-size:13px;cursor:pointer;white-space:nowrap}
+  .cat-pill.active{background:var(--blue);color:#fff;border-color:var(--blue)}
   .product-card{border:1px solid var(--border);border-radius:14px;overflow:hidden;cursor:pointer;background:#fff;display:flex;flex-direction:column}
   .product-card img{width:100%;aspect-ratio:1/1;object-fit:cover;background:var(--bg)}
   .product-card .ph{width:100%;aspect-ratio:1/1;background:var(--bg);display:flex;align-items:center;justify-content:center;font-size:34px;color:var(--gray)}
@@ -95,7 +97,8 @@ function post(path, body) { return api(path, {method:'POST', body:JSON.stringify
 function fmtMoney(n, currency) { return Math.round(n||0).toLocaleString('fr-FR') + ' ' + (currency||'FCFA'); }
 function escapeHtml(s){ return (s==null?'':String(s)).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
-let BOUTIQUE = null, PRODUCTS = [], ACTIVE_PROMOS = [], CART = JSON.parse(sessionStorage.getItem('myboutik_cart')||'[]');
+let BOUTIQUE = null, PRODUCTS = [], ACTIVE_PROMOS = [], CATEGORIES = [], CART = JSON.parse(sessionStorage.getItem('myboutik_cart')||'[]');
+let CATALOG_FILTER = { category: '', search: '' };
 
 function saveCart() { sessionStorage.setItem('myboutik_cart', JSON.stringify(CART)); renderCartCount(); }
 function renderCartCount() {
@@ -109,9 +112,10 @@ function renderCartCount() {
 if (!SLUG) {
   document.getElementById('root').innerHTML = '<div class="empty"><div class="big">🏬</div>Boutique introuvable.<br><span style="font-size:13px">Ajoutez ?b=nom-de-la-boutique a l\'adresse.</span></div>';
 } else {
-  Promise.all([api('/shop?action=boutique&slug='+encodeURIComponent(SLUG)), api('/shop?action=products&slug='+encodeURIComponent(SLUG)), api('/shop?action=active_promos&slug='+encodeURIComponent(SLUG))]).then(([bt, prods, promos]) => {
+  Promise.all([api('/shop?action=boutique&slug='+encodeURIComponent(SLUG)), api('/shop?action=products&slug='+encodeURIComponent(SLUG)), api('/shop?action=active_promos&slug='+encodeURIComponent(SLUG)), api('/shop?action=categories&slug='+encodeURIComponent(SLUG))]).then(([bt, prods, promos, cats]) => {
     if (!bt.data.success) { document.getElementById('root').innerHTML = '<div class="empty"><div class="big">🏬</div>Boutique introuvable ou fermee.</div>'; return; }
     BOUTIQUE = bt.data.data; PRODUCTS = prods.data.data || []; ACTIVE_PROMOS = (promos.data.success && promos.data.data) || [];
+    CATEGORIES = (cats.data.success && cats.data.data) || [];
     document.title = BOUTIQUE.name;
     renderShop();
     post('/shop?action=track_visit', {slug:SLUG, session_id:sessionId(), path:window.location.pathname, referrer:document.referrer});
@@ -144,14 +148,13 @@ function renderShop() {
     </div>` : ''}
     <div class="wrap">
       ${BOUTIQUE.description ? '<p style="color:var(--gray);margin:16px 0 0">'+escapeHtml(BOUTIQUE.description)+'</p>' : ''}
-      ${PRODUCTS.length ? '<div class="products-grid">'+PRODUCTS.map(p => `
-        <div class="product-card" onclick="openProduct('${p.id}')">
-          ${p.image_url ? '<img src="'+escapeHtml(p.image_url)+'" alt="">' : '<div class="ph">🛍️</div>'}
-          <div class="body"><div class="name">${escapeHtml(p.name)}</div>
-            <div class="price">${fmtMoney(p.price, BOUTIQUE.currency)}${p.compare_at_price && Number(p.compare_at_price) > Number(p.price) ? ' <span style="color:var(--gray);font-weight:400;text-decoration:line-through;font-size:13px">'+fmtMoney(p.compare_at_price, BOUTIQUE.currency)+'</span>' : ''}</div>
-          </div>
-        </div>`).join('')+'</div>'
-      : '<div class="empty"><div class="big">🛍️</div>Cette boutique n\'a pas encore de produits en ligne.</div>'}
+      ${PRODUCTS.length ? `
+      <div style="margin:16px 0 8px">
+        <input id="catalogSearch" placeholder="Rechercher un produit…" oninput="onCatalogSearchInput(this.value)" style="width:100%;padding:10px 14px;border:1px solid var(--border);border-radius:10px;font-size:14px">
+      </div>
+      ${CATEGORIES.length ? `<div id="categoryPills" style="display:flex;gap:8px;overflow-x:auto;padding-bottom:10px"></div>` : ''}
+      ` : ''}
+      <div id="productGrid"></div>
     </div>
     <footer><div class="wrap cols">
       <div>
@@ -171,6 +174,40 @@ function renderShop() {
     </div></footer>
   `;
   renderCartCount();
+  renderCategoryPills();
+  renderProductGrid();
+}
+function renderCategoryPills() {
+  const el = document.getElementById('categoryPills');
+  if (!el) return;
+  el.innerHTML = `<button class="cat-pill ${!CATALOG_FILTER.category?'active':''}" onclick="selectCategory('')">Tous</button>
+    ${CATEGORIES.map(c=>`<button class="cat-pill ${CATALOG_FILTER.category===c.id?'active':''}" onclick="selectCategory('${c.id}')">${escapeHtml(c.name)}</button>`).join('')}`;
+}
+// Ne touche jamais au reste de la page (recherche en cours, etc.) - seuls
+// les pastilles de categorie et la grille sont reconstruites.
+function selectCategory(categoryId) { CATALOG_FILTER.category = categoryId; renderCategoryPills(); renderProductGrid(); }
+let catalogSearchTimer = null;
+function onCatalogSearchInput(value) {
+  clearTimeout(catalogSearchTimer);
+  catalogSearchTimer = setTimeout(() => { CATALOG_FILTER.search = value.trim().toLowerCase(); renderProductGrid(); }, 200);
+}
+function renderProductGrid() {
+  const grid = document.getElementById('productGrid');
+  if (!grid) return;
+  const filtered = PRODUCTS.filter(p => {
+    if (CATALOG_FILTER.category && p.category_id !== CATALOG_FILTER.category) return false;
+    if (CATALOG_FILTER.search && !p.name.toLowerCase().includes(CATALOG_FILTER.search)) return false;
+    return true;
+  });
+  grid.innerHTML = PRODUCTS.length ? (filtered.length ? '<div class="products-grid">'+filtered.map(p => `
+      <div class="product-card" onclick="openProduct('${p.id}')">
+        ${p.image_url ? '<img src="'+escapeHtml(p.image_url)+'" alt="">' : '<div class="ph">🛍️</div>'}
+        <div class="body"><div class="name">${escapeHtml(p.name)}</div>
+          <div class="price">${fmtMoney(p.price, BOUTIQUE.currency)}${p.compare_at_price && Number(p.compare_at_price) > Number(p.price) ? ' <span style="color:var(--gray);font-weight:400;text-decoration:line-through;font-size:13px">'+fmtMoney(p.compare_at_price, BOUTIQUE.currency)+'</span>' : ''}</div>
+        </div>
+      </div>`).join('')+'</div>'
+    : '<div class="empty"><div class="big">🔍</div>Aucun produit ne correspond à votre recherche.</div>')
+    : '<div class="empty"><div class="big">🛍️</div>Cette boutique n\'a pas encore de produits en ligne.</div>';
 }
 
 function openProduct(id) {
@@ -208,6 +245,7 @@ function openProduct(id) {
     ${variantHtml}
     <div class="qty-row"><button onclick="stepQty(-1)">-</button><span id="pdQty">1</span><button onclick="stepQty(1)">+</button></div>
     <button class="btn btn-primary" id="pdAddBtn" onclick="addToCart('${p.id}')">Ajouter au panier</button>
+    <button class="btn btn-ghost" style="margin-top:8px" onclick="shareProductOnWhatsApp('${p.id}')">📲 Partager sur WhatsApp</button>
     <div id="pdRelated"></div>
     <div id="pdReviewsSection"></div>
   `;
@@ -216,6 +254,16 @@ function openProduct(id) {
   window.__pdResolvedVariant = null;
   if (useOptionSelectors) resolveVariantSelection(p.id);
   loadProductExtras(p.id);
+}
+// Lien direct vers cette fiche produit (le meme format que le deep-link
+// ?p=slug deja gere au chargement de la page) glisse dans un message
+// WhatsApp pre-rempli - tres courant comme canal de vente sur ce marche.
+function shareProductOnWhatsApp(productId) {
+  const p = PRODUCTS.find(x => x.id === productId);
+  if (!p) return;
+  const link = window.location.origin + window.location.pathname + '?b=' + encodeURIComponent(SLUG) + '&p=' + encodeURIComponent(p.slug || '');
+  const text = p.name + ' — ' + fmtMoney(p.price, BOUTIQUE.currency) + '\n' + link;
+  window.open('https://wa.me/?text=' + encodeURIComponent(text), '_blank');
 }
 // Fiche produit chargee depuis le cache PRODUCTS (liste) qui ne porte pas les
 // produits associes ni les avis - un second appel cible recupere ces
