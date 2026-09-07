@@ -2318,21 +2318,39 @@ function route_customers($action) {
     $pl = owner_auth();
     require_module_access(require_boutique_owned(bg('boutique_id'), $pl['sub']), 'customers');
     switch ($action) {
-        case 'list': customers_list($pl); break;
-        case 'get':  customers_get($pl); break;
+        case 'list':     customers_list($pl); break;
+        case 'get':      customers_get($pl); break;
+        case 'inactive_list': customers_inactive_list($pl); break;
         default: fail('Action inconnue', 404);
     }
 }
 function customers_list($pl) {
     $bt = require_boutique_owned($_GET['boutique_id'] ?? '', $pl['sub']);
     $qStr = trim($_GET['q'] ?? '');
-    $sql = "SELECT c.*, COUNT(o.id) AS orders_count, COALESCE(SUM(CASE WHEN o.status IN ".ENCAISSE_STATUSES." THEN o.total ELSE 0 END),0) AS total_spent
+    $sql = "SELECT c.*, COUNT(o.id) AS orders_count, COALESCE(SUM(CASE WHEN o.status IN ".ENCAISSE_STATUSES." THEN o.total ELSE 0 END),0) AS total_spent,
+            MAX(o.created_at) AS last_order_at
             FROM customers c LEFT JOIN orders o ON o.customer_id = c.id
             WHERE c.boutique_id=?";
     $params = [$bt['id']];
     if ($qStr !== '') { $sql .= " AND (c.name ILIKE ? OR c.phone ILIKE ? OR c.email ILIKE ?)"; $like='%'.$qStr.'%'; array_push($params,$like,$like,$like); }
     $sql .= " GROUP BY c.id ORDER BY c.created_at DESC LIMIT 500";
     ok(q($sql, $params)->fetchAll());
+}
+// Clients ayant deja commande au moins une fois mais plus depuis un moment -
+// candidats a une relance (ex: code promo cible, voir Marketing). "Plus
+// jamais commande" n'existe pas comme notion a part : c'est juste la meme
+// liste avec un delai tres long.
+function customers_inactive_list($pl) {
+    $bt = require_boutique_owned($_GET['boutique_id'] ?? '', $pl['sub']);
+    $days = max(1, (int)($_GET['days'] ?? 60));
+    ok(q("SELECT c.*, COUNT(o.id) AS orders_count,
+          COALESCE(SUM(CASE WHEN o.status IN ".ENCAISSE_STATUSES." THEN o.total ELSE 0 END),0) AS total_spent,
+          MAX(o.created_at) AS last_order_at
+          FROM customers c JOIN orders o ON o.customer_id = c.id
+          WHERE c.boutique_id=?
+          GROUP BY c.id
+          HAVING MAX(o.created_at) < NOW() - (?::text || ' days')::interval
+          ORDER BY MAX(o.created_at) ASC LIMIT 200", [$bt['id'], $days])->fetchAll());
 }
 function customers_get($pl) {
     $bt = require_boutique_owned($_GET['boutique_id'] ?? '', $pl['sub']);

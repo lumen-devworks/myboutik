@@ -789,15 +789,35 @@ function markAbandonedConverted(id) { post('/orders?action=abandoned_mark', {bou
 // ============================================================
 // Clients / Carnet d'adresses
 // ============================================================
-function renderCustomers(bt) {
+function renderCustomers(bt, inactiveDays) {
+  inactiveDays = inactiveDays || 60;
   document.getElementById('content').innerHTML = '<div class="empty">Chargement…</div>';
-  api('/customers?action=list&boutique_id='+bt.id).then(({data}) => {
-    const rows = data.data || [];
+  Promise.all([
+    api('/customers?action=list&boutique_id='+bt.id),
+    api('/customers?action=inactive_list&boutique_id='+bt.id+'&days='+inactiveDays),
+  ]).then(([listRes, inactiveRes]) => {
+    const rows = listRes.data.data || [];
+    const inactive = inactiveRes.data.data || [];
     document.getElementById('content').innerHTML = `
       <h2 class="page-title">Clients</h2><div class="page-sub">Gérez vos clients, leurs statuts et leurs commandes.</div>
       <div class="card">
-        ${rows.length ? `<table><thead><tr><th>Nom</th><th>Téléphone</th><th>Commandes</th><th>Total dépensé</th></tr></thead><tbody>
-          ${rows.map(c=>`<tr><td>${escapeHtml(c.name||'—')}</td><td>${escapeHtml(c.phone||'—')}</td><td>${c.orders_count}</td><td>${fmtMoney(c.total_spent, bt.currency)}</td></tr>`).join('')}
+        <div class="row-between"><h3>Clients à relancer (${inactive.length})</h3>
+          <select onchange="renderCustomers(CURRENT, Number(this.value))" style="padding:8px 12px;border:1px solid var(--border);border-radius:9px;font-size:13px">
+            <option value="30" ${inactiveDays===30?'selected':''}>Sans commande depuis 30 jours</option>
+            <option value="60" ${inactiveDays===60?'selected':''}>Sans commande depuis 60 jours</option>
+            <option value="90" ${inactiveDays===90?'selected':''}>Sans commande depuis 90 jours</option>
+          </select>
+        </div>
+        <div class="muted" style="font-size:12px;margin:-4px 0 10px">Clients ayant déjà commandé au moins une fois, mais plus depuis ce délai — de bons candidats pour un code promo ciblé.</div>
+        ${inactive.length ? `<table><thead><tr><th>Nom</th><th>Téléphone</th><th>Dernière commande</th><th>Total dépensé</th><th></th></tr></thead><tbody>
+          ${inactive.map(c=>`<tr><td>${escapeHtml(c.name||'—')}</td><td>${escapeHtml(c.phone||'—')}</td><td>${fmtDate(c.last_order_at)}</td><td>${fmtMoney(c.total_spent, bt.currency)}</td>
+            <td><button class="btn btn-primary btn-sm" onclick="openPromoForm('${escapeHtml(c.phone||'')}')">Créer un code promo ciblé</button></td></tr>`).join('')}
+          </tbody></table>` : '<div class="empty">Aucun client inactif sur cette période.</div>'}
+      </div>
+      <div class="card">
+        <h3>Tous les clients (${rows.length})</h3>
+        ${rows.length ? `<table><thead><tr><th>Nom</th><th>Téléphone</th><th>Commandes</th><th>Dernière commande</th><th>Total dépensé</th></tr></thead><tbody>
+          ${rows.map(c=>`<tr><td>${escapeHtml(c.name||'—')}</td><td>${escapeHtml(c.phone||'—')}</td><td>${c.orders_count}</td><td>${c.last_order_at?fmtDate(c.last_order_at):'—'}</td><td>${fmtMoney(c.total_spent, bt.currency)}</td></tr>`).join('')}
           </tbody></table>` : '<div class="empty"><div class="big">👤</div>Aucun client n\'a encore commandé.</div>'}
       </div>
     `;
@@ -1731,7 +1751,10 @@ function renderMarketing(bt) {
     `;
   });
 }
-function openPromoForm() {
+// prefillPhone : arrive depuis "Clients a relancer" (page Clients) pour
+// pre-remplir directement le ciblage sur ce client precis, sans repasser
+// par la page Marketing.
+function openPromoForm(prefillPhone) {
   openModal(`<h2>Nouveau code promo</h2>
     <div id="promoMsg"></div>
     <div class="field"><label>Code</label><input id="promoCode" placeholder="Ex: PROMO10" style="text-transform:uppercase"></div>
@@ -1744,7 +1767,7 @@ function openPromoForm() {
       <div class="field"><label>Expire le (optionnel)</label><input id="promoExpires" type="date"></div>
     </div>
     <div class="field"><label>Réserver à des clients précis (optionnel)</label>
-      <textarea id="promoTargets" rows="3" placeholder="Un numéro de téléphone par ligne, ex:&#10;+225 07 00 00 00 00&#10;+225 05 45 93 76 65"></textarea>
+      <textarea id="promoTargets" rows="3" placeholder="Un numéro de téléphone par ligne, ex:&#10;+225 07 00 00 00 00&#10;+225 05 45 93 76 65">${escapeHtml(prefillPhone||'')}</textarea>
       <div class="muted" style="font-size:12px;margin-top:4px">Laissez vide pour un code ouvert à tous vos clients. Sinon, seuls les numéros listés ici pourront l'utiliser — même si quelqu'un d'autre l'obtient par un tiers.</div>
     </div>
     <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal()">Annuler</button><button class="btn btn-primary" onclick="submitPromoForm()">Créer</button></div>`);
