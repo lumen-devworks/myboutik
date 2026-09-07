@@ -1009,7 +1009,11 @@ function auth_verify_link($token, $pageUrl = '') {
     } else {
         $base = rtrim($_SERVER['HTTP_ORIGIN'] ?? '', '/');
     }
-    return $base.'/?verify='.$token;
+    // Pas de "/" ajoute ici : $base contient deja le chemin complet envoye
+    // par le frontend, fichier inclus (ex: ".../myboutik/index.html"). En
+    // ajouter un produisait "index.html/?verify=..." -> 404 sur GitHub Pages
+    // (qui ne reecrit pas les URLs comme un serveur PHP classique).
+    return $base.'?verify='.$token;
 }
 
 function auth_verify() {
@@ -2750,7 +2754,7 @@ function team_invite_link($token, $pageUrl) {
     } else {
         $base = rtrim($_SERVER['HTTP_ORIGIN'] ?? '', '/');
     }
-    return $base.'/?team_invite='.$token;
+    return $base.'?team_invite='.$token; // voir le commentaire dans auth_verify_link()
 }
 
 function team_list($pl) {
