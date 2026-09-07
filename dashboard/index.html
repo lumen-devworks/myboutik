@@ -211,7 +211,7 @@ const NAV = [
   {group:'Finances', items:[['finance/overview','👁️','Vue Globale'], ['finance/accounts','📖','Livre de Compte'],
     ['finance/delivery-fees','🚛','Frais de livraison'], ['finance/detail','⏱️','Finance Détaillée'], ['finance/ads','📣','Publicités & ROAS']]},
   {group:'Catalogue', items:[['products','📦','Produits'], ['products/stock','📊','Stock'], ['products/suppliers','🚛','Fournisseurs'], ['products/supplier-orders','🧾','Commandes fournisseurs']]},
-  {group:'Analytique', items:[['analytics/reports','📈','Rapports'], ['analytics/live','🔴','Live']]},
+  {group:'Analytique', items:[['analytics/reports','📈','Rapports'], ['analytics/live','🔴','Live'], ['analytics/history','🕒','Historique']]},
   {group:'Marketing', items:[['marketing','✉️','Messages et abonnés']]},
   {group:'Paramètres', items:[
     ['settings','⚙️','Général'], ['team','🧑‍🤝‍🧑','Équipe'], ['integrations','🔌','Intégrations'],
@@ -228,7 +228,7 @@ const NAV_MODULE = {
   customers:'customers', contacts:'contacts',
   'finance/overview':'finance', 'finance/accounts':'finance', 'finance/delivery-fees':'finance', 'finance/detail':'finance', 'finance/ads':'finance',
   products:'products', 'products/stock':'products', 'products/suppliers':'products', 'products/supplier-orders':'products',
-  'analytics/reports':'analytics', 'analytics/live':'analytics',
+  'analytics/reports':'analytics', 'analytics/live':'analytics', 'analytics/history':'admin',
   marketing:'marketing',
   settings:'admin', team:'admin', integrations:'admin',
   profile:'account', billing:'account', affiliate:'account',
@@ -322,7 +322,7 @@ function renderSection(bt, section) {
     'finance/overview': renderFinanceOverview, 'finance/accounts': renderFinanceAccounts,
     'finance/delivery-fees': renderFinanceDeliveryFees, 'finance/detail': renderFinanceDetail, 'finance/ads': renderFinanceAds,
     'products': renderProducts, 'products/stock': renderStock, 'products/suppliers': renderSuppliers, 'products/supplier-orders': renderSupplierOrders,
-    'analytics/reports': renderReports, 'analytics/live': renderLive,
+    'analytics/reports': renderReports, 'analytics/live': renderLive, 'analytics/history': renderHistory,
     'marketing': renderMarketing, 'settings': renderSettings,
     'team': renderTeam, 'profile': renderProfile, 'billing': renderBilling,
     'integrations': renderIntegrations, 'affiliate': renderAffiliate,
@@ -1296,6 +1296,26 @@ function renderLive(bt) {
 }
 
 // ============================================================
+// Historique — qui a fait quoi, quand (reserve proprietaire/admin)
+// ============================================================
+function renderHistory(bt) {
+  document.getElementById('content').innerHTML = '<div class="empty">Chargement…</div>';
+  api('/analytics?action=activity_log&boutique_id='+bt.id).then(({data}) => {
+    if (!data.success) { document.getElementById('content').innerHTML = '<div class="card">'+escapeHtml(data.message)+'</div>'; return; }
+    const rows = data.data || [];
+    document.getElementById('content').innerHTML = `
+      <h2 class="page-title">Historique</h2>
+      <div class="page-sub">Les 300 dernières actions sur cette boutique — qui a fait quoi, et quand.</div>
+      <div class="card">${rows.length ? `<table><thead><tr><th>Date</th><th>Heure</th><th>Auteur</th><th>Action</th></tr></thead><tbody>
+        ${rows.map(a=>{ const d = new Date(a.created_at); return `<tr>
+          <td>${d.toLocaleDateString('fr-FR')}</td><td>${d.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit',second:'2-digit'})}</td>
+          <td>${escapeHtml(a.actor_email || 'Client (vitrine)')}</td><td>${escapeHtml(a.message)}</td></tr>`; }).join('')}
+        </tbody></table>` : '<div class="empty"><div class="big">🕒</div>Aucune activité enregistrée pour l\'instant.</div>'}</div>
+    `;
+  });
+}
+
+// ============================================================
 // Marketing
 // ============================================================
 function renderMarketing(bt) {
@@ -1338,6 +1358,9 @@ function renderSettings(bt) {
       <h3>Notifications de commande</h3>
       <label style="display:flex;align-items:center;gap:8px;margin-bottom:10px"><input type="checkbox" id="setNotifyEmail" ${bt.notify_order_email!=0?'checked':''}> Recevoir un email à chaque nouvelle commande</label>
       <div class="field"><label>Adresse de réception (vide = email de votre compte)</label><input id="setNotifyAddr" type="email" value="${escapeHtml(bt.notify_email||'')}"></div>
+      <label style="display:flex;align-items:center;gap:8px;margin-bottom:10px"><input type="checkbox" id="setNotifyWhatsapp" ${bt.notify_whatsapp_enabled?'checked':''}> Recevoir une notification WhatsApp à chaque nouvelle commande</label>
+      <div class="field"><label>Numéro WhatsApp (format international, ex: +225 07 00 00 00 00)</label><input id="setNotifyWhatsappNumber" value="${escapeHtml(bt.notify_whatsapp_number||'')}"></div>
+      <div class="muted" style="margin:-6px 0 14px;font-size:12px">L'envoi réel n'est pas encore branché (nécessite un compte WhatsApp Business API) — en attendant, le message est journalisé côté serveur pour test.</div>
       <button class="btn btn-primary" onclick="saveSettings()">Enregistrer</button>
     </div>
   `;
@@ -1360,6 +1383,8 @@ function saveSettings() {
     default_delivery_fee:Number(document.getElementById('setDeliveryFee').value||0),
     notify_order_email:document.getElementById('setNotifyEmail').checked,
     notify_email:document.getElementById('setNotifyAddr').value.trim(),
+    notify_whatsapp_enabled:document.getElementById('setNotifyWhatsapp').checked,
+    notify_whatsapp_number:document.getElementById('setNotifyWhatsappNumber').value.trim(),
   }).then(({data}) => {
     if (!data.success) { document.getElementById('settingsMsg').innerHTML = '<div class="msg error">'+data.message+'</div>'; return; }
     document.getElementById('settingsMsg').innerHTML = '<div class="msg success">Enregistré</div>';

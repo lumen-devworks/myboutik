@@ -189,9 +189,13 @@ function rate_limit_check($bucket, $maxRequests, $windowSeconds) {
     } catch (PDOException $e) { /* table pas encore prete : on laisse passer */ }
 }
 
-function log_activity($boutiqueId, $message) {
-    try { q("INSERT INTO activity_log (boutique_id, message) VALUES (?,?)", [$boutiqueId, $message]); }
-    catch (PDOException $e) { /* jamais bloquant */ }
+// $actorUserId absent (commande passee depuis la vitrine publique, par un
+// client) -> actor_email reste NULL, affiche comme "Client" dans Historique.
+function log_activity($boutiqueId, $message, $actorUserId = null) {
+    try {
+        $actorEmail = $actorUserId ? (q("SELECT email FROM users WHERE id=?", [$actorUserId])->fetchColumn() ?: null) : null;
+        q("INSERT INTO activity_log (boutique_id, message, actor_email) VALUES (?,?,?)", [$boutiqueId, $message, $actorEmail]);
+    } catch (PDOException $e) { /* jamais bloquant */ }
 }
 
 function period_clause($period, $col='created_at') {
@@ -276,6 +280,17 @@ const PLANS = [
     'pro'     => ['name'=>'Pro',     'price'=>14900, 'boutique_limit'=>3],
     'premium' => ['name'=>'Premium', 'price'=>34900, 'boutique_limit'=>10],
 ];
+// Une commission n'est "disponible" au retrait qu'apres un delai de
+// validation (le temps qu'un paiement Mobile Money litigieux soit
+// eventuellement annule) - avant cela elle reste "en attente de validation"
+// tout en etant deja comptee dans le total gagne. Definies ici (avant le
+// routeur plus bas) et non pres de billing_affiliate_info() : un `const`
+// top-niveau s'execute a sa position dans le fichier (contrairement a une
+// fonction, jamais hoiste) - le declarer apres le routeur le rendait
+// "undefined" au moment ou une requete /billing l'utilisait.
+const REFERRAL_VALIDATION_DAYS = 7;
+const REFERRAL_MIN_PAYOUT = 5000;
+const TEAM_ROLES = ['admin','manager','livreur','closeuse','comptable'];
 
 // Point unique d'envoi d'email. Aucun fournisseur transactionnel branche
 // pour l'instant (voir README) : le contenu est journalise au lieu d'etre
@@ -284,6 +299,16 @@ const PLANS = [
 // de compte, les invitations d'equipe ET les notifications de commande.
 function send_email($to, $subject, $body) {
     error_log('[MYBOUTIK] Email a envoyer -> '.$to.' | Sujet: '.$subject."\n".$body);
+}
+
+// Meme principe que send_email() : aucun envoi reel pour l'instant (une
+// vraie notification WhatsApp business-initiee necessite un compte
+// WhatsApp Business API - Meta Cloud API ou un prestataire comme Twilio/
+// 360dialog - avec un modele de message pre-approuve). Le numero et le
+// reglage sont deja geres cote boutique, prets pour le jour ou un vrai
+// fournisseur est branche ici.
+function send_whatsapp($to, $message) {
+    error_log('[MYBOUTIK] WhatsApp a envoyer -> '.$to.' : '.$message);
 }
 
 // Paliers de grade (gamification), calcules sur le cumul "vie" des revenus
@@ -447,6 +472,11 @@ function route_install() {
     "ALTER TABLE boutiques ADD COLUMN IF NOT EXISTS logo_url TEXT",
     "ALTER TABLE boutiques ADD COLUMN IF NOT EXISTS notify_order_email SMALLINT DEFAULT 1",
     "ALTER TABLE boutiques ADD COLUMN IF NOT EXISTS notify_email VARCHAR(190)",
+    // Notification WhatsApp a chaque commande - meme statut que l'email
+    // pour l'instant (voir send_whatsapp()) : le numero/le reglage sont deja
+    // geres, l'envoi reel necessite un compte WhatsApp Business API.
+    "ALTER TABLE boutiques ADD COLUMN IF NOT EXISTS notify_whatsapp_enabled SMALLINT DEFAULT 0",
+    "ALTER TABLE boutiques ADD COLUMN IF NOT EXISTS notify_whatsapp_number VARCHAR(30)",
     // Import de commandes depuis une feuille Google Sheets publiee en CSV
     // (voir route_integrations()). Pas de synchronisation automatique en
     // arriere-plan (aucun worker planifie sur cet hebergement) : le bouton
@@ -740,6 +770,11 @@ function route_install() {
         message TEXT NOT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )",
+    // Auteur de l'action, pour la page Historique - absent (NULL) pour les
+    // actions declenchees par un client sur la vitrine publique (personne
+    // connectee dans ce cas), rempli pour toute action venant du tableau de
+    // bord (voir log_activity()).
+    "ALTER TABLE activity_log ADD COLUMN IF NOT EXISTS actor_email VARCHAR(190)",
     "CREATE INDEX IF NOT EXISTS idx_activity_boutique_created ON activity_log(boutique_id, created_at)",
     "CREATE TABLE IF NOT EXISTS rate_limit_hits (
         id SERIAL PRIMARY KEY,
@@ -959,7 +994,7 @@ function boutiques_create($pl) {
     // des la creation (l'utilisateur peut le renommer/en ajouter d'autres).
     q("INSERT INTO accounts (id,boutique_id,name,type) VALUES (?,?,?,?)", [uid(), $id, 'Caisse', 'caisse']);
     q("INSERT INTO abandoned_settings (boutique_id) VALUES (?)", [$id]);
-    log_activity($id, 'Boutique creee');
+    log_activity($id, 'Boutique creee', $pl['sub']);
     $row = q("SELECT * FROM boutiques WHERE id=?", [$id])->fetch();
     ok($row, 'Boutique creee', 201);
 }
@@ -977,9 +1012,12 @@ function boutiques_update($pl) {
     $logoUrl = trim($b['logo_url'] ?? $row['logo_url']);
     $notifyOrderEmail = isset($b['notify_order_email']) ? (int)!!$b['notify_order_email'] : $row['notify_order_email'];
     $notifyEmail = trim($b['notify_email'] ?? $row['notify_email']);
+    $notifyWhatsappEnabled = isset($b['notify_whatsapp_enabled']) ? (int)!!$b['notify_whatsapp_enabled'] : $row['notify_whatsapp_enabled'];
+    $notifyWhatsappNumber = trim($b['notify_whatsapp_number'] ?? $row['notify_whatsapp_number']);
     q("UPDATE boutiques SET name=?, cod_enabled=?, currency=?, default_delivery_fee=?, description=?, logo_url=?,
-       notify_order_email=?, notify_email=? WHERE id=?",
-      [$name, $codEnabled, $currency, $deliveryFee, $description, $logoUrl, $notifyOrderEmail, $notifyEmail, $id]);
+       notify_order_email=?, notify_email=?, notify_whatsapp_enabled=?, notify_whatsapp_number=? WHERE id=?",
+      [$name, $codEnabled, $currency, $deliveryFee, $description, $logoUrl, $notifyOrderEmail, $notifyEmail,
+       $notifyWhatsappEnabled, $notifyWhatsappNumber, $id]);
     ok(q("SELECT * FROM boutiques WHERE id=?", [$id])->fetch(), 'Boutique mise a jour');
 }
 
@@ -1103,7 +1141,7 @@ function products_create($pl) {
         q("INSERT INTO product_images (id,product_id,boutique_id,data,position,is_primary) VALUES (?,?,?,?,0,1)",
           [uid(), $id, $bt['id'], $imageUrl]);
     }
-    log_activity($bt['id'], 'Produit ajoute: '.$name);
+    log_activity($bt['id'], 'Produit ajoute: '.$name, $pl['sub']);
     ok(q("SELECT * FROM products WHERE id=?", [$id])->fetch(), 'Produit cree', 201);
 }
 
@@ -1450,16 +1488,20 @@ function shop_checkout() {
 }
 
 function notify_new_order($bt, $ref, $customerName, $total) {
-    $settings = q("SELECT notify_order_email, notify_email FROM boutiques WHERE id=?", [$bt['id']])->fetch();
-    if (!$settings || !$settings['notify_order_email']) return;
-    $to = $settings['notify_email'] ?: null;
-    if (!$to) {
-        $owner = q("SELECT u.email FROM users u JOIN boutiques b ON b.owner_user_id=u.id WHERE b.id=?", [$bt['id']])->fetch();
-        $to = $owner['email'] ?? null;
+    $settings = q("SELECT notify_order_email, notify_email, notify_whatsapp_enabled, notify_whatsapp_number FROM boutiques WHERE id=?", [$bt['id']])->fetch();
+    if (!$settings) return;
+    $summary = "Client: $customerName\nTotal: $total ".($bt['currency'] ?: 'XOF')."\nReference: $ref\n\nOuvrez votre tableau de bord MYBOUTIK pour la traiter.";
+    if ($settings['notify_order_email']) {
+        $to = $settings['notify_email'] ?: null;
+        if (!$to) {
+            $owner = q("SELECT u.email FROM users u JOIN boutiques b ON b.owner_user_id=u.id WHERE b.id=?", [$bt['id']])->fetch();
+            $to = $owner['email'] ?? null;
+        }
+        if ($to) send_email($to, 'Nouvelle commande '.$ref.' - '.$bt['name'], $summary);
     }
-    if (!$to) return;
-    send_email($to, 'Nouvelle commande '.$ref.' - '.$bt['name'],
-        "Client: $customerName\nTotal: $total ".($bt['currency'] ?: 'XOF')."\nReference: $ref\n\nOuvrez votre tableau de bord MYBOUTIK pour la traiter.");
+    if ($settings['notify_whatsapp_enabled'] && $settings['notify_whatsapp_number']) {
+        send_whatsapp($settings['notify_whatsapp_number'], 'Nouvelle commande '.$ref.' - '.$bt['name']."\n".$summary);
+    }
 }
 
 function shop_track_visit() {
@@ -1604,7 +1646,7 @@ function orders_create_manual($pl) {
         q("UPDATE products SET stock_qty = stock_qty - ? WHERE id=?", [$l['qty'], $l['product']['id']]);
     }
     q("INSERT INTO delivery_assignments (id,order_id,boutique_id,status) VALUES (?,?,?,?)", [uid(), $orderId, $bt['id'], 'to_assign']);
-    log_activity($bt['id'], 'Commande manuelle creee '.$ref);
+    log_activity($bt['id'], 'Commande manuelle creee '.$ref, $pl['sub']);
     ok(q("SELECT * FROM orders WHERE id=?", [$orderId])->fetch(), 'Commande creee', 201);
 }
 
@@ -1620,7 +1662,7 @@ function orders_update_status($pl) {
     } else {
         q("UPDATE orders SET status=? WHERE id=?", [$status, $o['id']]);
     }
-    log_activity($bt['id'], 'Commande '.$o['ref'].' -> '.$status);
+    log_activity($bt['id'], 'Commande '.$o['ref'].' -> '.$status, $pl['sub']);
     ok(q("SELECT * FROM orders WHERE id=?", [$o['id']])->fetch(), 'Statut mis a jour');
 }
 
@@ -1751,7 +1793,7 @@ function delivery_assign($pl) {
     q("UPDATE delivery_assignments SET delivery_person_id=?, status='assigned', assigned_at=NOW() WHERE order_id=?",
       [$b['delivery_person_id'], $o['id']]);
     q("UPDATE orders SET status='processing' WHERE id=? AND status='pending'", [$o['id']]);
-    log_activity($bt['id'], 'Commande '.$o['ref'].' assignee a un livreur');
+    log_activity($bt['id'], 'Commande '.$o['ref'].' assignee a un livreur', $pl['sub']);
     ok(q("SELECT * FROM delivery_assignments WHERE order_id=?", [$o['id']])->fetch(), 'Commande assignee');
 }
 
@@ -1779,7 +1821,7 @@ function delivery_update_status($pl) {
         if ($status === 'refused') q("UPDATE orders SET status='refused' WHERE id=?", [$o['id']]);
         if ($status === 'in_delivery') q("UPDATE orders SET status='shipped' WHERE id=?", [$o['id']]);
     }
-    log_activity($bt['id'], 'Livraison '.$o['ref'].' -> '.$status);
+    log_activity($bt['id'], 'Livraison '.$o['ref'].' -> '.$status, $pl['sub']);
     ok(q("SELECT * FROM delivery_assignments WHERE order_id=?", [$o['id']])->fetch(), 'Statut mis a jour');
 }
 
@@ -2073,9 +2115,12 @@ function finance_ads($pl) {
     $pcOrder = period_clause($period);
     $depenseTotale = (float)q("SELECT COALESCE(SUM(amount),0) s FROM ad_expenses WHERE boutique_id=? AND $pcAd", [$bt['id']])->fetch()['s'];
 
+    // Ici $pcAd (non prefixe) serait ambigu : products a aussi une colonne
+    // created_at, donc on qualifie explicitement celle de ad_expenses.
+    $pcAdJoined = period_clause($period, 'ae.created_at');
     $byProduct = q("SELECT ae.product_id, p.name AS product_name, COALESCE(SUM(ae.amount),0) AS spend
                     FROM ad_expenses ae LEFT JOIN products p ON p.id = ae.product_id
-                    WHERE ae.boutique_id=? AND ae.product_id IS NOT NULL AND $pcAd
+                    WHERE ae.boutique_id=? AND ae.product_id IS NOT NULL AND $pcAdJoined
                     GROUP BY ae.product_id, p.name", [$bt['id']])->fetchAll();
     foreach ($byProduct as &$row) {
         $revenu = (float)q("SELECT COALESCE(SUM(oi.unit_price*oi.qty),0) s FROM order_items oi
@@ -2126,8 +2171,9 @@ function route_analytics($action) {
     $pl = owner_auth();
     require_module_access(require_boutique_owned(bg('boutique_id'), $pl['sub']), 'analytics');
     switch ($action) {
-        case 'report': analytics_report($pl); break;
-        case 'live':   analytics_live($pl); break;
+        case 'report':   analytics_report($pl); break;
+        case 'live':     analytics_live($pl); break;
+        case 'activity_log': analytics_activity_log($pl); break;
         default: fail('Action inconnue', 404);
     }
 }
@@ -2187,6 +2233,14 @@ function analytics_live($pl) {
         'commandes_recentes'=>$recent, 'activite'=>$activity, 'server_time'=>date('c')]);
 }
 
+// Historique complet (qui a fait quoi, quand) - reserve au proprietaire et
+// aux membres 'admin' de la boutique, comme l'equipe et les parametres :
+// ca revele l'activite de chaque collegue, pas seulement des chiffres.
+function analytics_activity_log($pl) {
+    $bt = require_boutique_admin($_GET['boutique_id'] ?? '', $pl['sub']);
+    ok(q("SELECT * FROM activity_log WHERE boutique_id=? ORDER BY created_at DESC LIMIT 300", [$bt['id']])->fetchAll());
+}
+
 // ============================================================
 // MARKETING — abonnes newsletter et messages de contact captes sur la
 // vitrine publique
@@ -2226,8 +2280,6 @@ function marketing_message_mark_read($pl) {
 // l'equipe existante - aucune restriction fine par page n'est encore
 // appliquee cote serveur au-dela des parametres/de l'equipe elle-meme.
 // ============================================================
-const TEAM_ROLES = ['admin','manager','livreur','closeuse','comptable'];
-
 function route_team($action) {
     $pl = owner_auth();
     switch ($action) {
@@ -2345,13 +2397,6 @@ function billing_subscribe($pl) {
     q("INSERT INTO subscription_requests (id,user_id,plan) VALUES (?,?,?)", [$id, $pl['sub'], $plan]);
     ok(null, 'Demande enregistree. Votre plan sera active des verification du paiement par l\'equipe MYBOUTIK.', 201);
 }
-
-// Une commission n'est "disponible" au retrait qu'apres un delai de
-// validation (7 jours, le temps qu'un paiement Mobile Money litigieux soit
-// eventuellement annule) - avant cela elle reste "en attente de validation"
-// tout en etant deja comptee dans le total gagne.
-const REFERRAL_VALIDATION_DAYS = 7;
-const REFERRAL_MIN_PAYOUT = 5000;
 
 function billing_affiliate_info($pl) {
     $user = q("SELECT referral_code, referral_clicks FROM users WHERE id=?", [$pl['sub']])->fetch();
@@ -2592,7 +2637,7 @@ function integrations_sheet_import($pl) {
             q("INSERT INTO delivery_assignments (id,order_id,boutique_id,status) VALUES (?,?,?,?)", [uid(), $orderId, $bt['id'], 'to_assign']);
             $pdo->commit();
             $imported++;
-            log_activity($bt['id'], 'Commande importee depuis Google Sheets: '.$ref);
+            log_activity($bt['id'], 'Commande importee depuis Google Sheets: '.$ref, $pl['sub']);
         } catch (Exception $e) {
             $pdo->rollBack();
             $skipped[] = "$extRef: erreur d'import";
