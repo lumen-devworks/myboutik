@@ -1511,6 +1511,8 @@ function renderMarketing(bt) {
     api('/marketing?action=newsletter&boutique_id='+bt.id), api('/marketing?action=messages&boutique_id='+bt.id),
     api('/marketing?action=promo_list&boutique_id='+bt.id), api('/marketing?action=review_list&boutique_id='+bt.id),
   ]).then(([nl, msg, promo, rev]) => {
+    const failed = [nl, msg, promo, rev].find(r => !r.data.success);
+    if (failed) { document.getElementById('content').innerHTML = '<div class="card">'+escapeHtml(failed.data.message)+'</div>'; return; }
     const N = nl.data.data || []; const M = msg.data.data || [];
     const P = promo.data.data || []; const R = rev.data.data || [];
     window.__marketingReviews = R;
