@@ -59,7 +59,8 @@
         <h3 style="margin:0">Tous les clients</h3>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
           <input id="clientSearch" placeholder="Rechercher par email…" style="max-width:260px;margin:0" oninput="renderClients()">
-          <button class="ghost" onclick="exportClientsCsv()">⬇️ Exporter CSV</button>
+          <button class="ghost" onclick="exportClientsExcel()">⬇️ Exporter Excel</button>
+          <button class="ghost" onclick="exportClientsPdf()">⬇️ Exporter PDF</button>
         </div>
       </div>
       <div class="table-wrap" id="clientsBody"></div>
@@ -161,23 +162,56 @@ function renderClients() {
     </tr>`).join('')}
     </tbody></table>` : '<p style="color:var(--gray)">Aucun client ne correspond à cette recherche.</p>';
 }
-// Genere le CSV directement dans le navigateur a partir des donnees deja
-// chargees (CLIENTS) - pas besoin d'endpoint dedie, admin.html s'authentifie
-// par mot de passe dans le corps d'une requete POST, pas par un lien
-// telechargeable classique.
-function exportClientsCsv() {
+function filteredClients() {
   const q = (document.getElementById('clientSearch').value || '').toLowerCase();
-  const rows = CLIENTS.filter(c => !q || c.email.toLowerCase().includes(q) || (c.full_name||'').toLowerCase().includes(q));
+  return CLIENTS.filter(c => !q || c.email.toLowerCase().includes(q) || (c.full_name||'').toLowerCase().includes(q));
+}
+function clientExportRows() {
   const headers = ['Email','Nom','Plan','Expire le','Boutiques','Paiements','Total payé (FCFA)','Inscrit le'];
-  const csvRows = rows.map(c => [c.email, c.full_name||'', c.plan, fmtDate(c.plan_valid_until), c.boutique_count, c.payments_count, Math.round(c.total_paid||0), fmtDate(c.created_at)]);
-  const esc = v => '"'+String(v).replace(/"/g,'""')+'"';
-  const csv = '﻿' + [headers, ...csvRows].map(r => r.map(esc).join(',')).join('\r\n');
-  const blob = new Blob([csv], {type:'text/csv;charset=utf-8'});
+  const rows = filteredClients().map(c => [c.email, c.full_name||'—', c.plan, fmtDate(c.plan_valid_until), c.boutique_count, c.payments_count, fmtMoney(c.total_paid), fmtDate(c.created_at)]);
+  return {headers, rows};
+}
+// Fichier .xls (tableau HTML) plutot qu'un CSV brut : s'ouvre directement
+// dans Excel/LibreOffice avec la mise en forme deja appliquee (en-tetes en
+// gras, bordures, titre colore) - meme technique que les exports Finance du
+// tableau de bord marchand. Genere entierement cote navigateur, admin.html
+// n'ayant pas de lien telechargeable classique (authentification par mot de
+// passe dans le corps d'une requete POST).
+function exportClientsExcel() {
+  const {headers, rows} = clientExportRows();
+  let html = '<table border="1" cellspacing="0" cellpadding="6" style="border-collapse:collapse;font-family:Arial,sans-serif;font-size:12px">';
+  html += '<tr><td colspan="'+headers.length+'" style="background:#1d4ed8;color:#ffffff;font-size:15px;font-weight:bold;padding:10px">Clients MYBOUTIK</td></tr>';
+  html += '<tr>'+headers.map(h => '<th style="background:#eff6ff;font-weight:bold;text-align:left;padding:6px;border:1px solid #cbd5e1">'+h+'</th>').join('')+'</tr>';
+  rows.forEach(r => { html += '<tr>'+r.map(v => '<td style="padding:6px;border:1px solid #cbd5e1">'+v+'</td>').join('')+'</tr>'; });
+  html += '</table>';
+  const blob = new Blob(['﻿<html><head><meta charset="UTF-8"></head><body>'+html+'</body></html>'], {type:'application/vnd.ms-excel;charset=utf-8'});
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
-  a.href = url; a.download = 'clients-myboutik.csv';
+  a.href = url; a.download = 'clients-myboutik.xls';
   document.body.appendChild(a); a.click(); a.remove();
   URL.revokeObjectURL(url);
+}
+// Ouvre un apercu deja mis en page dans un nouvel onglet et lance
+// l'impression - le navigateur propose "Enregistrer en PDF" comme
+// destination, ce qui donne un vrai PDF sans bibliotheque serveur.
+function exportClientsPdf() {
+  const {headers, rows} = clientExportRows();
+  const win = window.open('', '_blank', 'width=900,height=700');
+  win.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Clients MYBOUTIK</title>
+    <style>
+      body{font-family:Arial,sans-serif;color:#111;padding:28px;max-width:900px;margin:0 auto}
+      h1{font-size:18px;margin:0 0 14px}
+      table{width:100%;border-collapse:collapse;font-size:12px}
+      th,td{padding:6px 8px;border-bottom:1px solid #ddd;text-align:left;white-space:nowrap}
+      th{background:#eff6ff}
+    </style></head><body>
+    <h1>Clients MYBOUTIK — ${new Date().toLocaleDateString('fr-FR')}</h1>
+    <table><thead><tr>${headers.map(h=>'<th>'+h+'</th>').join('')}</tr></thead><tbody>
+      ${rows.map(r => '<tr>'+r.map(v=>'<td>'+v+'</td>').join('')+'</tr>').join('')}
+    </tbody></table>
+    <script>window.onload = () => window.print();<\/script>
+    </body></html>`);
+  win.document.close();
 }
 function renderHistory(rows) {
   const statusPill = s => s==='approved' ? '<span class="pill pill-ok">Approuvé</span>' : s==='rejected' ? '<span class="pill pill-bad">Rejeté</span>' : '<span class="pill pill-warn">En attente</span>';
