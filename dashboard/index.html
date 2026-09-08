@@ -1899,6 +1899,13 @@ function renderSettings(bt) {
           <input id="storeLinkInput" value="${window.location.origin + window.location.pathname.replace(/dashboard\/.*/, '')}store/index.html?b=${escapeHtml(bt.slug)}" readonly>
           <button type="button" class="btn btn-ghost" onclick="copyInput('storeLinkInput')">Copier</button>
         </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
+          <button type="button" class="btn btn-ghost btn-sm" onclick="shareStoreOn('whatsapp')">📲 WhatsApp</button>
+          <button type="button" class="btn btn-ghost btn-sm" onclick="shareStoreOn('facebook')">📘 Facebook</button>
+          <button type="button" class="btn btn-ghost btn-sm" onclick="shareStoreOn('telegram')">✈️ Telegram</button>
+          <button type="button" class="btn btn-ghost btn-sm" onclick="shareStoreOn('x')">✖️ X (Twitter)</button>
+        </div>
+        <div class="muted" style="font-size:12px;margin-top:6px">Chaque bouton ouvre le réseau avec le lien déjà rempli — plus besoin de le recopier à la main. Instagram ne permet pas ce pré-remplissage depuis un site : collez le lien copié ci-dessus dans votre bio ou une story.</div>
       </div>
       <div class="field"><label>Frais de livraison par défaut (facturé au client)</label><input id="setDeliveryFee" type="number" min="0" value="${bt.default_delivery_fee||0}"></div>
       <label style="display:flex;align-items:center;gap:8px;margin-bottom:14px"><input type="checkbox" id="setCod" ${bt.cod_enabled?'checked':''}> Paiement à la livraison activé</label>
@@ -2137,6 +2144,24 @@ function copyInput(id) {
   const input = document.getElementById(id);
   input.select();
   navigator.clipboard && navigator.clipboard.writeText(input.value);
+}
+function storeLink() {
+  return window.location.origin + window.location.pathname.replace(/dashboard\/.*/, '') + 'store/index.html?b=' + encodeURIComponent(CURRENT.slug);
+}
+// Chaque reseau a sa propre URL de partage "toute prete" (le fameux
+// "intent" web) - pas d'API a appeler, juste ouvrir ce lien suffit a
+// pre-remplir le message avec le lien de la boutique. Instagram n'a pas
+// d'equivalent web, d'ou l'absence de bouton pour ce reseau.
+function shareStoreOn(network) {
+  const link = storeLink();
+  const text = 'Découvrez ' + CURRENT.name + ' !';
+  const urls = {
+    whatsapp: 'https://wa.me/?text=' + encodeURIComponent(text + ' ' + link),
+    facebook: 'https://www.facebook.com/sharer/sharer.php?u=' + encodeURIComponent(link),
+    telegram: 'https://t.me/share/url?url=' + encodeURIComponent(link) + '&text=' + encodeURIComponent(text),
+    x: 'https://twitter.com/intent/tweet?text=' + encodeURIComponent(text) + '&url=' + encodeURIComponent(link),
+  };
+  if (urls[network]) window.open(urls[network], '_blank');
 }
 function requestPayout() {
   const phone = document.getElementById('payoutPhone').value.trim();
