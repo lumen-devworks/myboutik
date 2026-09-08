@@ -3271,7 +3271,7 @@ function billing_plans($pl) {
     ok([
         'plans' => PLANS, 'current_plan' => $user['plan'], 'plan_status' => $user['plan_status'],
         'pending_request' => $pending ?: null,
-        'payment_instructions' => 'Envoyez le montant du plan choisi par Mobile Money au +225 07 78 79 83 19 (MYBOUTIK). Votre plan sera active des verification manuelle du paiement par l\'equipe MYBOUTIK (generalement sous 24h).',
+        'payment_instructions' => 'Envoyez le montant du plan choisi via Orange Money, Wave ou Djomo au +225 07 78 79 83 19 (MYBOUTIK). Votre plan sera active des verification manuelle du paiement par l\'equipe MYBOUTIK (generalement sous 24h).',
     ]);
 }
 
@@ -3283,7 +3283,7 @@ function billing_subscribe($pl) {
     if ($existing) { ok(null, 'Demande deja en attente de verification'); }
     $id = uid();
     q("INSERT INTO subscription_requests (id,user_id,plan) VALUES (?,?,?)", [$id, $pl['sub'], $plan]);
-    ok(null, 'Demande enregistree. Envoyez le montant par Mobile Money au +225 07 78 79 83 19 (MYBOUTIK) - votre plan sera active des verification du paiement par l\'equipe MYBOUTIK (generalement sous 24h).', 201);
+    ok(null, 'Demande enregistree. Envoyez le montant via Orange Money, Wave ou Djomo au +225 07 78 79 83 19 (MYBOUTIK) - votre plan sera active des verification du paiement par l\'equipe MYBOUTIK (generalement sous 24h).', 201);
 }
 
 function billing_affiliate_info($pl) {
