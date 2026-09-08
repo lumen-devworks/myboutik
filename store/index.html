@@ -576,12 +576,41 @@ function openTrackOrder() {
     <button class="close" onclick="closeOverlay('trackOverlay')">✕</button>
     <h2>Suivre ma commande</h2>
     <div id="trackMsg"></div>
-    <div class="field"><label>Numéro de commande</label><input id="trkRef" placeholder="CMD-..."></div>
-    <div class="field"><label>Téléphone utilisé à la commande</label><input id="trkPhone"></div>
+    <div class="field"><label>Téléphone utilisé à la commande</label><input id="trkPhone" oninput="onTrackPhoneInput()"></div>
+    <div id="trkOrdersHint"></div>
+    <div class="field"><label>Numéro de commande (si vous le connaissez)</label><input id="trkRef" placeholder="CMD-..."></div>
     <button class="btn btn-primary" onclick="submitTrackOrder()">Rechercher</button>
     <div id="trackResult"></div>
   `;
   document.getElementById('trackOverlay').classList.add('open');
+}
+// Si le client ne se souvient plus de sa reference, on la lui propose
+// directement : des qu'il tape son telephone, ses commandes passees avec ce
+// numero s'affichent en liste cliquable (voir shop_orders_for_phone()).
+let trackPhoneTimer = null;
+function onTrackPhoneInput() {
+  clearTimeout(trackPhoneTimer);
+  const hint = document.getElementById('trkOrdersHint');
+  if (hint) hint.innerHTML = '';
+  trackPhoneTimer = setTimeout(loadOrdersForTrackPhone, 500);
+}
+function loadOrdersForTrackPhone() {
+  const phone = document.getElementById('trkPhone').value.trim();
+  const hint = document.getElementById('trkOrdersHint');
+  if (!hint) return;
+  if (!phone) { hint.innerHTML = ''; return; }
+  post('/shop?action=orders_for_phone', {slug:SLUG, phone}).then(({data}) => {
+    const rows = (data.success && data.data) || [];
+    if (!rows.length) { hint.innerHTML = ''; return; }
+    hint.innerHTML = '<div class="muted" style="font-size:12px;margin:6px 0 4px">Vos commandes trouvées avec ce numéro (cliquez-en une) :</div>' +
+      rows.map(o => `<div onclick="selectTrackOrder('${o.ref}')" style="border:1px solid var(--border);border-radius:9px;padding:8px 10px;margin-bottom:6px;cursor:pointer;font-size:13px;display:flex;justify-content:space-between;gap:8px">
+        <span>${escapeHtml(o.ref)}</span><span style="color:var(--gray)">${fmtMoney(o.total, BOUTIQUE.currency)} — ${TRACK_STATUS_LABELS[o.status]||o.status}</span>
+      </div>`).join('');
+  });
+}
+function selectTrackOrder(ref) {
+  document.getElementById('trkRef').value = ref;
+  submitTrackOrder();
 }
 function submitTrackOrder() {
   const ref = document.getElementById('trkRef').value.trim();

@@ -1637,6 +1637,7 @@ function route_shop($action) {
         case 'categories':       shop_categories(); break;
         case 'promo_for_phone':  shop_promo_for_phone(); break;
         case 'track_order':      shop_track_order(); break;
+        case 'orders_for_phone': shop_orders_for_phone(); break;
         case 'reviews':          shop_reviews(); break;
         case 'review_add':       shop_review_add(); break;
         default: fail('Action inconnue', 404);
@@ -2053,6 +2054,22 @@ function shop_track_order() {
     $o['delivery_person_name'] = $delivery['delivery_person_name'] ?? null;
     $o['delivery_person_phone'] = $delivery['delivery_person_phone'] ?? null;
     ok($o);
+}
+
+// Liste des commandes d'un numero (sans reference) - permet au client qui a
+// oublie/perdu sa reference de la retrouver lui-meme plutot que de devoir
+// vous contacter. Le telephone seul suffit ici (comme pour
+// shop_promo_for_phone()) : c'est sa propre historique, pas celle de
+// quelqu'un d'autre - il ne peut deviner que son propre numero.
+function shop_orders_for_phone() {
+    rate_limit_check('shop_orders_for_phone', 20, 300);
+    $b = body();
+    $bt = public_boutique_by_slug($b['slug'] ?? '');
+    $phone = trim($b['phone'] ?? '');
+    if ($phone === '') ok([]);
+    ok(q("SELECT ref, status, total, created_at FROM orders
+          WHERE boutique_id=? AND customer_phone=?
+          ORDER BY created_at DESC LIMIT 20", [$bt['id'], $phone])->fetchAll());
 }
 
 function shop_reviews() {
