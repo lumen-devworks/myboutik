@@ -3380,6 +3380,8 @@ function route_admin($action) {
         case 'subscription_reject':   admin_subscription_reject(); break;
         case 'payouts_pending':       admin_payouts_pending(); break;
         case 'payout_mark_paid':      admin_payout_mark_paid(); break;
+        case 'clients_list':          admin_clients_list(); break;
+        case 'subscription_history':  admin_subscription_history(); break;
         default: fail('Action inconnue', 404);
     }
 }
@@ -3387,6 +3389,30 @@ function route_admin($action) {
 function admin_subscription_requests() {
     ok(q("SELECT sr.*, u.email FROM subscription_requests sr JOIN users u ON u.id=sr.user_id
           WHERE sr.status='pending' ORDER BY sr.created_at ASC")->fetchAll());
+}
+
+// Vue d'ensemble de tous les clients (proprietaires de compte) - plan,
+// statut d'acces, nombre de boutiques, revenu genere a vie (base sur les
+// demandes approuvees x prix du plan au moment de l'approbation - PLANS
+// peut changer de prix ensuite, mais l'historique reste calcule sur le prix
+// ACTUEL du plan concerne, faute de stocker un prix fige par demande).
+function admin_clients_list() {
+    $users = q("SELECT id, email, full_name, plan, plan_status, plan_valid_until, created_at FROM users ORDER BY created_at DESC")->fetchAll();
+    foreach ($users as &$u) {
+        $u['boutique_count'] = (int)q("SELECT COUNT(*) c FROM boutiques WHERE owner_user_id=?", [$u['id']])->fetch()['c'];
+        $approved = q("SELECT plan FROM subscription_requests WHERE user_id=? AND status='approved'", [$u['id']])->fetchAll();
+        $u['payments_count'] = count($approved);
+        $u['total_paid'] = array_sum(array_map(fn($r) => PLANS[$r['plan']]['price'] ?? 0, $approved));
+    }
+    ok($users);
+}
+
+// Historique complet (toutes demandes, tous statuts) - contrairement a
+// admin_subscription_requests() qui ne montre que les demandes en attente
+// d'action, celle-ci sert a retracer l'activite de paiement passee.
+function admin_subscription_history() {
+    ok(q("SELECT sr.*, u.email FROM subscription_requests sr JOIN users u ON u.id=sr.user_id
+          ORDER BY sr.created_at DESC LIMIT 300")->fetchAll());
 }
 
 function admin_subscription_approve() {
