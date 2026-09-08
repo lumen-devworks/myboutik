@@ -296,9 +296,9 @@ function deny_roles($boutiqueRow, $roles) {
 // (subscription_requests) verifiee manuellement par l'operateur de
 // MYBOUTIK via /admin (voir route_admin()) avant d'etre activee.
 const PLANS = [
-    'starter' => ['name'=>'Starter', 'price'=>8900,  'boutique_limit'=>1,  'promo_limit'=>1],
-    'pro'     => ['name'=>'Pro',     'price'=>14900, 'boutique_limit'=>3,  'promo_limit'=>5],
-    'premium' => ['name'=>'Premium', 'price'=>34900, 'boutique_limit'=>10, 'promo_limit'=>999],
+    'starter' => ['name'=>'Starter', 'price'=>7000,  'boutique_limit'=>1,  'promo_limit'=>1],
+    'pro'     => ['name'=>'Pro',     'price'=>12000, 'boutique_limit'=>3,  'promo_limit'=>5],
+    'premium' => ['name'=>'Premium', 'price'=>20000, 'boutique_limit'=>10, 'promo_limit'=>999],
 ];
 // Une commission n'est "disponible" au retrait qu'apres un delai de
 // validation (le temps qu'un paiement Mobile Money litigieux soit
