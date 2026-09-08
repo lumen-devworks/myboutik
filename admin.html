@@ -62,13 +62,14 @@
           <div><span style="color:var(--gray);font-size:13px">Total de l'année : </span><strong id="revenueYearTotal" style="font-size:18px"></strong></div>
         </div>
       </div>
+      <div id="revenueChart" style="margin-bottom:16px"></div>
       <div class="table-wrap" id="revenueBody"></div>
     </div>
     <div class="card">
-      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:12px">
-        <h3 style="margin:0">Tous les clients</h3>
-        <div style="display:flex;gap:8px;flex-wrap:wrap">
-          <input id="clientSearch" placeholder="Rechercher par email…" style="max-width:260px;margin:0" oninput="renderClients()">
+      <h3>Tous les clients</h3>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px">
+        <input id="clientSearch" placeholder="Rechercher par email…" style="max-width:260px;margin:0;flex:1 1 200px" oninput="renderClients()">
+        <div style="display:flex;gap:8px;flex-shrink:0">
           <button class="ghost" onclick="exportClientsExcel()">⬇️ Exporter Excel</button>
           <button class="ghost" onclick="exportClientsPdf()">⬇️ Exporter PDF</button>
         </div>
@@ -108,6 +109,7 @@ function setupRevenueYears() {
   sel.innerHTML = years.map(y => '<option value="'+y+'">'+y+'</option>').join('');
   renderRevenue();
 }
+const MONTH_ABBR = ['Jan','Fév','Mar','Avr','Mai','Juin','Juil','Aoû','Sep','Oct','Nov','Déc'];
 function renderRevenue() {
   const year = document.getElementById('revenueYear').value;
   const byMonth = {};
@@ -118,10 +120,29 @@ function renderRevenue() {
     const key = String(i+1).padStart(2,'0');
     return {name, revenue: byMonth[key] || 0};
   });
+  renderRevenueChart(rows);
   document.getElementById('revenueBody').innerHTML = `<table><thead><tr><th>Mois</th><th>Revenu</th></tr></thead><tbody>
     ${rows.map(r => '<tr><td>'+r.name+'</td><td>'+(r.revenue ? fmtMoney(r.revenue) : '—')+'</td></tr>').join('')}
-    <tr style="font-weight:700;border-top:2px solid var(--ink)"><td>Total ${year}</td><td>${fmtMoney(total)}</td></tr>
     </tbody></table>`;
+}
+// Petit graphique en barres SVG fait main (pas de bibliotheque) - une barre
+// par mois de l'annee selectionnee, hauteur proportionnelle au maximum de
+// l'annee, valeur affichee au survol via <title>.
+function renderRevenueChart(rows) {
+  const w = 760, h = 200, padBottom = 26, padTop = 10, barGap = 8;
+  const barW = (w / rows.length) - barGap;
+  const max = Math.max(1, ...rows.map(r => Number(r.revenue)));
+  const bars = rows.map((r, i) => {
+    const x = i * (barW + barGap) + barGap/2;
+    const barH = Math.max(2, (Number(r.revenue) / max) * (h - padTop - padBottom));
+    const y = h - padBottom - barH;
+    const color = r.revenue > 0 ? '#2563eb' : '#e2e8f0';
+    return `<g>
+      <rect x="${x}" y="${y}" width="${barW}" height="${barH}" fill="${color}" rx="3"><title>${MONTH_NAMES[i]} : ${fmtMoney(r.revenue)}</title></rect>
+      <text x="${x + barW/2}" y="${h - 8}" text-anchor="middle" font-size="11" fill="#64748b">${MONTH_ABBR[i]}</text>
+    </g>`;
+  }).join('');
+  document.getElementById('revenueChart').innerHTML = `<svg viewBox="0 0 ${w} ${h}" style="width:100%;height:auto;max-height:220px">${bars}</svg>`;
 }
 function loadAll() {
   call('subscription_requests').then(data => {
