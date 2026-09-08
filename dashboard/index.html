@@ -90,6 +90,12 @@
 
   .overlay{position:fixed;inset:0;background:rgba(15,23,42,.5);display:none;align-items:center;justify-content:center;padding:20px;z-index:50}
   .overlay.open{display:flex}
+  #toastContainer{position:fixed;top:18px;left:50%;transform:translateX(-50%);z-index:200;display:flex;flex-direction:column;gap:8px;align-items:center;pointer-events:none;max-width:90vw}
+  .toast{pointer-events:auto;padding:12px 20px;border-radius:10px;font-size:14px;font-weight:600;box-shadow:0 6px 18px rgba(15,23,42,.15);max-width:440px;text-align:center;opacity:0;transform:translateY(-8px);transition:opacity .2s,transform .2s}
+  .toast.show{opacity:1;transform:translateY(0)}
+  .toast-success{background:#dcfce7;color:#166534;border:1px solid #86efac}
+  .toast-error{background:#fee2e2;color:#991b1b;border:1px solid #fecaca}
+  .toast-info{background:#eff6ff;color:#1e40af;border:1px solid #bfdbfe}
   .modal{background:#fff;border-radius:16px;max-width:440px;width:100%;padding:28px;max-height:88vh;overflow-y:auto}
   .modal h2{font-size:18px;margin-bottom:16px}
   .modal-actions{display:flex;gap:10px;margin-top:8px}
@@ -157,6 +163,7 @@
 </div>
 
 <div class="overlay" id="modalOverlay"><div class="modal" id="modalBody"></div></div>
+<div id="toastContainer"></div>
 
 <script src="../config.js"></script>
 <script>
@@ -194,7 +201,7 @@ function downloadCsv(path, filename) {
     a.href = url; a.download = filename;
     document.body.appendChild(a); a.click(); a.remove();
     URL.revokeObjectURL(url);
-  }).catch(() => alert('Export impossible. Réessayez plus tard.'));
+  }).catch(() => showToast('Export impossible. Réessayez plus tard.', 'error'));
 }
 function logout() { localStorage.removeItem('myboutik_token'); localStorage.removeItem('myboutik_user'); window.location.href = '../index.html'; }
 
@@ -211,6 +218,25 @@ function pill(status){ return '<span class="pill pill-'+status+'">'+(STATUS_LABE
 
 function openModal(html) { document.getElementById('modalBody').innerHTML = html; document.getElementById('modalOverlay').classList.add('open'); }
 function closeModal() { document.getElementById('modalOverlay').classList.remove('open'); }
+// Remplace window.alert() par une notification stylee coherente avec le
+// reste de l'appli - type deduit du contenu si non precise (les messages
+// d'erreur commencent generalement par une lettre suivant un pattern
+// different, mais le plus fiable reste de le passer explicitement a
+// l'appel ; 'info' par defaut pour ne rien casser aux appels existants).
+function showToast(message, type) {
+  type = type || 'info';
+  const container = document.getElementById('toastContainer');
+  if (!container) { window.alert(message); return; }
+  const el = document.createElement('div');
+  el.className = 'toast toast-'+type;
+  el.textContent = message;
+  container.appendChild(el);
+  requestAnimationFrame(() => el.classList.add('show'));
+  setTimeout(() => {
+    el.classList.remove('show');
+    setTimeout(() => el.remove(), 250);
+  }, 4000);
+}
 
 // ============================================================
 // Chargement des boutiques + routeur
@@ -484,7 +510,7 @@ function updateOrderStatus(id, status) {
 // que ce contenu, pas toute la barre laterale/le reste de la page.
 function printOrderBordereau(orderId) {
   api('/orders?action=get&boutique_id='+CURRENT.id+'&id='+orderId).then(({data}) => {
-    if (!data.success) { alert(data.message); return; }
+    if (!data.success) { showToast(data.message, 'error'); return; }
     const o = data.data;
     const d = o.delivery || {};
     const itemsHtml = (o.items||[]).map(it => `<tr>
@@ -961,7 +987,7 @@ function submitAccountMovement(accountId, type) {
   post('/finance?action=account_transaction', {boutique_id:CURRENT.id, account_id:accountId, type, amount, note:document.getElementById('movNote').value.trim()}).then(()=>{closeModal(); route();});
 }
 function openTransferAccount(rows) {
-  if (rows.length<2) { alert('Créez au moins deux comptes pour faire un transfert.'); return; }
+  if (rows.length<2) { showToast('Créez au moins deux comptes pour faire un transfert.', 'error'); return; }
   openModal(`<h2>Transférer entre comptes</h2>
     <div class="field"><label>Depuis</label><select id="trFrom">${rows.map(a=>'<option value="'+a.id+'">'+escapeHtml(a.name)+'</option>').join('')}</select></div>
     <div class="field"><label>Vers</label><select id="trTo">${rows.map(a=>'<option value="'+a.id+'">'+escapeHtml(a.name)+'</option>').join('')}</select></div>
@@ -971,7 +997,7 @@ function openTransferAccount(rows) {
 function submitTransfer() {
   const amount = Number(document.getElementById('trAmount').value||0); if (amount<=0) return;
   post('/finance?action=account_transfer', {boutique_id:CURRENT.id, from_account_id:document.getElementById('trFrom').value, to_account_id:document.getElementById('trTo').value, amount}).then(({data})=>{
-    if(!data.success){ alert(data.message); return; } closeModal(); route();
+    if(!data.success){ showToast(data.message, 'error'); return; } closeModal(); route();
   });
 }
 function renderFinanceDeliveryFees(bt, period) {
@@ -1144,7 +1170,7 @@ function openAdExpenseDetail(id) {
   const periodEl = document.getElementById('finAdsPeriod');
   const period = periodEl ? periodEl.value : '30d';
   api('/finance?action=ad_expense_detail&boutique_id='+CURRENT.id+'&id='+id+'&period='+period).then(({data}) => {
-    if (!data.success) { alert(data.message); return; }
+    if (!data.success) { showToast(data.message, 'error'); return; }
     const D = data.data;
     openModal(`<h2>${escapeHtml(D.campaign_name||'Dépense')} — ROAS par produit</h2>
       <div class="page-sub">Budget de ${fmtMoney(D.total_amount, CURRENT.currency)} réparti à parts égales entre les ${D.products.length} produit(s) de ce groupe.</div>
@@ -1247,7 +1273,7 @@ function openProductForm(id) {
     const categories = catRes.data.data || [];
     if (!id) { renderProductFormModal({}, allProducts, categories); return; }
     api('/products?action=get&boutique_id='+CURRENT.id+'&id='+id).then(({data}) => {
-      if (!data.success) { alert(data.message); return; }
+      if (!data.success) { showToast(data.message, 'error'); return; }
       renderProductFormModal(data.data, allProducts, categories);
     });
   });
@@ -1394,7 +1420,7 @@ function focusOptionRowInput(rowIndex) {
 // leur stock au lieu d'etre reinitialisees a chaque regeneration.
 function generateVariants() {
   const groups = window.__optionRows.filter(r => r.name.trim() && r.values && r.values.length);
-  if (!groups.length) { alert('Renseignez au moins une option avec des valeurs (ex: Taille -> S, M, L)'); return; }
+  if (!groups.length) { showToast('Renseignez au moins une option avec des valeurs (ex: Taille -> S, M, L)', 'error'); return; }
   const combos = groups.reduce((acc, g) => {
     const next = [];
     acc.forEach(comboArr => g.values.forEach(v => next.push([...comboArr, v])));
@@ -1574,7 +1600,7 @@ function renderSupplierOrders(bt) {
         const preselectId = window.__reorderProductId;
         window.__reorderProductId = null;
         if (suppliers.length === 0) {
-          alert('Ajoutez d\'abord un fournisseur avant de passer une commande de réapprovisionnement.');
+          showToast('Ajoutez d\'abord un fournisseur avant de passer une commande de réapprovisionnement.', 'info');
         } else {
           openSupplierOrderForm(suppliers, products, preselectId);
         }
@@ -1582,7 +1608,7 @@ function renderSupplierOrders(bt) {
     });
 }
 function openSupplierOrderForm(suppliers, products, preselectProductId) {
-  if (!suppliers.length) { alert('Ajoutez d\'abord un fournisseur (page Fournisseurs) avant de passer une commande.'); return; }
+  if (!suppliers.length) { showToast('Ajoutez d\'abord un fournisseur (page Fournisseurs) avant de passer une commande.', 'info'); return; }
   const preselect = preselectProductId ? products.find(p=>p.id===preselectProductId) : null;
   const suggestedQty = preselect ? Math.max(1, Number(preselect.low_stock_threshold ?? 5) * 2 - Number(preselect.stock_qty)) : 1;
   openModal(`<h2>Nouvelle commande fournisseur</h2>
@@ -1830,7 +1856,7 @@ function submitPromoTargetsForm(id) {
     closeModal(); route();
   });
 }
-function togglePromo(id, active) { post('/marketing?action=promo_update', {boutique_id:CURRENT.id, id, active}).then(({data})=>{ if(!data.success){alert(data.message);return;} route(); }); }
+function togglePromo(id, active) { post('/marketing?action=promo_update', {boutique_id:CURRENT.id, id, active}).then(({data})=>{ if(!data.success){showToast(data.message,'error');return;} route(); }); }
 function deletePromo(id) { if(!confirm('Supprimer ce code promo ?')) return; post('/marketing?action=promo_delete', {boutique_id:CURRENT.id, id}).then(()=>route()); }
 function openPromotionForm(pr) {
   pr = pr || {};
@@ -2019,7 +2045,7 @@ function submitInvite() {
   post('/team?action=invite', {boutique_id:CURRENT.id, email, role, delivery_person_id: dpField ? dpField.value : '',
     page_url: window.location.origin + window.location.pathname.replace(/dashboard\/.*/, '')}).then(({data}) => {
     if (!data.success) { document.getElementById('inviteMsg').innerHTML = '<div class="msg error">'+data.message+'</div>'; return; }
-    if (data.data && data.data.invite_link_dev_only) alert('Mode développement — lien direct : '+data.data.invite_link_dev_only);
+    if (data.data && data.data.invite_link_dev_only) showToast('Mode développement — lien direct : '+data.data.invite_link_dev_only, 'info');
     closeModal(); route();
   });
 }
@@ -2099,7 +2125,7 @@ function renderBilling() {
 }
 function subscribeToPlan(plan) {
   post('/billing?action=subscribe', {plan}).then(({data}) => {
-    alert(data.message);
+    showToast(data.message, data.success ? 'success' : 'error');
     if (data.success) renderBilling();
   });
 }
@@ -2187,9 +2213,9 @@ function shareStoreOn(network) {
 }
 function requestPayout() {
   const phone = document.getElementById('payoutPhone').value.trim();
-  if (!phone) { alert('Numéro Mobile Money requis'); return; }
+  if (!phone) { showToast('Numéro Mobile Money requis', 'error'); return; }
   post('/billing?action=affiliate_request_payout', {method:document.getElementById('payoutMethod').value, phone}).then(({data}) => {
-    alert(data.message);
+    showToast(data.message, data.success ? 'success' : 'error');
     if (data.success) renderAffiliate();
   });
 }

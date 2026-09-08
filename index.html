@@ -38,6 +38,12 @@
 
   .overlay{position:fixed;inset:0;background:rgba(15,23,42,.5);display:none;align-items:center;justify-content:center;padding:20px;z-index:50}
   .overlay.open{display:flex}
+  #toastContainer{position:fixed;top:18px;left:50%;transform:translateX(-50%);z-index:200;display:flex;flex-direction:column;gap:8px;align-items:center;pointer-events:none;max-width:90vw}
+  .toast{pointer-events:auto;padding:12px 20px;border-radius:10px;font-size:14px;font-weight:600;box-shadow:0 6px 18px rgba(15,23,42,.15);max-width:440px;text-align:center;opacity:0;transform:translateY(-8px);transition:opacity .2s,transform .2s}
+  .toast.show{opacity:1;transform:translateY(0)}
+  .toast-success{background:#dcfce7;color:#166534;border:1px solid #86efac}
+  .toast-error{background:#fee2e2;color:#991b1b;border:1px solid #fecaca}
+  .toast-info{background:#eff6ff;color:#1e40af;border:1px solid #bfdbfe}
   .modal{background:#fff;border-radius:18px;max-width:400px;width:100%;padding:32px;position:relative}
   .modal .close{position:absolute;top:14px;right:16px;border:none;background:none;font-size:20px;cursor:pointer;color:var(--gray)}
   .modal h2{font-size:22px;margin-bottom:6px}
@@ -146,6 +152,7 @@
     </div>
   </div>
 </div>
+<div id="toastContainer"></div>
 
 <script src="config.js"></script>
 <script>
@@ -164,6 +171,20 @@ function openAuth(view) {
   showView(view);
 }
 function closeAuth() { document.getElementById('authOverlay').classList.remove('open'); }
+function showToast(message, type) {
+  type = type || 'info';
+  const container = document.getElementById('toastContainer');
+  if (!container) { window.alert(message); return; }
+  const el = document.createElement('div');
+  el.className = 'toast toast-'+type;
+  el.textContent = message;
+  container.appendChild(el);
+  requestAnimationFrame(() => el.classList.add('show'));
+  setTimeout(() => {
+    el.classList.remove('show');
+    setTimeout(() => el.remove(), 250);
+  }, 4000);
+}
 function showView(view) {
   ['Login','Register','Pending','Verify'].forEach(v => {
     document.getElementById('view'+v).style.display = (v.toLowerCase() === view) ? 'block' : 'none';
@@ -232,7 +253,7 @@ function resendVerification() {
   const email = document.getElementById('pendingEmail').textContent;
   const page_url = window.location.origin + window.location.pathname;
   api('/auth?action=resend', {method:'POST', body:JSON.stringify({email,page_url})}).then(({data}) => {
-    alert(data.message || 'Si un compte existe avec cet email, un nouveau lien vient d\'etre envoye.');
+    showToast(data.message || 'Si un compte existe avec cet email, un nouveau lien vient d\'etre envoye.', 'info');
   });
 }
 
