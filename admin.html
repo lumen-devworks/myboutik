@@ -55,6 +55,16 @@
       <div id="payoutsBody"></div>
     </div>
     <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:14px;margin-bottom:12px">
+        <h3 style="margin:0">Revenus par mois</h3>
+        <div style="display:flex;align-items:center;gap:10px">
+          <select id="revenueYear" onchange="renderRevenue()" style="width:auto;margin:0"></select>
+          <div><span style="color:var(--gray);font-size:13px">Total de l'année : </span><strong id="revenueYearTotal" style="font-size:18px"></strong></div>
+        </div>
+      </div>
+      <div class="table-wrap" id="revenueBody"></div>
+    </div>
+    <div class="card">
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:12px">
         <h3 style="margin:0">Tous les clients</h3>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
@@ -88,6 +98,31 @@ function togglePasswordVisibility(inputId, btn) {
   btn.textContent = reveal ? '👁️' : '🙈';
 }
 let CLIENTS = [];
+let REVENUE_BY_MONTH = []; // [{month:'2026-09', revenue: 12000}, ...]
+const MONTH_NAMES = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
+function setupRevenueYears() {
+  const years = Array.from(new Set(REVENUE_BY_MONTH.map(r => r.month.slice(0,4)))).sort().reverse();
+  const currentYear = String(new Date().getFullYear());
+  if (!years.includes(currentYear)) years.unshift(currentYear);
+  const sel = document.getElementById('revenueYear');
+  sel.innerHTML = years.map(y => '<option value="'+y+'">'+y+'</option>').join('');
+  renderRevenue();
+}
+function renderRevenue() {
+  const year = document.getElementById('revenueYear').value;
+  const byMonth = {};
+  REVENUE_BY_MONTH.filter(r => r.month.startsWith(year)).forEach(r => { byMonth[r.month.slice(5,7)] = r.revenue; });
+  const total = Object.values(byMonth).reduce((s,v) => s+Number(v), 0);
+  document.getElementById('revenueYearTotal').textContent = fmtMoney(total);
+  const rows = MONTH_NAMES.map((name, i) => {
+    const key = String(i+1).padStart(2,'0');
+    return {name, revenue: byMonth[key] || 0};
+  });
+  document.getElementById('revenueBody').innerHTML = `<table><thead><tr><th>Mois</th><th>Revenu</th></tr></thead><tbody>
+    ${rows.map(r => '<tr><td>'+r.name+'</td><td>'+(r.revenue ? fmtMoney(r.revenue) : '—')+'</td></tr>').join('')}
+    <tr style="font-weight:700;border-top:2px solid var(--ink)"><td>Total ${year}</td><td>${fmtMoney(total)}</td></tr>
+    </tbody></table>`;
+}
 function loadAll() {
   call('subscription_requests').then(data => {
     if (!data.success) { document.getElementById('loginMsg').innerHTML = '<div class="msg">'+data.message+'</div>'; return; }
@@ -98,6 +133,7 @@ function loadAll() {
     call('payouts_pending').then(d2 => renderPayouts(d2.data || []));
     call('clients_list').then(d3 => { CLIENTS = d3.data || []; renderStats(CLIENTS); renderClients(); });
     call('subscription_history').then(d4 => renderHistory(d4.data || []));
+    call('revenue_by_month').then(d5 => { REVENUE_BY_MONTH = d5.data || []; setupRevenueYears(); });
   }).catch(() => { document.getElementById('loginMsg').innerHTML = '<div class="msg">Impossible de contacter le serveur.</div>'; });
 }
 function fmtMoney(n) { return Math.round(n||0).toLocaleString('fr-FR') + ' FCFA'; }

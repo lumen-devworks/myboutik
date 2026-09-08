@@ -3382,6 +3382,7 @@ function route_admin($action) {
         case 'payout_mark_paid':      admin_payout_mark_paid(); break;
         case 'clients_list':          admin_clients_list(); break;
         case 'subscription_history':  admin_subscription_history(); break;
+        case 'revenue_by_month':      admin_revenue_by_month(); break;
         default: fail('Action inconnue', 404);
     }
 }
@@ -3413,6 +3414,24 @@ function admin_clients_list() {
 function admin_subscription_history() {
     ok(q("SELECT sr.*, u.email FROM subscription_requests sr JOIN users u ON u.id=sr.user_id
           ORDER BY sr.created_at DESC LIMIT 300")->fetchAll());
+}
+
+// Revenu regroupe par mois (annee-mois), base sur la date d'APPROBATION
+// (reviewed_at) - c'est le moment ou l'argent a reellement ete verifie
+// recu, pas la date de la demande initiale. Prix pris au tarif ACTUEL du
+// plan (PLANS), comme admin_clients_list() - aucun prix historique fige par
+// demande n'est stocke.
+function admin_revenue_by_month() {
+    $rows = q("SELECT plan, COALESCE(reviewed_at, created_at) AS paid_at FROM subscription_requests WHERE status='approved'")->fetchAll();
+    $byMonth = [];
+    foreach ($rows as $r) {
+        $key = date('Y-m', strtotime($r['paid_at']));
+        $byMonth[$key] = ($byMonth[$key] ?? 0) + (PLANS[$r['plan']]['price'] ?? 0);
+    }
+    ksort($byMonth);
+    $result = [];
+    foreach ($byMonth as $month => $amount) $result[] = ['month' => $month, 'revenue' => $amount];
+    ok($result);
 }
 
 function admin_subscription_approve() {
