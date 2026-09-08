@@ -2044,7 +2044,7 @@ function renderProfile() {
         <div class="field"><label>Email</label><input value="${escapeHtml(u.email)}" readonly></div>
         <div class="field"><label>Nouveau mot de passe (laisser vide pour ne pas changer)</label>
           <div class="password-wrap"><input id="profPassword" type="password" placeholder="6 caractères minimum">
-            <button type="button" class="pw-toggle" onclick="togglePasswordVisibility('profPassword', this)">👁️</button></div>
+            <button type="button" class="pw-toggle" onclick="togglePasswordVisibility('profPassword', this)">🙈</button></div>
         </div>
         <button class="btn btn-primary" onclick="saveProfile()">Enregistrer</button>
       </div>
@@ -2146,11 +2146,13 @@ function renderAffiliate() {
   });
 }
 function copyRefLink() { copyInput('refLinkInput'); }
+// L'icone reflete l'etat ACTUEL du champ : 🙈 = actuellement masque
+// (cliquer pour reveler), 👁️ = actuellement visible (cliquer pour masquer).
 function togglePasswordVisibility(inputId, btn) {
   const input = document.getElementById(inputId);
-  const showing = input.type === 'text';
-  input.type = showing ? 'password' : 'text';
-  btn.textContent = showing ? '👁️' : '🙈';
+  const reveal = input.type === 'password';
+  input.type = reveal ? 'text' : 'password';
+  btn.textContent = reveal ? '👁️' : '🙈';
 }
 function copyInput(id) {
   const input = document.getElementById(id);

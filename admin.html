@@ -29,7 +29,7 @@
   <div class="card" id="loginCard">
     <div id="loginMsg"></div>
     <div class="password-wrap"><input type="password" id="adminPassword" placeholder="Mot de passe admin (ADMIN_PASSWORD)">
-      <button type="button" class="pw-toggle" onclick="togglePasswordVisibility('adminPassword', this)">👁️</button></div>
+      <button type="button" class="pw-toggle" onclick="togglePasswordVisibility('adminPassword', this)">🙈</button></div>
     <button onclick="loadAll()">Se connecter</button>
   </div>
   <div id="dataCards" style="display:none">
@@ -51,11 +51,13 @@ function call(action, extra) {
   return fetch(API_URL+'/admin?action='+action, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(Object.assign({password}, extra||{}))})
     .then(r => r.json());
 }
+// L'icone reflete l'etat ACTUEL du champ : 🙈 = actuellement masque
+// (cliquer pour reveler), 👁️ = actuellement visible (cliquer pour masquer).
 function togglePasswordVisibility(inputId, btn) {
   const input = document.getElementById(inputId);
-  const showing = input.type === 'text';
-  input.type = showing ? 'password' : 'text';
-  btn.textContent = showing ? '👁️' : '🙈';
+  const reveal = input.type === 'password';
+  input.type = reveal ? 'text' : 'password';
+  btn.textContent = reveal ? '👁️' : '🙈';
 }
 function loadAll() {
   call('subscription_requests').then(data => {
