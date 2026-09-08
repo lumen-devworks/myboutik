@@ -2073,9 +2073,14 @@ function renderBilling() {
     if (!data.success) { document.getElementById('content').innerHTML = '<div class="card">'+escapeHtml(data.message)+'</div>'; return; }
     const B = data.data;
     const plans = Object.entries(B.plans);
+    const daysLeft = B.plan_valid_until ? Math.ceil((new Date(B.plan_valid_until) - new Date()) / 86400000) : null;
     document.getElementById('content').innerHTML = `
       <h2 class="page-title">Abonnement</h2>
-      <div class="page-sub">Plan actuel : <strong>${B.plans[B.current_plan]?.name || B.current_plan}</strong> ${B.plan_status==='active'?'<span class="pill pill-delivered">Actif</span>':'<span class="pill pill-pending">En attente</span>'}</div>
+      <div class="page-sub">Plan actuel : <strong>${B.plans[B.current_plan]?.name || B.current_plan}</strong> ${B.plan_status==='active'?'<span class="pill pill-delivered">Actif</span>':'<span class="pill pill-pending">En attente</span>'}
+        ${daysLeft !== null ? (daysLeft >= 0 ? ' — accès valide jusqu\'au '+fmtDate(B.plan_valid_until)+' ('+daysLeft+' jour(s) restant(s))' : ' — <strong style="color:#b91c1c">accès expiré le '+fmtDate(B.plan_valid_until)+'</strong>') : ''}
+      </div>
+      ${daysLeft !== null && daysLeft < 0 ? '<div class="card" style="background:#fef2f2;border-color:#fecaca">⚠️ Votre accès aux boutiques est bloqué tant que vous ne renouvelez pas votre abonnement ci-dessous.</div>' : ''}
+      ${daysLeft !== null && daysLeft >= 0 && daysLeft <= 5 ? '<div class="card" style="background:var(--amber-bg);border-color:#fde68a">⏳ Votre abonnement expire dans '+daysLeft+' jour(s) — pensez à renouveler pour ne pas perdre l\'accès à vos boutiques.</div>' : ''}
       ${B.pending_request ? `<div class="card" style="background:var(--amber-bg);border-color:#fde68a">Demande en cours pour le plan <strong>${B.plans[B.pending_request.plan]?.name}</strong> — ${B.payment_instructions}</div>` : ''}
       <div class="kpi-grid">
         ${plans.map(([key,p]) => `

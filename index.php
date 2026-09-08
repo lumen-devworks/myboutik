@@ -235,16 +235,26 @@ const ENCAISSE_STATUSES = "('processing','shipped','delivered')";
 function require_boutique_owned($boutiqueId, $userId) {
     if (!$boutiqueId) fail('boutique_id manquant', 400);
     $row = q("SELECT * FROM boutiques WHERE id=? AND owner_user_id=?", [$boutiqueId, $userId])->fetch();
-    if ($row) { $row['_member_role'] = 'owner'; return $row; }
+    if ($row) { $row['_member_role'] = 'owner'; assert_owner_plan_active($row['owner_user_id']); return $row; }
     // Pas proprietaire : autorise si membre actif de l'equipe de cette
     // boutique (voir route_team()). Meme fonction reutilisee partout plutot
     // que de retoucher chaque module un par un.
     $member = q("SELECT role FROM boutique_members WHERE boutique_id=? AND user_id=? AND status='active'", [$boutiqueId, $userId])->fetch();
     if ($member) {
         $row = q("SELECT * FROM boutiques WHERE id=?", [$boutiqueId])->fetch();
-        if ($row) { $row['_member_role'] = $member['role']; return $row; }
+        if ($row) { $row['_member_role'] = $member['role']; assert_owner_plan_active($row['owner_user_id']); return $row; }
     }
     fail('Boutique introuvable', 404);
+}
+// Bloque l'acces a une boutique si l'abonnement de son PROPRIETAIRE (pas du
+// membre d'equipe qui y accede eventuellement) est expire - jamais applique
+// aux actions hors boutique (billing, profil...) pour que le proprietaire
+// puisse toujours se reabonner lui-meme sans etre bloque de partout.
+function assert_owner_plan_active($ownerUserId) {
+    $validUntil = q("SELECT plan_valid_until FROM users WHERE id=?", [$ownerUserId])->fetchColumn();
+    if ($validUntil !== null && $validUntil !== false && strtotime($validUntil) < time()) {
+        fail('L\'abonnement de cette boutique a expire. Le proprietaire doit se reabonner (menu Abonnement) pour continuer a l\'utiliser.', 402);
+    }
 }
 // Reserve les actions sensibles (parametres, gestion d'equipe) au
 // proprietaire et aux membres au role 'admin' - les autres roles (manager,
@@ -470,6 +480,16 @@ function route_install() {
     // paiement automatique n'est branchee pour l'instant.
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS plan VARCHAR(20) DEFAULT 'starter'",
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS plan_status VARCHAR(20) DEFAULT 'active'",
+    // Date jusqu'a laquelle l'acces aux boutiques reste actif - un nouveau
+    // compte demarre avec 30 jours gratuits sur Starter ; chaque demande
+    // d'abonnement approuvee (n'importe quel plan, Starter inclus a 7000
+    // FCFA) prolonge de 30 jours (voir admin_subscription_approve()). Passe
+    // cette date, require_boutique_owned() bloque l'acces aux boutiques
+    // (mais jamais a la page Abonnement elle-meme, pour pouvoir repayer).
+    // DEFAULT applique aussi aux comptes deja existants au moment de cette
+    // migration : ils repartent avec 30 jours a partir d'aujourd'hui, pas
+    // bloques retroactivement sur leur ancienne date d'inscription.
+    "ALTER TABLE users ADD COLUMN IF NOT EXISTS plan_valid_until TIMESTAMP DEFAULT (NOW() + INTERVAL '30 days')",
     // Affiliation : code personnel a partager (?ref=CODE), et la personne
     // qui a recrute ce compte (s'il y en a une). La commission (10% du prix
     // du plan) n'est calculee qu'a l'approbation manuelle d'un abonnement -
@@ -3266,10 +3286,11 @@ function route_billing($action) {
 }
 
 function billing_plans($pl) {
-    $user = q("SELECT plan, plan_status FROM users WHERE id=?", [$pl['sub']])->fetch();
+    $user = q("SELECT plan, plan_status, plan_valid_until FROM users WHERE id=?", [$pl['sub']])->fetch();
     $pending = q("SELECT * FROM subscription_requests WHERE user_id=? AND status='pending' ORDER BY created_at DESC LIMIT 1", [$pl['sub']])->fetch();
     ok([
         'plans' => PLANS, 'current_plan' => $user['plan'], 'plan_status' => $user['plan_status'],
+        'plan_valid_until' => $user['plan_valid_until'],
         'pending_request' => $pending ?: null,
         'payment_instructions' => 'Envoyez le montant du plan choisi via Orange Money, Wave ou Djomo au +225 07 78 79 83 19 (MYBOUTIK). Votre plan sera active des verification manuelle du paiement par l\'equipe MYBOUTIK (generalement sous 24h).',
     ]);
@@ -3372,7 +3393,11 @@ function admin_subscription_approve() {
     $b = body();
     $req = q("SELECT * FROM subscription_requests WHERE id=?", [$b['id'] ?? ''])->fetch();
     if (!$req) fail('Demande introuvable', 404);
-    q("UPDATE users SET plan=?, plan_status='active' WHERE id=?", [$req['plan'], $req['user_id']]);
+    // Prolonge de 30 jours a partir de MAINTENANT (pas cumule sur l'ancienne
+    // date) - si un compte est deja expire depuis longtemps, le paiement
+    // repart d'un mois plein a partir d'aujourd'hui plutot que de rester
+    // bloque a cause d'un cumul depuis une tres vieille date.
+    q("UPDATE users SET plan=?, plan_status='active', plan_valid_until=NOW() + INTERVAL '30 days' WHERE id=?", [$req['plan'], $req['user_id']]);
     q("UPDATE subscription_requests SET status='approved', reviewed_at=NOW() WHERE id=?", [$req['id']]);
     // Commission de parrainage (10% du prix du plan) si ce compte a ete
     // recrute via un lien d'affiliation - une seule fois par abonnement
