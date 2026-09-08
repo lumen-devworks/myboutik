@@ -1933,8 +1933,9 @@ function renderSettings(bt) {
           <button type="button" class="btn btn-ghost btn-sm" onclick="shareStoreOn('facebook')">📘 Facebook</button>
           <button type="button" class="btn btn-ghost btn-sm" onclick="shareStoreOn('telegram')">✈️ Telegram</button>
           <button type="button" class="btn btn-ghost btn-sm" onclick="shareStoreOn('x')">✖️ X (Twitter)</button>
+          <button type="button" class="btn btn-ghost btn-sm" onclick="shareStoreOn('tiktok')">🎵 TikTok</button>
         </div>
-        <div class="muted" style="font-size:12px;margin-top:6px">Chaque bouton ouvre le réseau avec le lien déjà rempli — plus besoin de le recopier à la main. Instagram ne permet pas ce pré-remplissage depuis un site : collez le lien copié ci-dessus dans votre bio ou une story.</div>
+        <div class="muted" style="font-size:12px;margin-top:6px">Chaque bouton ouvre le réseau avec le lien déjà rempli — plus besoin de le recopier à la main. Instagram et TikTok ne permettent pas ce pré-remplissage depuis un site : le lien est copié automatiquement, il ne reste qu'à le coller dans votre bio ou une story/vidéo.</div>
       </div>
       <div class="field"><label>Frais de livraison par défaut (facturé au client)</label><input id="setDeliveryFee" type="number" min="0" value="${bt.default_delivery_fee||0}"></div>
       <label style="display:flex;align-items:center;gap:8px;margin-bottom:14px"><input type="checkbox" id="setCod" ${bt.cod_enabled?'checked':''}> Paiement à la livraison activé</label>
@@ -2117,13 +2118,14 @@ function renderBilling() {
             </div>
             <div style="font-size:22px;font-weight:800;margin:8px 0">${fmtMoney(p.price)}<span class="muted" style="font-size:13px;font-weight:400">/mois</span></div>
             <div class="muted" style="margin-bottom:14px">${p.boutique_limit} boutique(s)</div>
-            ${key===B.current_plan ? '<button class="btn btn-ghost btn-block" disabled>Plan actuel</button>' : '<button class="btn btn-primary btn-block" onclick="subscribeToPlan(\''+key+'\')">Choisir</button>'}
+            ${key===B.current_plan ? '<button class="btn btn-ghost btn-block" disabled>Plan actuel</button>' : '<button class="btn btn-primary btn-block" onclick="subscribeToPlan(\''+key+'\',\''+p.name+'\','+p.price+')">Choisir</button>'}
           </div>`).join('')}
       </div>
     `;
   });
 }
-function subscribeToPlan(plan) {
+function subscribeToPlan(plan, planName, price) {
+  if (!confirm('Passer au plan '+planName+' ('+fmtMoney(price)+'/mois) ?\n\nUne demande d\'activation sera envoyée ; votre plan actuel reste actif jusqu\'à validation du paiement par l\'équipe MYBOUTIK.')) return;
   post('/billing?action=subscribe', {plan}).then(({data}) => {
     showToast(data.message, data.success ? 'success' : 'error');
     if (data.success) renderBilling();
@@ -2209,6 +2211,12 @@ function shareStoreOn(network) {
     telegram: 'https://t.me/share/url?url=' + encodeURIComponent(link) + '&text=' + encodeURIComponent(text),
     x: 'https://twitter.com/intent/tweet?text=' + encodeURIComponent(text) + '&url=' + encodeURIComponent(link),
   };
+  if (network === 'tiktok') {
+    navigator.clipboard.writeText(link).catch(() => {});
+    showToast('Lien copié — collez-le dans votre bio ou votre vidéo TikTok.', 'info');
+    window.open('https://www.tiktok.com/upload', '_blank');
+    return;
+  }
   if (urls[network]) window.open(urls[network], '_blank');
 }
 function requestPayout() {

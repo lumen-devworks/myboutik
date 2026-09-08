@@ -149,6 +149,14 @@ function owner_auth() {
 }
 function uid() { return bin2hex(random_bytes(8)); }
 function order_ref() { return 'CMD-'.strtoupper(date('ymd')).'-'.strtoupper(substr(uniqid(),-6)); }
+// Normalise un numero de telephone pour comparaison : ne garde que les
+// chiffres et se limite aux 8 derniers, pour que "07 78 79 83 19",
+// "0778798319" et "+225 07 78 79 83 19" soient reconnus comme le meme
+// numero peu importe le format saisi a la commande vs au suivi.
+function phone_key($phone) {
+    $digits = preg_replace('/\D/', '', (string)$phone);
+    return substr($digits, -8);
+}
 
 function slugify($text) {
     $text = trim((string)$text);
@@ -1822,10 +1830,10 @@ function shop_promo_for_phone() {
     if ($phone === '') ok([]);
     ok(q("SELECT pc.code, pc.type, pc.value FROM promo_codes pc
           JOIN promo_code_customers pcc ON pcc.promo_code_id = pc.id
-          WHERE pc.boutique_id=? AND pcc.phone=? AND pc.active=1
+          WHERE pc.boutique_id=? AND RIGHT(regexp_replace(pcc.phone,'\D','','g'),8)=? AND pc.active=1
           AND (pc.expires_at IS NULL OR pc.expires_at > NOW())
           AND (pc.max_uses IS NULL OR pc.used_count < pc.max_uses)
-          ORDER BY pc.created_at DESC", [$bt['id'], $phone])->fetchAll());
+          ORDER BY pc.created_at DESC", [$bt['id'], phone_key($phone)])->fetchAll());
 }
 
 // Commande a la livraison : cree/retrouve le client par telephone, cree la
@@ -2065,7 +2073,8 @@ function shop_track_order() {
     $phone = trim($b['phone'] ?? '');
     if ($ref === '' || $phone === '') fail('Numero de commande et telephone requis');
     $o = q("SELECT id,ref,status,total,subtotal,delivery_fee_charged,discount_amount,customer_name,created_at,delivered_at
-            FROM orders WHERE boutique_id=? AND ref=? AND customer_phone=?", [$bt['id'], $ref, $phone])->fetch();
+            FROM orders WHERE boutique_id=? AND ref=? AND RIGHT(regexp_replace(customer_phone,'\D','','g'),8)=?",
+           [$bt['id'], $ref, phone_key($phone)])->fetch();
     if (!$o) fail('Aucune commande trouvee avec ces informations', 404);
     $o['items'] = q("SELECT product_name,qty,unit_price FROM order_items WHERE order_id=?", [$o['id']])->fetchAll();
     $delivery = q("SELECT da.status AS delivery_status, dp.name AS delivery_person_name, dp.phone AS delivery_person_phone
@@ -2089,8 +2098,8 @@ function shop_orders_for_phone() {
     $phone = trim($b['phone'] ?? '');
     if ($phone === '') ok([]);
     ok(q("SELECT ref, status, total, created_at FROM orders
-          WHERE boutique_id=? AND customer_phone=?
-          ORDER BY created_at DESC LIMIT 20", [$bt['id'], $phone])->fetchAll());
+          WHERE boutique_id=? AND RIGHT(regexp_replace(customer_phone,'\D','','g'),8)=?
+          ORDER BY created_at DESC LIMIT 20", [$bt['id'], phone_key($phone)])->fetchAll());
 }
 
 function shop_reviews() {
@@ -3401,6 +3410,7 @@ function admin_clients_list() {
     $users = q("SELECT id, email, full_name, plan, plan_status, plan_valid_until, created_at FROM users ORDER BY created_at DESC")->fetchAll();
     foreach ($users as &$u) {
         $u['boutique_count'] = (int)q("SELECT COUNT(*) c FROM boutiques WHERE owner_user_id=?", [$u['id']])->fetch()['c'];
+        $u['member_boutique_count'] = (int)q("SELECT COUNT(*) c FROM boutique_members WHERE user_id=? AND status='active'", [$u['id']])->fetch()['c'];
         $approved = q("SELECT plan FROM subscription_requests WHERE user_id=? AND status='approved'", [$u['id']])->fetchAll();
         $u['payments_count'] = count($approved);
         $u['total_paid'] = array_sum(array_map(fn($r) => PLANS[$r['plan']]['price'] ?? 0, $approved));

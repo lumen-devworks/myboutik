@@ -145,24 +145,41 @@ function renderRevenue() {
     ${rows.map(r => '<tr><td>'+r.name+'</td><td>'+(r.revenue ? fmtMoney(r.revenue) : '—')+'</td></tr>').join('')}
     </tbody></table>`;
 }
-// Petit graphique en barres SVG fait main (pas de bibliotheque) - une barre
-// par mois de l'annee selectionnee, hauteur proportionnelle au maximum de
-// l'annee, valeur affichee au survol via <title>.
+// Petit graphique en courbe SVG fait main (pas de bibliotheque) - un point
+// par mois de l'annee selectionnee, relies par une courbe lissee, avec une
+// zone degradee sous la courbe et la valeur affichee au survol via <title>.
 function renderRevenueChart(rows) {
-  const w = 760, h = 200, padBottom = 26, padTop = 10, barGap = 8;
-  const barW = (w / rows.length) - barGap;
+  const w = 760, h = 200, padBottom = 26, padTop = 16, padSide = 16;
   const max = Math.max(1, ...rows.map(r => Number(r.revenue)));
-  const bars = rows.map((r, i) => {
-    const x = i * (barW + barGap) + barGap/2;
-    const barH = Math.max(2, (Number(r.revenue) / max) * (h - padTop - padBottom));
-    const y = h - padBottom - barH;
-    const color = r.revenue > 0 ? '#2563eb' : '#e2e8f0';
-    return `<g>
-      <rect x="${x}" y="${y}" width="${barW}" height="${barH}" fill="${color}" rx="3"><title>${MONTH_NAMES[i]} : ${fmtMoney(r.revenue)}</title></rect>
-      <text x="${x + barW/2}" y="${h - 8}" text-anchor="middle" font-size="11" fill="#64748b">${MONTH_ABBR[i]}</text>
-    </g>`;
-  }).join('');
-  document.getElementById('revenueChart').innerHTML = `<svg viewBox="0 0 ${w} ${h}" style="width:100%;height:auto;max-height:220px">${bars}</svg>`;
+  const innerW = w - padSide*2;
+  const innerH = h - padTop - padBottom;
+  const pts = rows.map((r, i) => {
+    const x = padSide + (rows.length === 1 ? innerW/2 : (i / (rows.length - 1)) * innerW);
+    const y = padTop + innerH - (Number(r.revenue) / max) * innerH;
+    return {x, y, r, i};
+  });
+  // Courbe lissee : segments de Bezier cubiques passant par chaque point.
+  let path = `M ${pts[0].x} ${pts[0].y}`;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const p0 = pts[i], p1 = pts[i+1];
+    const midX = (p0.x + p1.x) / 2;
+    path += ` C ${midX} ${p0.y}, ${midX} ${p1.y}, ${p1.x} ${p1.y}`;
+  }
+  const areaPath = `${path} L ${pts[pts.length-1].x} ${h - padBottom} L ${pts[0].x} ${h - padBottom} Z`;
+  const dots = pts.map(p => `<circle cx="${p.x}" cy="${p.y}" r="4" fill="${p.r.revenue > 0 ? '#2563eb' : '#cbd5e1'}" stroke="#fff" stroke-width="1.5"><title>${MONTH_NAMES[p.i]} : ${fmtMoney(p.r.revenue)}</title></circle>`).join('');
+  const labels = pts.map(p => `<text x="${p.x}" y="${h - 8}" text-anchor="middle" font-size="11" fill="#64748b">${MONTH_ABBR[p.i]}</text>`).join('');
+  const gridY = h - padBottom;
+  document.getElementById('revenueChart').innerHTML = `<svg viewBox="0 0 ${w} ${h}" style="width:100%;height:auto;max-height:220px">
+    <defs><linearGradient id="revFill" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#2563eb" stop-opacity="0.25"/>
+      <stop offset="100%" stop-color="#2563eb" stop-opacity="0"/>
+    </linearGradient></defs>
+    <line x1="${padSide}" y1="${gridY}" x2="${w - padSide}" y2="${gridY}" stroke="#e2e8f0" stroke-width="1"/>
+    <path d="${areaPath}" fill="url(#revFill)"/>
+    <path d="${path}" fill="none" stroke="#2563eb" stroke-width="2.5"/>
+    ${dots}
+    ${labels}
+  </svg>`;
 }
 function loadAll() {
   call('subscription_requests').then(data => {
@@ -216,7 +233,7 @@ const CLIENT_COLUMNS = {
   plan:       ['Plan', c => c.plan],
   status:     ['Statut', c => c.plan_valid_until ? new Date(c.plan_valid_until).getTime() : Infinity],
   plan_valid_until: ['Expire le', c => c.plan_valid_until ? new Date(c.plan_valid_until).getTime() : -1],
-  boutique_count: ['Boutiques', c => Number(c.boutique_count)],
+  boutique_count: ['Boutiques (propriétaire)', c => Number(c.boutique_count)],
   payments_count: ['Paiements', c => Number(c.payments_count)],
   total_paid: ['Total payé', c => Number(c.total_paid)],
   created_at: ['Inscrit le', c => new Date(c.created_at).getTime()],
@@ -243,7 +260,7 @@ function renderClients() {
     </tr></thead><tbody>
     ${rows.map(c => `<tr>
       <td>${c.email}</td><td>${c.full_name||'—'}</td><td>${c.plan}</td><td>${clientStatusPill(c)}</td>
-      <td>${fmtDate(c.plan_valid_until)}</td><td>${c.boutique_count}</td><td>${c.payments_count}</td>
+      <td>${fmtDate(c.plan_valid_until)}</td><td>${c.boutique_count}${c.boutique_count==0 && c.member_boutique_count>0 ? ' <span style="color:var(--gray);font-size:11px">(membre de '+c.member_boutique_count+')</span>' : ''}</td><td>${c.payments_count}</td>
       <td>${fmtMoney(c.total_paid)}</td><td>${fmtDate(c.created_at)}</td>
     </tr>`).join('')}
     </tbody></table>` : '<p style="color:var(--gray)">Aucun client ne correspond à cette recherche.</p>';
@@ -308,23 +325,28 @@ function renderHistory(rows) {
 function renderSubs(rows) {
   document.getElementById('subsBody').innerHTML = rows.length ? `<table><thead><tr><th>Email</th><th>Plan</th><th>Date</th><th></th></tr></thead><tbody>
     ${rows.map(r => `<tr><td>${r.email}</td><td>${r.plan}</td><td>${new Date(r.created_at).toLocaleString('fr-FR')}</td>
-      <td><button onclick="review('${r.id}','subscription_approve')">Approuver</button>
-          <button class="ghost" onclick="review('${r.id}','subscription_reject')">Rejeter</button></td></tr>`).join('')}
+      <td><button onclick="review('${r.id}','subscription_approve','${r.email}','${r.plan}',true)">Approuver</button>
+          <button class="ghost" onclick="review('${r.id}','subscription_reject','${r.email}','${r.plan}',false)">Rejeter</button></td></tr>`).join('')}
     </tbody></table>` : '<p style="color:var(--gray)">Aucune demande en attente.</p>';
 }
 function renderPayouts(rows) {
   document.getElementById('payoutsBody').innerHTML = rows.length ? `<table><thead><tr><th>Email</th><th>Montant</th><th>Méthode</th><th>Numéro</th><th></th></tr></thead><tbody>
     ${rows.map(r => `<tr><td>${r.email}</td><td>${Math.round(r.amount).toLocaleString('fr-FR')} FCFA</td><td>${r.method||'—'}</td><td>${r.phone||'—'}</td>
-      <td><button onclick="markPayoutPaid('${r.id}')">Marquer payé</button></td></tr>`).join('')}
+      <td><button onclick="markPayoutPaid('${r.id}','${r.email}',${Math.round(r.amount)})">Marquer payé</button></td></tr>`).join('')}
     </tbody></table>` : '<p style="color:var(--gray)">Aucun retrait en attente.</p>';
 }
-function review(id, action) {
+function review(id, action, email, plan, isApprove) {
+  const question = isApprove
+    ? 'Approuver le plan '+plan+' pour '+email+' ?\n\nSon abonnement sera activé/prolongé de 30 jours.'
+    : 'Rejeter la demande de plan '+plan+' pour '+email+' ?';
+  if (!confirm(question)) return;
   call(action, {id}).then(data => {
     showToast(data.message || (data.success ? 'Fait.' : 'Erreur.'), data.success ? 'success' : 'error');
     loadAll();
   });
 }
-function markPayoutPaid(id) {
+function markPayoutPaid(id, email, amount) {
+  if (!confirm('Confirmer que le retrait de '+amount.toLocaleString('fr-FR')+' FCFA pour '+email+' a bien été payé ?\n\nCette action est irréversible.')) return;
   call('payout_mark_paid', {id}).then(data => {
     showToast(data.message || (data.success ? 'Paiement marqué payé.' : 'Erreur.'), data.success ? 'success' : 'error');
     loadAll();
