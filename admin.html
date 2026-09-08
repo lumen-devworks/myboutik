@@ -57,7 +57,10 @@
     <div class="card">
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:12px">
         <h3 style="margin:0">Tous les clients</h3>
-        <input id="clientSearch" placeholder="Rechercher par email…" style="max-width:260px;margin:0" oninput="renderClients()">
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <input id="clientSearch" placeholder="Rechercher par email…" style="max-width:260px;margin:0" oninput="renderClients()">
+          <button class="ghost" onclick="exportClientsCsv()">⬇️ Exporter CSV</button>
+        </div>
       </div>
       <div class="table-wrap" id="clientsBody"></div>
     </div>
@@ -119,11 +122,37 @@ function renderStats(rows) {
     <div class="stat"><div class="lbl">Revenu total</div><div class="val">${fmtMoney(revenue)}</div></div>
   `;
 }
+// Colonnes triables : cle -> [libelle, fonction d'extraction de la valeur a comparer]
+const CLIENT_COLUMNS = {
+  email:      ['Email', c => c.email.toLowerCase()],
+  full_name:  ['Nom', c => (c.full_name||'').toLowerCase()],
+  plan:       ['Plan', c => c.plan],
+  status:     ['Statut', c => c.plan_valid_until ? new Date(c.plan_valid_until).getTime() : Infinity],
+  plan_valid_until: ['Expire le', c => c.plan_valid_until ? new Date(c.plan_valid_until).getTime() : -1],
+  boutique_count: ['Boutiques', c => Number(c.boutique_count)],
+  payments_count: ['Paiements', c => Number(c.payments_count)],
+  total_paid: ['Total payé', c => Number(c.total_paid)],
+  created_at: ['Inscrit le', c => new Date(c.created_at).getTime()],
+};
+let clientSort = {key: 'created_at', dir: -1};
+function sortClients(key) {
+  clientSort = (clientSort.key === key) ? {key, dir: -clientSort.dir} : {key, dir: 1};
+  renderClients();
+}
 function renderClients() {
   const q = (document.getElementById('clientSearch').value || '').toLowerCase();
-  const rows = CLIENTS.filter(c => !q || c.email.toLowerCase().includes(q) || (c.full_name||'').toLowerCase().includes(q));
+  let rows = CLIENTS.filter(c => !q || c.email.toLowerCase().includes(q) || (c.full_name||'').toLowerCase().includes(q));
+  const getVal = CLIENT_COLUMNS[clientSort.key][1];
+  rows = rows.slice().sort((a,b) => {
+    const va = getVal(a), vb = getVal(b);
+    return (va > vb ? 1 : va < vb ? -1 : 0) * clientSort.dir;
+  });
+  const th = key => {
+    const arrow = clientSort.key === key ? (clientSort.dir === 1 ? ' ▲' : ' ▼') : '';
+    return `<th style="cursor:pointer;user-select:none" onclick="sortClients('${key}')">${CLIENT_COLUMNS[key][0]}${arrow}</th>`;
+  };
   document.getElementById('clientsBody').innerHTML = rows.length ? `<table><thead><tr>
-      <th>Email</th><th>Nom</th><th>Plan</th><th>Statut</th><th>Expire le</th><th>Boutiques</th><th>Paiements</th><th>Total payé</th><th>Inscrit le</th>
+      ${Object.keys(CLIENT_COLUMNS).map(th).join('')}
     </tr></thead><tbody>
     ${rows.map(c => `<tr>
       <td>${c.email}</td><td>${c.full_name||'—'}</td><td>${c.plan}</td><td>${clientStatusPill(c)}</td>
@@ -131,6 +160,24 @@ function renderClients() {
       <td>${fmtMoney(c.total_paid)}</td><td>${fmtDate(c.created_at)}</td>
     </tr>`).join('')}
     </tbody></table>` : '<p style="color:var(--gray)">Aucun client ne correspond à cette recherche.</p>';
+}
+// Genere le CSV directement dans le navigateur a partir des donnees deja
+// chargees (CLIENTS) - pas besoin d'endpoint dedie, admin.html s'authentifie
+// par mot de passe dans le corps d'une requete POST, pas par un lien
+// telechargeable classique.
+function exportClientsCsv() {
+  const q = (document.getElementById('clientSearch').value || '').toLowerCase();
+  const rows = CLIENTS.filter(c => !q || c.email.toLowerCase().includes(q) || (c.full_name||'').toLowerCase().includes(q));
+  const headers = ['Email','Nom','Plan','Expire le','Boutiques','Paiements','Total payé (FCFA)','Inscrit le'];
+  const csvRows = rows.map(c => [c.email, c.full_name||'', c.plan, fmtDate(c.plan_valid_until), c.boutique_count, c.payments_count, Math.round(c.total_paid||0), fmtDate(c.created_at)]);
+  const esc = v => '"'+String(v).replace(/"/g,'""')+'"';
+  const csv = '﻿' + [headers, ...csvRows].map(r => r.map(esc).join(',')).join('\r\n');
+  const blob = new Blob([csv], {type:'text/csv;charset=utf-8'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'clients-myboutik.csv';
+  document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
 }
 function renderHistory(rows) {
   const statusPill = s => s==='approved' ? '<span class="pill pill-ok">Approuvé</span>' : s==='rejected' ? '<span class="pill pill-bad">Rejeté</span>' : '<span class="pill pill-warn">En attente</span>';
