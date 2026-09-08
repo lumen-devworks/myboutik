@@ -79,6 +79,9 @@
   .field{margin-bottom:14px}
   .field label{display:block;font-size:13px;font-weight:600;margin-bottom:6px}
   .field input,.field select,.field textarea{width:100%;padding:9px 11px;border:1px solid var(--border);border-radius:9px;font-size:14px}
+  .password-wrap{position:relative}
+  .password-wrap input{padding-right:40px}
+  .pw-toggle{position:absolute;right:5px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:16px;padding:5px;line-height:1}
   .field-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 
   .tabs{display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap}
@@ -2039,7 +2042,10 @@ function renderProfile() {
         <div id="profileMsg"></div>
         <div class="field"><label>Nom complet</label><input id="profName" value="${escapeHtml(u.full_name||'')}"></div>
         <div class="field"><label>Email</label><input value="${escapeHtml(u.email)}" readonly></div>
-        <div class="field"><label>Nouveau mot de passe (laisser vide pour ne pas changer)</label><input id="profPassword" type="password" placeholder="6 caractères minimum"></div>
+        <div class="field"><label>Nouveau mot de passe (laisser vide pour ne pas changer)</label>
+          <div class="password-wrap"><input id="profPassword" type="password" placeholder="6 caractères minimum">
+            <button type="button" class="pw-toggle" onclick="togglePasswordVisibility('profPassword', this)">👁️</button></div>
+        </div>
         <button class="btn btn-primary" onclick="saveProfile()">Enregistrer</button>
       </div>
     `;
@@ -2140,6 +2146,12 @@ function renderAffiliate() {
   });
 }
 function copyRefLink() { copyInput('refLinkInput'); }
+function togglePasswordVisibility(inputId, btn) {
+  const input = document.getElementById(inputId);
+  const showing = input.type === 'text';
+  input.type = showing ? 'password' : 'text';
+  btn.textContent = showing ? '👁️' : '🙈';
+}
 function copyInput(id) {
   const input = document.getElementById(id);
   input.select();

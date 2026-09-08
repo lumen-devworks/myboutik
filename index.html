@@ -46,6 +46,9 @@
   .field label{display:block;font-size:13px;font-weight:600;margin-bottom:6px}
   .field input{width:100%;padding:11px 12px;border:1px solid var(--border);border-radius:10px;font-size:14px}
   .field input:focus{outline:2px solid var(--blue);border-color:transparent}
+  .password-wrap{position:relative}
+  .password-wrap input{padding-right:42px}
+  .pw-toggle{position:absolute;right:6px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:17px;padding:6px;line-height:1}
   .msg{font-size:13px;border-radius:10px;padding:10px 12px;margin-bottom:14px}
   .msg.error{background:#fef2f2;color:#b91c1c}
   .msg.success{background:var(--green-bg);color:#15803d}
@@ -100,7 +103,10 @@
       <div class="sub">Accédez à vos boutiques</div>
       <div id="loginMsg"></div>
       <div class="field"><label>Email</label><input type="email" id="loginEmail" autocomplete="email"></div>
-      <div class="field"><label>Mot de passe</label><input type="password" id="loginPassword" autocomplete="current-password"></div>
+      <div class="field"><label>Mot de passe</label>
+        <div class="password-wrap"><input type="password" id="loginPassword" autocomplete="current-password">
+          <button type="button" class="pw-toggle" onclick="togglePasswordVisibility('loginPassword', this)">👁️</button></div>
+      </div>
       <button class="btn btn-primary btn-block" onclick="doLogin()">Se connecter</button>
       <div class="switch">Pas encore de compte ? <a onclick="openAuth('register')">Créer un compte</a></div>
     </div>
@@ -111,7 +117,10 @@
       <div id="registerMsg"></div>
       <div class="field"><label>Nom complet</label><input type="text" id="regName" autocomplete="name"></div>
       <div class="field"><label>Email</label><input type="email" id="regEmail" autocomplete="email"></div>
-      <div class="field"><label>Mot de passe</label><input type="password" id="regPassword" autocomplete="new-password"></div>
+      <div class="field"><label>Mot de passe</label>
+        <div class="password-wrap"><input type="password" id="regPassword" autocomplete="new-password">
+          <button type="button" class="pw-toggle" onclick="togglePasswordVisibility('regPassword', this)">👁️</button></div>
+      </div>
       <button class="btn btn-primary btn-block" onclick="doRegister()">Créer mon compte</button>
       <div class="switch">Déjà un compte ? <a onclick="openAuth('login')">Se connecter</a></div>
     </div>
@@ -177,6 +186,12 @@ function acceptTeamInviteIfPresent(token) {
     method:'POST', headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},
     body: JSON.stringify({token: inviteToken}),
   }).catch(() => {});
+}
+function togglePasswordVisibility(inputId, btn) {
+  const input = document.getElementById(inputId);
+  const showing = input.type === 'text';
+  input.type = showing ? 'password' : 'text';
+  btn.textContent = showing ? '👁️' : '🙈';
 }
 function doLogin() {
   const email = document.getElementById('loginEmail').value.trim();
