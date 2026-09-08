@@ -152,9 +152,18 @@ function loadAll() {
     document.getElementById('dataCards').style.display = 'block';
     renderSubs(data.data);
     call('payouts_pending').then(d2 => renderPayouts(d2.data || []));
-    call('clients_list').then(d3 => { CLIENTS = d3.data || []; renderStats(CLIENTS); renderClients(); });
-    call('subscription_history').then(d4 => renderHistory(d4.data || []));
-    call('revenue_by_month').then(d5 => { REVENUE_BY_MONTH = d5.data || []; setupRevenueYears(); });
+    call('clients_list').then(d3 => {
+      if (!d3.success) { document.getElementById('clientsBody').innerHTML = '<p style="color:#b91c1c">'+d3.message+'</p>'; return; }
+      CLIENTS = d3.data || []; renderStats(CLIENTS); renderClients();
+    });
+    call('subscription_history').then(d4 => {
+      if (!d4.success) { document.getElementById('historyBody').innerHTML = '<p style="color:#b91c1c">'+d4.message+'</p>'; return; }
+      renderHistory(d4.data || []);
+    });
+    call('revenue_by_month').then(d5 => {
+      if (!d5.success) { document.getElementById('revenueBody').innerHTML = '<p style="color:#b91c1c">'+d5.message+'</p>'; return; }
+      REVENUE_BY_MONTH = d5.data || []; setupRevenueYears();
+    });
   }).catch(() => { document.getElementById('loginMsg').innerHTML = '<div class="msg">Impossible de contacter le serveur.</div>'; });
 }
 function fmtMoney(n) { return Math.round(n||0).toLocaleString('fr-FR') + ' FCFA'; }
