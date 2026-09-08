@@ -3409,8 +3409,13 @@ function admin_subscription_requests() {
 function admin_clients_list() {
     $users = q("SELECT id, email, full_name, plan, plan_status, plan_valid_until, created_at FROM users ORDER BY created_at DESC")->fetchAll();
     foreach ($users as &$u) {
-        $u['boutique_count'] = (int)q("SELECT COUNT(*) c FROM boutiques WHERE owner_user_id=?", [$u['id']])->fetch()['c'];
-        $u['member_boutique_count'] = (int)q("SELECT COUNT(*) c FROM boutique_members WHERE user_id=? AND status='active'", [$u['id']])->fetch()['c'];
+        $owned = q("SELECT name FROM boutiques WHERE owner_user_id=? ORDER BY created_at", [$u['id']])->fetchAll();
+        $u['boutique_count'] = count($owned);
+        $u['boutique_names'] = array_column($owned, 'name');
+        $member = q("SELECT b.name FROM boutique_members bm JOIN boutiques b ON b.id=bm.boutique_id
+                     WHERE bm.user_id=? AND bm.status='active'", [$u['id']])->fetchAll();
+        $u['member_boutique_count'] = count($member);
+        $u['member_boutique_names'] = array_column($member, 'name');
         $approved = q("SELECT plan FROM subscription_requests WHERE user_id=? AND status='approved'", [$u['id']])->fetchAll();
         $u['payments_count'] = count($approved);
         $u['total_paid'] = array_sum(array_map(fn($r) => PLANS[$r['plan']]['price'] ?? 0, $approved));
