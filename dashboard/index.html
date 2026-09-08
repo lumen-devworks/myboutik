@@ -2085,8 +2085,10 @@ function renderBilling() {
       <div class="kpi-grid">
         ${plans.map(([key,p]) => `
           <div class="card" style="${key===B.current_plan?'border-color:var(--blue)':''}">
-            <h3>${p.name}</h3>
-            ${key==='starter' ? '<div style="color:#16a34a;font-weight:700;font-size:13px;margin-top:4px">🎁 1er mois gratuit</div>' : ''}
+            <div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px">
+              <h3 style="margin:0">${p.name}</h3>
+              ${key==='starter' ? '<span style="color:#16a34a;font-weight:700;font-size:26px;white-space:nowrap">1er mois gratuit</span>' : ''}
+            </div>
             <div style="font-size:22px;font-weight:800;margin:8px 0">${fmtMoney(p.price)}<span class="muted" style="font-size:13px;font-weight:400">/mois</span></div>
             <div class="muted" style="margin-bottom:14px">${p.boutique_limit} boutique(s)</div>
             ${key===B.current_plan ? '<button class="btn btn-ghost btn-block" disabled>Plan actuel</button>' : '<button class="btn btn-primary btn-block" onclick="subscribeToPlan(\''+key+'\')">Choisir</button>'}
