@@ -64,6 +64,9 @@
   .verify-box .ic{width:44px;height:44px;border-radius:12px;background:#fff;color:var(--green);display:flex;align-items:center;justify-content:center;margin:0 auto 14px;font-size:20px}
   .verify-box strong{word-break:break-all}
   .dev-link{margin-top:14px;font-size:12px;word-break:break-all;background:#fff;border-radius:8px;padding:8px;color:var(--gray)}
+  .lang-switch{display:flex;gap:3px;background:var(--bg);border:1px solid var(--border);border-radius:999px;padding:3px}
+  .lang-switch button{background:none;color:var(--gray);border:none;padding:6px 10px;font-size:11px;font-weight:700;border-radius:999px;cursor:pointer}
+  .lang-switch button.active{background:var(--blue);color:#fff}
 </style>
 </head>
 <body>
@@ -72,32 +75,33 @@
   <div class="wrap" style="display:flex;align-items:center;justify-content:space-between;width:100%">
     <div class="logo"><div class="mark">M</div> MYBOUTIK</div>
     <nav>
-      <button class="btn btn-ghost" onclick="openAuth('login')">Se connecter</button>
-      <button class="btn btn-primary" onclick="openAuth('register')">Démarrer gratuitement</button>
+      <div class="lang-switch"><button type="button" id="langFr" onclick="setLang('fr')">FR</button><button type="button" id="langEn" onclick="setLang('en')">EN</button></div>
+      <button class="btn btn-ghost" onclick="openAuth('login')" id="navLoginBtn">Se connecter</button>
+      <button class="btn btn-primary" onclick="openAuth('register')" id="navRegisterBtn">Démarrer gratuitement</button>
     </nav>
   </div>
 </header>
 
 <section class="hero">
-  <div class="badge">Vendre en ligne, simplement</div>
-  <h1>Lancez votre boutique,<br><span>vendez dès aujourd'hui.</span></h1>
-  <p>Créez votre boutique en ligne, ajoutez vos produits et recevez vos commandes en paiement à la livraison — plusieurs boutiques, un seul compte.</p>
+  <div class="badge" id="heroBadge">Vendre en ligne, simplement</div>
+  <h1 id="heroTitle">Lancez votre boutique,<br><span id="heroTitleSpan">vendez dès aujourd'hui.</span></h1>
+  <p id="heroDesc">Créez votre boutique en ligne, ajoutez vos produits et recevez vos commandes en paiement à la livraison — plusieurs boutiques, un seul compte.</p>
   <div class="hero-ctas">
-    <button class="btn btn-primary" onclick="openAuth('register')">Créer ma boutique</button>
-    <button class="btn btn-ghost" onclick="document.getElementById('features').scrollIntoView({behavior:'smooth'})">Voir les fonctionnalités</button>
+    <button class="btn btn-primary" onclick="openAuth('register')" id="heroCreateBtn">Créer ma boutique</button>
+    <button class="btn btn-ghost" onclick="document.getElementById('features').scrollIntoView({behavior:'smooth'})" id="heroFeaturesBtn">Voir les fonctionnalités</button>
   </div>
 </section>
 
 <div class="wrap">
   <div class="features" id="features">
-    <div class="card"><div class="ic">🛍️</div><h3>Votre boutique en ligne</h3><p>Catalogue de produits, page boutique publique prête à partager avec vos clients.</p></div>
-    <div class="card"><div class="ic">🚚</div><h3>Paiement à la livraison</h3><p>Le mode de paiement que vos clients utilisent déjà — aucune intégration bancaire requise.</p></div>
-    <div class="card"><div class="ic">📊</div><h3>Commandes, stock et finances</h3><p>Un seul tableau de bord pour suivre commandes, livraisons, clients et résultat net.</p></div>
-    <div class="card"><div class="ic">🏬</div><h3>Multi-boutiques</h3><p>Gérez plusieurs boutiques depuis un seul compte, chacune avec son propre catalogue.</p></div>
+    <div class="card"><div class="ic">🛍️</div><h3 id="feat1Title">Votre boutique en ligne</h3><p id="feat1Desc">Catalogue de produits, page boutique publique prête à partager avec vos clients.</p></div>
+    <div class="card"><div class="ic">🚚</div><h3 id="feat2Title">Paiement à la livraison</h3><p id="feat2Desc">Le mode de paiement que vos clients utilisent déjà — aucune intégration bancaire requise.</p></div>
+    <div class="card"><div class="ic">📊</div><h3 id="feat3Title">Commandes, stock et finances</h3><p id="feat3Desc">Un seul tableau de bord pour suivre commandes, livraisons, clients et résultat net.</p></div>
+    <div class="card"><div class="ic">🏬</div><h3 id="feat4Title">Multi-boutiques</h3><p id="feat4Desc">Gérez plusieurs boutiques depuis un seul compte, chacune avec son propre catalogue.</p></div>
   </div>
 </div>
 
-<footer>MYBOUTIK — Paiement à la livraison · Multi-boutiques · Support en français · <a href="guide.html" style="color:var(--blue);font-weight:600">Guide d'utilisation</a></footer>
+<footer id="footerText">MYBOUTIK — Paiement à la livraison · Multi-boutiques · Support en français · <a href="guide.html" style="color:var(--blue);font-weight:600" id="footerGuideLink">Guide d'utilisation</a></footer>
 
 <!-- ============ Auth modal ============ -->
 <div class="overlay" id="authOverlay">
@@ -105,50 +109,50 @@
     <button class="close" onclick="closeAuth()">✕</button>
 
     <div id="viewLogin">
-      <h2>Se connecter</h2>
-      <div class="sub">Accédez à vos boutiques</div>
+      <h2 id="loginTitle">Se connecter</h2>
+      <div class="sub" id="loginSub">Accédez à vos boutiques</div>
       <div id="loginMsg"></div>
-      <div class="field"><label>Email</label><input type="email" id="loginEmail" autocomplete="email"></div>
-      <div class="field"><label>Mot de passe</label>
+      <div class="field"><label id="loginEmailLabel">Email</label><input type="email" id="loginEmail" autocomplete="email"></div>
+      <div class="field"><label id="loginPasswordLabel">Mot de passe</label>
         <div class="password-wrap"><input type="password" id="loginPassword" autocomplete="current-password">
           <button type="button" class="pw-toggle" onclick="togglePasswordVisibility('loginPassword', this)">🙈</button></div>
       </div>
-      <button class="btn btn-primary btn-block" onclick="doLogin()">Se connecter</button>
-      <div class="switch">Pas encore de compte ? <a onclick="openAuth('register')">Créer un compte</a></div>
+      <button class="btn btn-primary btn-block" onclick="doLogin()" id="loginSubmitBtn">Se connecter</button>
+      <div class="switch" id="loginSwitch">Pas encore de compte ? <a onclick="openAuth('register')">Créer un compte</a></div>
     </div>
 
     <div id="viewRegister" style="display:none">
-      <h2>Créer un compte</h2>
-      <div class="sub">Lancez votre boutique en quelques minutes</div>
+      <h2 id="registerTitle">Créer un compte</h2>
+      <div class="sub" id="registerSub">Lancez votre boutique en quelques minutes</div>
       <div id="registerMsg"></div>
-      <div class="field"><label>Nom complet</label><input type="text" id="regName" autocomplete="name"></div>
-      <div class="field"><label>Email</label><input type="email" id="regEmail" autocomplete="email"></div>
-      <div class="field"><label>Mot de passe</label>
+      <div class="field"><label id="regNameLabel">Nom complet</label><input type="text" id="regName" autocomplete="name"></div>
+      <div class="field"><label id="regEmailLabel">Email</label><input type="email" id="regEmail" autocomplete="email"></div>
+      <div class="field"><label id="regPasswordLabel">Mot de passe</label>
         <div class="password-wrap"><input type="password" id="regPassword" autocomplete="new-password">
           <button type="button" class="pw-toggle" onclick="togglePasswordVisibility('regPassword', this)">🙈</button></div>
       </div>
-      <button class="btn btn-primary btn-block" onclick="doRegister()">Créer mon compte</button>
-      <div class="switch">Déjà un compte ? <a onclick="openAuth('login')">Se connecter</a></div>
+      <button class="btn btn-primary btn-block" onclick="doRegister()" id="registerSubmitBtn">Créer mon compte</button>
+      <div class="switch" id="registerSwitch">Déjà un compte ? <a onclick="openAuth('login')">Se connecter</a></div>
     </div>
 
     <div id="viewPending" style="display:none">
-      <h2>Créer un compte</h2>
-      <div class="sub">Lancez votre boutique en quelques minutes</div>
+      <h2 id="pendingTitle">Créer un compte</h2>
+      <div class="sub" id="pendingSub">Lancez votre boutique en quelques minutes</div>
       <div class="verify-box">
         <div class="ic">✉️</div>
-        <div style="font-weight:700;margin-bottom:8px">Vérifiez votre email</div>
-        <div style="color:var(--gray);font-size:14px">Nous avons envoyé un lien de confirmation à<br><strong id="pendingEmail"></strong></div>
+        <div style="font-weight:700;margin-bottom:8px" id="pendingVerifyTitle">Vérifiez votre email</div>
+        <div style="color:var(--gray);font-size:14px" id="pendingVerifyText">Nous avons envoyé un lien de confirmation à<br><strong id="pendingEmail"></strong></div>
         <div id="pendingDevLink" class="dev-link" style="display:none"></div>
       </div>
-      <div style="text-align:center;font-size:13px;color:var(--gray);margin-top:16px">Pas d'email reçu ? Vérifiez votre dossier spam.</div>
-      <button class="btn btn-ghost btn-block" style="margin-top:10px" onclick="resendVerification()">Renvoyer l'email de confirmation</button>
-      <div class="switch">Déjà un compte ? <a onclick="openAuth('login')">Se connecter</a></div>
+      <div style="text-align:center;font-size:13px;color:var(--gray);margin-top:16px" id="pendingNoEmailText">Pas d'email reçu ? Vérifiez votre dossier spam.</div>
+      <button class="btn btn-ghost btn-block" style="margin-top:10px" onclick="resendVerification()" id="pendingResendBtn">Renvoyer l'email de confirmation</button>
+      <div class="switch" id="pendingSwitch">Déjà un compte ? <a onclick="openAuth('login')">Se connecter</a></div>
     </div>
 
     <div id="viewVerify" style="display:none">
-      <h2>Vérification de l'email</h2>
+      <h2 id="verifyTitle">Vérification de l'email</h2>
       <div id="verifyMsg"></div>
-      <button class="btn btn-primary btn-block" onclick="openAuth('login')">Se connecter</button>
+      <button class="btn btn-primary btn-block" onclick="openAuth('login')" id="verifySubmitBtn">Se connecter</button>
     </div>
   </div>
 </div>
@@ -158,12 +162,133 @@
 <script>
 const API_URL = window.MYBOUTIK_API_URL || 'http://localhost:8000';
 
+// ============================================================
+// TRADUCTION (FR/EN) - textes fixes de la page marketing/auth. Les
+// messages serveur sont deja traduits via l'entete X-Lang envoye par
+// api() (voir t()/EN_DICT dans index.php).
+// ============================================================
+let LANG = localStorage.getItem('myboutik_marketing_lang') === 'en' ? 'en' : 'fr';
+const I18N = {
+  fr: {
+    nav_login: 'Se connecter', nav_register: 'Démarrer gratuitement',
+    hero_badge: 'Vendre en ligne, simplement',
+    hero_title: 'Lancez votre boutique,', hero_title_span: 'vendez dès aujourd\'hui.',
+    hero_desc: 'Créez votre boutique en ligne, ajoutez vos produits et recevez vos commandes en paiement à la livraison — plusieurs boutiques, un seul compte.',
+    hero_create_btn: 'Créer ma boutique', hero_features_btn: 'Voir les fonctionnalités',
+    feat1_title: 'Votre boutique en ligne', feat1_desc: 'Catalogue de produits, page boutique publique prête à partager avec vos clients.',
+    feat2_title: 'Paiement à la livraison', feat2_desc: 'Le mode de paiement que vos clients utilisent déjà — aucune intégration bancaire requise.',
+    feat3_title: 'Commandes, stock et finances', feat3_desc: 'Un seul tableau de bord pour suivre commandes, livraisons, clients et résultat net.',
+    feat4_title: 'Multi-boutiques', feat4_desc: 'Gérez plusieurs boutiques depuis un seul compte, chacune avec son propre catalogue.',
+    footer_text: 'MYBOUTIK — Paiement à la livraison · Multi-boutiques · Support en français · ',
+    footer_guide_link: 'Guide d\'utilisation',
+    login_title: 'Se connecter', login_sub: 'Accédez à vos boutiques',
+    label_email: 'Email', label_password: 'Mot de passe',
+    login_submit: 'Se connecter',
+    login_switch_prefix: 'Pas encore de compte ? ', login_switch_link: 'Créer un compte',
+    register_title: 'Créer un compte', register_sub: 'Lancez votre boutique en quelques minutes',
+    label_full_name: 'Nom complet',
+    register_submit: 'Créer mon compte',
+    register_switch_prefix: 'Déjà un compte ? ', register_switch_link: 'Se connecter',
+    pending_verify_title: 'Vérifiez votre email',
+    pending_verify_text: 'Nous avons envoyé un lien de confirmation à',
+    pending_no_email: 'Pas d\'email reçu ? Vérifiez votre dossier spam.',
+    pending_resend_btn: 'Renvoyer l\'email de confirmation',
+    verify_title: 'Vérification de l\'email',
+    server_unreachable: 'Impossible de contacter le serveur.',
+    dev_mode_link_prefix: 'Mode developpement — lien direct : ',
+    resend_fallback: 'Si un compte existe avec cet email, un nouveau lien vient d\'etre envoye.',
+    team_invite_message: 'Vous avez ete invite(e) a rejoindre une boutique. Connectez-vous (ou creez un compte avec la meme adresse email) pour la rejoindre automatiquement.',
+  },
+  en: {
+    nav_login: 'Log in', nav_register: 'Start for free',
+    hero_badge: 'Sell online, simply',
+    hero_title: 'Launch your shop,', hero_title_span: 'sell starting today.',
+    hero_desc: 'Create your online shop, add your products, and receive orders with cash on delivery — several shops, one account.',
+    hero_create_btn: 'Create my shop', hero_features_btn: 'See the features',
+    feat1_title: 'Your online shop', feat1_desc: 'Product catalog, a public shop page ready to share with your customers.',
+    feat2_title: 'Cash on delivery', feat2_desc: 'The payment method your customers already use — no bank integration required.',
+    feat3_title: 'Orders, stock, and finances', feat3_desc: 'One dashboard to track orders, deliveries, customers, and net income.',
+    feat4_title: 'Multiple shops', feat4_desc: 'Manage several shops from one account, each with its own catalog.',
+    footer_text: 'MYBOUTIK — Cash on delivery · Multiple shops · Support in French · ',
+    footer_guide_link: 'User guide',
+    login_title: 'Log in', login_sub: 'Access your shops',
+    label_email: 'Email', label_password: 'Password',
+    login_submit: 'Log in',
+    login_switch_prefix: 'No account yet? ', login_switch_link: 'Create an account',
+    register_title: 'Create an account', register_sub: 'Launch your shop in a few minutes',
+    label_full_name: 'Full name',
+    register_submit: 'Create my account',
+    register_switch_prefix: 'Already have an account? ', register_switch_link: 'Log in',
+    pending_verify_title: 'Check your email',
+    pending_verify_text: 'We sent a confirmation link to',
+    pending_no_email: 'No email received? Check your spam folder.',
+    pending_resend_btn: 'Resend confirmation email',
+    verify_title: 'Email verification',
+    server_unreachable: 'Unable to reach the server.',
+    dev_mode_link_prefix: 'Development mode — direct link: ',
+    resend_fallback: 'If an account exists with this email, a new link has just been sent.',
+    team_invite_message: 'You have been invited to join a shop. Log in (or create an account with the same email address) to join it automatically.',
+  },
+};
+function t(key) { return (I18N[LANG] && I18N[LANG][key]) ?? I18N.fr[key] ?? key; }
+function setLang(lang) {
+  LANG = lang === 'en' ? 'en' : 'fr';
+  localStorage.setItem('myboutik_marketing_lang', LANG);
+  applyStaticTranslations();
+}
+function applyStaticTranslations() {
+  document.documentElement.lang = LANG;
+  document.getElementById('langFr').classList.toggle('active', LANG === 'fr');
+  document.getElementById('langEn').classList.toggle('active', LANG === 'en');
+  document.getElementById('navLoginBtn').textContent = t('nav_login');
+  document.getElementById('navRegisterBtn').textContent = t('nav_register');
+  document.getElementById('heroBadge').textContent = t('hero_badge');
+  document.getElementById('heroTitle').firstChild.textContent = t('hero_title');
+  document.getElementById('heroTitleSpan').textContent = t('hero_title_span');
+  document.getElementById('heroDesc').textContent = t('hero_desc');
+  document.getElementById('heroCreateBtn').textContent = t('hero_create_btn');
+  document.getElementById('heroFeaturesBtn').textContent = t('hero_features_btn');
+  document.getElementById('feat1Title').textContent = t('feat1_title');
+  document.getElementById('feat1Desc').textContent = t('feat1_desc');
+  document.getElementById('feat2Title').textContent = t('feat2_title');
+  document.getElementById('feat2Desc').textContent = t('feat2_desc');
+  document.getElementById('feat3Title').textContent = t('feat3_title');
+  document.getElementById('feat3Desc').textContent = t('feat3_desc');
+  document.getElementById('feat4Title').textContent = t('feat4_title');
+  document.getElementById('feat4Desc').textContent = t('feat4_desc');
+  document.getElementById('footerText').firstChild.textContent = t('footer_text');
+  document.getElementById('footerGuideLink').textContent = t('footer_guide_link');
+  document.getElementById('loginTitle').textContent = t('login_title');
+  document.getElementById('loginSub').textContent = t('login_sub');
+  document.getElementById('loginEmailLabel').textContent = t('label_email');
+  document.getElementById('loginPasswordLabel').textContent = t('label_password');
+  document.getElementById('loginSubmitBtn').textContent = t('login_submit');
+  document.getElementById('loginSwitch').innerHTML = t('login_switch_prefix')+'<a onclick="openAuth(\'register\')">'+t('login_switch_link')+'</a>';
+  document.getElementById('registerTitle').textContent = t('register_title');
+  document.getElementById('registerSub').textContent = t('register_sub');
+  document.getElementById('regNameLabel').textContent = t('label_full_name');
+  document.getElementById('regEmailLabel').textContent = t('label_email');
+  document.getElementById('regPasswordLabel').textContent = t('label_password');
+  document.getElementById('registerSubmitBtn').textContent = t('register_submit');
+  document.getElementById('registerSwitch').innerHTML = t('register_switch_prefix')+'<a onclick="openAuth(\'login\')">'+t('register_switch_link')+'</a>';
+  document.getElementById('pendingTitle').textContent = t('register_title');
+  document.getElementById('pendingSub').textContent = t('register_sub');
+  document.getElementById('pendingVerifyTitle').textContent = t('pending_verify_title');
+  document.getElementById('pendingVerifyText').firstChild.textContent = t('pending_verify_text');
+  document.getElementById('pendingNoEmailText').textContent = t('pending_no_email');
+  document.getElementById('pendingResendBtn').textContent = t('pending_resend_btn');
+  document.getElementById('pendingSwitch').innerHTML = t('register_switch_prefix')+'<a onclick="openAuth(\'login\')">'+t('register_switch_link')+'</a>';
+  document.getElementById('verifyTitle').textContent = t('verify_title');
+  document.getElementById('verifySubmitBtn').textContent = t('login_submit');
+}
+
+
 function api(path, opts) {
   opts = opts || {};
-  const headers = Object.assign({'Content-Type':'application/json'}, opts.headers||{});
+  const headers = Object.assign({'Content-Type':'application/json','X-Lang':LANG}, opts.headers||{});
   return fetch(API_URL+path, Object.assign({}, opts, {headers}))
     .then(r => r.json().then(data => ({status:r.status, data})))
-    .catch(() => ({status:0, data:{success:false, message:'Impossible de contacter le serveur.'}}));
+    .catch(() => ({status:0, data:{success:false, message:t('server_unreachable')}}));
 }
 
 function openAuth(view) {
@@ -241,7 +366,7 @@ function doRegister() {
     const devLink = document.getElementById('pendingDevLink');
     if (data.data.verify_link_dev_only) {
       devLink.style.display = 'block';
-      devLink.innerHTML = 'Mode developpement — lien direct : <a href="'+data.data.verify_link_dev_only+'">'+data.data.verify_link_dev_only+'</a>';
+      devLink.innerHTML = t('dev_mode_link_prefix')+'<a href="'+data.data.verify_link_dev_only+'">'+data.data.verify_link_dev_only+'</a>';
     } else {
       devLink.style.display = 'none';
     }
@@ -253,7 +378,7 @@ function resendVerification() {
   const email = document.getElementById('pendingEmail').textContent;
   const page_url = window.location.origin + window.location.pathname;
   api('/auth?action=resend', {method:'POST', body:JSON.stringify({email,page_url})}).then(({data}) => {
-    showToast(data.message || 'Si un compte existe avec cet email, un nouveau lien vient d\'etre envoye.', 'info');
+    showToast(data.message || t('resend_fallback'), 'info');
   });
 }
 
@@ -266,6 +391,7 @@ function checkVerifyToken() {
     setMsg('verifyMsg', data.message, data.success ? 'success' : 'error');
   });
 }
+applyStaticTranslations();
 checkVerifyToken();
 
 // Lien d'affiliation (?ref=CODE) : memorise le code pour l'inscription et
@@ -288,7 +414,7 @@ if (localStorage.getItem('myboutik_token') && !new URLSearchParams(window.locati
 }
 if (new URLSearchParams(window.location.search).get('team_invite') && !localStorage.getItem('myboutik_token')) {
   openAuth('login');
-  setMsg('loginMsg', 'Vous avez ete invite(e) a rejoindre une boutique. Connectez-vous (ou creez un compte avec la meme adresse email) pour la rejoindre automatiquement.', 'success');
+  setMsg('loginMsg', t('team_invite_message'), 'success');
 }
 </script>
 </body>
