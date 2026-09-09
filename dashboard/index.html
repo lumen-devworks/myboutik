@@ -6,7 +6,7 @@
 <title>MYBOUTIK — Tableau de bord</title>
 <style>
   :root{
-    --blue:#2563eb; --blue-dark:#1d4ed8; --ink:#0f172a; --gray:#64748b;
+    --blue:#ea580c; --blue-dark:#c2410c; --ink:#0f172a; --gray:#64748b;
     --border:#e2e8f0; --bg:#f8fafc; --green:#16a34a; --green-bg:#ecfdf5;
     --red:#dc2626; --red-bg:#fef2f2; --amber:#d97706; --amber-bg:#fffbeb;
   }
@@ -23,7 +23,7 @@
   #sidebar{width:230px;height:100vh;background:#fff;border-right:1px solid var(--border);flex-shrink:0;display:flex;flex-direction:column}
   .side-top{padding:16px;border-bottom:1px solid var(--border)}
   .side-top .logo{display:flex;align-items:center;gap:8px;font-weight:800;font-size:15px;margin-bottom:10px}
-  .side-top .mark{width:26px;height:26px;border-radius:7px;background:linear-gradient(135deg,#3b82f6,#1e40af);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:13px}
+  .side-top .mark{width:26px;height:26px;border-radius:7px;background:linear-gradient(135deg,#fb923c,#c2410c);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:13px}
   select#boutiqueSwitch{width:100%;padding:8px;border-radius:8px;border:1px solid var(--border);font-size:13px}
   .side-back{display:block;padding:10px 16px;font-size:13px;color:var(--gray);border-bottom:1px solid var(--border)}
   .side-back:hover{background:var(--bg)}
@@ -31,7 +31,7 @@
   .side-group{font-size:11px;text-transform:uppercase;color:var(--gray);font-weight:700;padding:14px 12px 4px}
   .side-link{display:flex;align-items:center;gap:8px;padding:9px 12px;border-radius:8px;font-size:14px;color:var(--ink);cursor:pointer}
   .side-link:hover{background:var(--bg)}
-  .side-link.active{background:#eff6ff;color:var(--blue);font-weight:600}
+  .side-link.active{background:#fff1e6;color:var(--blue);font-weight:600}
   .side-sub{padding-left:26px}
 
   /* Topbar + content : le topbar reste fixe (flex-shrink:0, ne scrolle
@@ -71,7 +71,7 @@
 
   .pill{display:inline-block;padding:3px 10px;border-radius:999px;font-size:12px;font-weight:600}
   .pill-pending{background:var(--amber-bg);color:var(--amber)}
-  .pill-processing,.pill-assigned,.pill-shipped,.pill-in_delivery{background:#eff6ff;color:var(--blue)}
+  .pill-processing,.pill-assigned,.pill-shipped,.pill-in_delivery{background:#eff6ff;color:#2563eb}
   .pill-delivered{background:var(--green-bg);color:var(--green)}
   .pill-refused,.pill-cancelled{background:var(--red-bg);color:var(--red)}
   .pill-to_assign{background:#f1f5f9;color:var(--gray)}
@@ -104,7 +104,7 @@
   .msg.success{background:var(--green-bg);color:#15803d}
 
   .progress-bar{height:8px;background:#e2e8f0;border-radius:999px;overflow:hidden;margin:14px 0}
-  .progress-bar .fill{height:100%;background:linear-gradient(90deg,#3b82f6,#1d4ed8)}
+  .progress-bar .fill{height:100%;background:linear-gradient(90deg,#fb923c,#c2410c)}
   .boutique-card{border:1px solid var(--border);border-radius:14px;padding:18px;background:#fff;display:flex;flex-direction:column;gap:10px}
   .grades-list .grade-row{display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid var(--border)}
   .grades-list .grade-row:last-child{border-bottom:none}
@@ -1780,7 +1780,7 @@ function openPrintReport(title, subtitle, bodyHtml) {
       .muted{color:#666;font-size:13px;margin-bottom:18px}
       table{width:100%;border-collapse:collapse;margin:12px 0;font-size:13px}
       th,td{padding:6px 8px;border-bottom:1px solid #ddd;text-align:left}
-      th{background:#eff6ff}
+      th{background:#fff1e6}
       .kpis{display:flex;gap:12px;margin:14px 0}
       .kpi{flex:1;border:1px solid #ddd;border-radius:8px;padding:10px}
       .kpi .lbl{color:#666;font-size:11px;text-transform:uppercase}
@@ -2892,7 +2892,7 @@ function renderLive(bt) {
       if (!data.success) { document.getElementById('content').innerHTML = '<div class="card">'+escapeHtml(data.message)+'</div>'; return; }
       const L = data.data;
       document.getElementById('content').innerHTML = `
-        <div class="card" style="background:linear-gradient(135deg,#1d4ed8,#2563eb);color:#fff">
+        <div class="card" style="background:linear-gradient(135deg,#c2410c,#ea580c);color:#fff">
           <div style="display:flex;justify-content:space-between;align-items:center">
             <div><span style="background:rgba(255,255,255,.2);padding:3px 10px;border-radius:999px;font-size:12px">${t('live_badge')}</span>
               <h2 style="margin-top:8px">${t('live_activity_title')}</h2></div>

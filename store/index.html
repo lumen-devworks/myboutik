@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Boutique</title>
 <style>
-  :root{ --blue:#2563eb; --blue-dark:#1d4ed8; --ink:#0f172a; --gray:#64748b; --border:#e2e8f0; --bg:#f8fafc; --green:#16a34a; --green-bg:#ecfdf5; }
+  :root{ --blue:#ea580c; --blue-dark:#c2410c; --ink:#0f172a; --gray:#64748b; --border:#e2e8f0; --bg:#f8fafc; --green:#16a34a; --green-bg:#ecfdf5; }
   *{box-sizing:border-box;margin:0;padding:0}
   body{font-family:-apple-system,'Segoe UI',Roboto,Arial,sans-serif;color:var(--ink);background:#fff}
   a{color:inherit;text-decoration:none}
@@ -318,7 +318,7 @@ function renderShop() {
       </div>
     </div></header>
     ${ACTIVE_PROMOS.length ? `<div class="wrap" style="padding-top:12px">
-      <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:10px 14px;font-size:14px;color:#1e40af">
+      <div style="background:#fff1e6;border:1px solid #fdba8c;border-radius:10px;padding:10px 14px;font-size:14px;color:#9a3412">
         🎉 ${ACTIVE_PROMOS.map(p => 'Code <strong>'+escapeHtml(p.code)+'</strong> : -'+(p.type==='percent' ? Number(p.value)+'%' : fmtMoney(p.value, BOUTIQUE.currency))).join(' &nbsp;|&nbsp; ')}${t('promo_banner_suffix')}
       </div>
     </div>` : ''}
