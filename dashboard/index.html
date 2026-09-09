@@ -2950,54 +2950,54 @@ function renderMarketing(bt) {
     window.__marketingProducts = allProducts;
     window.__marketingReviews = R;
     document.getElementById('content').innerHTML = `
-      <h2 class="page-title">Marketing</h2><div class="page-sub">Codes promo, avis clients, signups newsletter et messages de contact.</div>
+      <h2 class="page-title">${t('marketing_title')}</h2><div class="page-sub">${t('marketing_subtitle')}</div>
       <div class="card">
-        <div class="row-between"><h3>Codes promo (${P.length})</h3><button class="btn btn-primary btn-sm" onclick="openPromoForm()">+ Nouveau code</button></div>
-        ${P.length ? `<table><thead><tr><th>Code</th><th>Réduction</th><th>Ciblage</th><th>Utilisations</th><th>Expire</th><th>Statut</th><th></th></tr></thead><tbody>
+        <div class="row-between"><h3>${t('promo_codes_title_prefix')}${P.length})</h3><button class="btn btn-primary btn-sm" onclick="openPromoForm()">${t('btn_new_code')}</button></div>
+        ${P.length ? `<table><thead><tr><th>${t('col_code')}</th><th>${t('col_discount')}</th><th>${t('col_targeting')}</th><th>${t('col_uses')}</th><th>${t('col_expires')}</th><th>${t('col_status')}</th><th></th></tr></thead><tbody>
           ${P.map(p=>`<tr>
             <td><strong>${escapeHtml(p.code)}</strong></td>
             <td>${p.type==='percent' ? Number(p.value)+' %' : fmtMoney(p.value, bt.currency)}</td>
-            <td>${p.target_phones ? '<span title="'+escapeHtml(p.target_phones)+'">🔒 '+p.target_phones.split(',').length+' client(s)</span>' : '<span class="muted">Tous les clients</span>'}</td>
+            <td>${p.target_phones ? '<span title="'+escapeHtml(p.target_phones)+'">🔒 '+p.target_phones.split(',').length+t('clients_suffix')+'</span>' : '<span class="muted">'+t('all_customers_word')+'</span>'}</td>
             <td>${p.used_count}${p.max_uses?' / '+p.max_uses:''}</td>
             <td>${p.expires_at ? fmtDate(p.expires_at) : '—'}</td>
-            <td>${Number(p.active) ? '<span class="pill pill-delivered">Actif</span>' : '<span class="pill pill-refused">Désactivé</span>'}</td>
-            <td><button class="btn btn-ghost btn-sm" onclick='openPromoTargetsForm(${JSON.stringify(p).replace(/'/g,"&#39;")})'>Ciblage</button>
-              <button class="btn btn-ghost btn-sm" onclick="togglePromo('${p.id}',${p.active?0:1})">${Number(p.active)?'Désactiver':'Activer'}</button>
-              <button class="btn btn-ghost btn-sm" onclick="deletePromo('${p.id}')">Supprimer</button></td>
-          </tr>`).join('')}</tbody></table>` : '<div class="empty">Aucun code promo. Créez-en un pour proposer une réduction à vos clients.</div>'}
+            <td>${Number(p.active) ? '<span class="pill pill-delivered">'+t('status_enabled')+'</span>' : '<span class="pill pill-refused">'+t('status_disabled')+'</span>'}</td>
+            <td><button class="btn btn-ghost btn-sm" onclick='openPromoTargetsForm(${JSON.stringify(p).replace(/'/g,"&#39;")})'>${t('btn_targeting')}</button>
+              <button class="btn btn-ghost btn-sm" onclick="togglePromo('${p.id}',${p.active?0:1})">${Number(p.active)?t('btn_disable'):t('btn_enable')}</button>
+              <button class="btn btn-ghost btn-sm" onclick="deletePromo('${p.id}')">${t('btn_delete')}</button></td>
+          </tr>`).join('')}</tbody></table>` : '<div class="empty">'+t('no_promo_codes')+'</div>'}
       </div>
       <div class="card">
-        <div class="row-between"><h3>Promotions produits (${PR.length})</h3><button class="btn btn-primary btn-sm" onclick="openPromotionForm()">+ Nouvelle promotion</button></div>
-        <div class="muted" style="font-size:12px;margin:-4px 0 10px">Réduction affichée automatiquement sur le prix des produits choisis — le client n'a rien à saisir.</div>
-        ${PR.length ? `<table><thead><tr><th>Réduction</th><th>Produits</th><th>Période</th><th>Statut</th><th></th></tr></thead><tbody>
+        <div class="row-between"><h3>${t('product_promotions_title_prefix')}${PR.length})</h3><button class="btn btn-primary btn-sm" onclick="openPromotionForm()">${t('btn_new_promotion')}</button></div>
+        <div class="muted" style="font-size:12px;margin:-4px 0 10px">${t('promotion_auto_note')}</div>
+        ${PR.length ? `<table><thead><tr><th>${t('col_discount')}</th><th>${t('col_products')}</th><th>${t('col_period')}</th><th>${t('col_status')}</th><th></th></tr></thead><tbody>
           ${PR.map(pr=>`<tr>
             <td>${pr.type==='percent' ? Number(pr.value)+' %' : fmtMoney(pr.value, bt.currency)}</td>
-            <td title="${escapeHtml(pr.products.map(x=>x.name).join(', '))}">${pr.products.length} produit(s)</td>
-            <td>${pr.starts_at?fmtDate(pr.starts_at):'—'} → ${pr.expires_at?fmtDate(pr.expires_at):'sans fin'}</td>
-            <td>${Number(pr.active) ? '<span class="pill pill-delivered">Actif</span>' : '<span class="pill pill-refused">Désactivé</span>'}</td>
-            <td><button class="btn btn-ghost btn-sm" onclick='openPromotionForm(${JSON.stringify(pr).replace(/'/g,"&#39;")})'>Modifier</button>
-              <button class="btn btn-ghost btn-sm" onclick="togglePromotion('${pr.id}',${pr.active?0:1})">${Number(pr.active)?'Désactiver':'Activer'}</button>
-              <button class="btn btn-ghost btn-sm" onclick="deletePromotion('${pr.id}')">Supprimer</button></td>
-          </tr>`).join('')}</tbody></table>` : '<div class="empty">Aucune promotion produit. Créez-en une pour afficher un prix réduit directement sur des articles choisis.</div>'}
+            <td title="${escapeHtml(pr.products.map(x=>x.name).join(', '))}">${pr.products.length}${t('products_count_suffix')}</td>
+            <td>${pr.starts_at?fmtDate(pr.starts_at):'—'} → ${pr.expires_at?fmtDate(pr.expires_at):t('no_end_word')}</td>
+            <td>${Number(pr.active) ? '<span class="pill pill-delivered">'+t('status_enabled')+'</span>' : '<span class="pill pill-refused">'+t('status_disabled')+'</span>'}</td>
+            <td><button class="btn btn-ghost btn-sm" onclick='openPromotionForm(${JSON.stringify(pr).replace(/'/g,"&#39;")})'>${t('btn_edit')}</button>
+              <button class="btn btn-ghost btn-sm" onclick="togglePromotion('${pr.id}',${pr.active?0:1})">${Number(pr.active)?t('btn_disable'):t('btn_enable')}</button>
+              <button class="btn btn-ghost btn-sm" onclick="deletePromotion('${pr.id}')">${t('btn_delete')}</button></td>
+          </tr>`).join('')}</tbody></table>` : '<div class="empty">'+t('no_promotions')+'</div>'}
       </div>
       <div class="card">
-        <h3>Avis clients (${R.length})</h3>
-        ${R.length ? `<table><thead><tr><th>Produit</th><th>Client</th><th>Note</th><th>Commentaire</th><th>Statut</th><th></th></tr></thead><tbody>
+        <h3>${t('reviews_title_prefix')}${R.length})</h3>
+        ${R.length ? `<table><thead><tr><th>${t('col_product')}</th><th>${t('col_client')}</th><th>${t('col_rating')}</th><th>${t('col_comment')}</th><th>${t('col_status')}</th><th></th></tr></thead><tbody>
           ${R.map(r=>`<tr>
             <td>${escapeHtml(r.product_name||'—')}</td><td>${escapeHtml(r.customer_name)}</td>
             <td>${'★'.repeat(r.rating)}${'☆'.repeat(5-r.rating)}</td>
             <td>${escapeHtml(r.comment||'')}</td>
-            <td>${r.status==='approved'?'<span class="pill pill-delivered">Publié</span>':r.status==='rejected'?'<span class="pill pill-refused">Rejeté</span>':'<span class="pill pill-pending">En attente</span>'}</td>
-            <td>${r.status!=='approved'?'<button class="btn btn-ghost btn-sm" onclick="moderateReview(\''+r.id+'\',\'approved\')">Publier</button>':''}
-              ${r.status!=='rejected'?'<button class="btn btn-ghost btn-sm" onclick="moderateReview(\''+r.id+'\',\'rejected\')">Rejeter</button>':''}
-              <button class="btn btn-ghost btn-sm" onclick="deleteReview('${r.id}')">Supprimer</button></td>
-          </tr>`).join('')}</tbody></table>` : '<div class="empty">Aucun avis pour le moment.</div>'}
+            <td>${r.status==='approved'?'<span class="pill pill-delivered">'+t('status_published')+'</span>':r.status==='rejected'?'<span class="pill pill-refused">'+t('status_rejected')+'</span>':'<span class="pill pill-pending">'+t('status_pending')+'</span>'}</td>
+            <td>${r.status!=='approved'?'<button class="btn btn-ghost btn-sm" onclick="moderateReview(\''+r.id+'\',\'approved\')">'+t('btn_publish')+'</button>':''}
+              ${r.status!=='rejected'?'<button class="btn btn-ghost btn-sm" onclick="moderateReview(\''+r.id+'\',\'rejected\')">'+t('btn_reject')+'</button>':''}
+              <button class="btn btn-ghost btn-sm" onclick="deleteReview('${r.id}')">${t('btn_delete')}</button></td>
+          </tr>`).join('')}</tbody></table>` : '<div class="empty">'+t('no_reviews')+'</div>'}
       </div>
-      <div class="card"><h3>Abonnés newsletter (${N.length})</h3>
-        ${N.length ? '<table><thead><tr><th>Email</th><th>Inscrit le</th></tr></thead><tbody>'+N.map(n=>'<tr><td>'+escapeHtml(n.email)+'</td><td>'+fmtDate(n.created_at)+'</td></tr>').join('')+'</tbody></table>' : '<div class="empty">Aucun abonné pour le moment.</div>'}
+      <div class="card"><h3>${t('newsletter_subs_title_prefix')}${N.length})</h3>
+        ${N.length ? '<table><thead><tr><th>'+t('col_email')+'</th><th>'+t('col_registered_on')+'</th></tr></thead><tbody>'+N.map(n=>'<tr><td>'+escapeHtml(n.email)+'</td><td>'+fmtDate(n.created_at)+'</td></tr>').join('')+'</tbody></table>' : '<div class="empty">'+t('no_subscribers')+'</div>'}
       </div>
-      <div class="card"><h3>Messages de contact (${M.length})</h3>
-        ${M.length ? '<table><thead><tr><th>Nom</th><th>Message</th><th>Date</th></tr></thead><tbody>'+M.map(m=>'<tr><td>'+escapeHtml(m.name||m.email||'—')+'</td><td>'+escapeHtml(m.message)+'</td><td>'+fmtDate(m.created_at)+'</td></tr>').join('')+'</tbody></table>' : '<div class="empty">Aucun message pour le moment.</div>'}
+      <div class="card"><h3>${t('contact_messages_title_prefix')}${M.length})</h3>
+        ${M.length ? '<table><thead><tr><th>'+t('col_name')+'</th><th>'+t('col_message')+'</th><th>'+t('col_date')+'</th></tr></thead><tbody>'+M.map(m=>'<tr><td>'+escapeHtml(m.name||m.email||'—')+'</td><td>'+escapeHtml(m.message)+'</td><td>'+fmtDate(m.created_at)+'</td></tr>').join('')+'</tbody></table>' : '<div class="empty">'+t('no_messages')+'</div>'}
       </div>
     `;
   });
@@ -3006,22 +3006,22 @@ function renderMarketing(bt) {
 // pre-remplir directement le ciblage sur ce client precis, sans repasser
 // par la page Marketing.
 function openPromoForm(prefillPhone) {
-  openModal(`<h2>Nouveau code promo</h2>
+  openModal(`<h2>${t('modal_new_promo')}</h2>
     <div id="promoMsg"></div>
-    <div class="field"><label>Code</label><input id="promoCode" placeholder="Ex: PROMO10" style="text-transform:uppercase"></div>
+    <div class="field"><label>${t('label_code')}</label><input id="promoCode" placeholder="${t('placeholder_promo_ex')}" style="text-transform:uppercase"></div>
     <div class="field-row">
-      <div class="field"><label>Type</label><select id="promoType"><option value="percent">Pourcentage (%)</option><option value="amount">Montant fixe</option></select></div>
-      <div class="field"><label>Valeur</label><input id="promoValue" type="number" min="1"></div>
+      <div class="field"><label>${t('label_type_generic')}</label><select id="promoType"><option value="percent">${t('type_percent')}</option><option value="amount">${t('type_fixed_amount')}</option></select></div>
+      <div class="field"><label>${t('label_value')}</label><input id="promoValue" type="number" min="1"></div>
     </div>
     <div class="field-row">
-      <div class="field"><label>Nombre d'utilisations max (optionnel)</label><input id="promoMaxUses" type="number" min="1"></div>
-      <div class="field"><label>Expire le (optionnel)</label><input id="promoExpires" type="date"></div>
+      <div class="field"><label>${t('label_max_uses_optional')}</label><input id="promoMaxUses" type="number" min="1"></div>
+      <div class="field"><label>${t('label_expires_optional')}</label><input id="promoExpires" type="date"></div>
     </div>
-    <div class="field"><label>Réserver à des clients précis (optionnel)</label>
-      <textarea id="promoTargets" rows="3" placeholder="Un numéro de téléphone par ligne, ex:&#10;+225 07 00 00 00 00&#10;+225 05 45 93 76 65">${escapeHtml(prefillPhone||'')}</textarea>
-      <div class="muted" style="font-size:12px;margin-top:4px">Laissez vide pour un code ouvert à tous vos clients. Sinon, seuls les numéros listés ici pourront l'utiliser — même si quelqu'un d'autre l'obtient par un tiers.</div>
+    <div class="field"><label>${t('label_reserve_customers_optional')}</label>
+      <textarea id="promoTargets" rows="3" placeholder="+225 07 00 00 00 00&#10;+225 05 45 93 76 65">${escapeHtml(prefillPhone||'')}</textarea>
+      <div class="muted" style="font-size:12px;margin-top:4px">${t('promo_targets_hint')}</div>
     </div>
-    <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal()">Annuler</button><button class="btn btn-primary" onclick="submitPromoForm()">Créer</button></div>`);
+    <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal()">${t('btn_cancel')}</button><button class="btn btn-primary" onclick="submitPromoForm()">${t('btn_create')}</button></div>`);
 }
 function parsePromoTargets(text) {
   return text.split('\n').map(s=>s.trim()).filter(Boolean);
@@ -3029,7 +3029,7 @@ function parsePromoTargets(text) {
 function submitPromoForm() {
   const code = document.getElementById('promoCode').value.trim();
   const value = Number(document.getElementById('promoValue').value||0);
-  if (!code || value<=0) { document.getElementById('promoMsg').innerHTML = '<div class="msg error">Code et valeur requis</div>'; return; }
+  if (!code || value<=0) { document.getElementById('promoMsg').innerHTML = '<div class="msg error">'+t('err_code_value_required')+'</div>'; return; }
   post('/marketing?action=promo_create', {
     boutique_id: CURRENT.id, code, type: document.getElementById('promoType').value, value,
     max_uses: document.getElementById('promoMaxUses').value || null,
@@ -3041,13 +3041,13 @@ function submitPromoForm() {
   });
 }
 function openPromoTargetsForm(p) {
-  openModal(`<h2>Ciblage — ${escapeHtml(p.code)}</h2>
+  openModal(`<h2>${t('modal_targeting_prefix')}${escapeHtml(p.code)}</h2>
     <div id="promoTargetsMsg"></div>
-    <div class="field"><label>Clients autorisés à utiliser ce code (numéros de téléphone, un par ligne)</label>
+    <div class="field"><label>${t('label_allowed_customers')}</label>
       <textarea id="promoTargets2" rows="5" placeholder="+225 07 00 00 00 00">${escapeHtml(p.target_phones ? p.target_phones.split(',').map(s=>s.trim()).join('\n') : '')}</textarea>
-      <div class="muted" style="font-size:12px;margin-top:4px">Videz complètement ce champ pour rendre le code ouvert à tous vos clients.</div>
+      <div class="muted" style="font-size:12px;margin-top:4px">${t('promo_targets2_hint')}</div>
     </div>
-    <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal()">Annuler</button><button class="btn btn-primary" onclick="submitPromoTargetsForm('${p.id}')">Enregistrer</button></div>`);
+    <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal()">${t('btn_cancel')}</button><button class="btn btn-primary" onclick="submitPromoTargetsForm('${p.id}')">${t('btn_save')}</button></div>`);
 }
 function submitPromoTargetsForm(id) {
   post('/marketing?action=promo_update', {boutique_id:CURRENT.id, id, target_phones: parsePromoTargets(document.getElementById('promoTargets2').value)}).then(({data}) => {
@@ -3056,36 +3056,36 @@ function submitPromoTargetsForm(id) {
   });
 }
 function togglePromo(id, active) { post('/marketing?action=promo_update', {boutique_id:CURRENT.id, id, active}).then(({data})=>{ if(!data.success){showToast(data.message,'error');return;} route(); }); }
-function deletePromo(id) { if(!confirm('Supprimer ce code promo ?')) return; post('/marketing?action=promo_delete', {boutique_id:CURRENT.id, id}).then(()=>route()); }
+function deletePromo(id) { if(!confirm(t('confirm_delete_promo'))) return; post('/marketing?action=promo_delete', {boutique_id:CURRENT.id, id}).then(()=>route()); }
 function openPromotionForm(pr) {
   pr = pr || {};
   const selectedIds = (pr.products || []).map(x => x.id);
   const products = window.__marketingProducts || [];
-  openModal(`<h2>${pr.id ? 'Modifier la promotion' : 'Nouvelle promotion produit'}</h2>
+  openModal(`<h2>${pr.id ? t('modal_edit_promotion') : t('modal_new_promotion')}</h2>
     <div id="promotionMsg"></div>
     <div class="field-row">
-      <div class="field"><label>Type</label><select id="promotionType"><option value="percent" ${pr.type!=='amount'?'selected':''}>Pourcentage (%)</option><option value="amount" ${pr.type==='amount'?'selected':''}>Montant fixe</option></select></div>
-      <div class="field"><label>Valeur</label><input id="promotionValue" type="number" min="1" value="${pr.value||''}"></div>
+      <div class="field"><label>${t('label_type_generic')}</label><select id="promotionType"><option value="percent" ${pr.type!=='amount'?'selected':''}>${t('type_percent')}</option><option value="amount" ${pr.type==='amount'?'selected':''}>${t('type_fixed_amount')}</option></select></div>
+      <div class="field"><label>${t('label_value')}</label><input id="promotionValue" type="number" min="1" value="${pr.value||''}"></div>
     </div>
     <div class="field-row">
-      <div class="field"><label>Début (optionnel)</label><input id="promotionStarts" type="date" value="${pr.starts_at?pr.starts_at.substring(0,10):''}"></div>
-      <div class="field"><label>Fin (optionnel)</label><input id="promotionExpires" type="date" value="${pr.expires_at?pr.expires_at.substring(0,10):''}"></div>
+      <div class="field"><label>${t('label_start_optional')}</label><input id="promotionStarts" type="date" value="${pr.starts_at?pr.starts_at.substring(0,10):''}"></div>
+      <div class="field"><label>${t('label_end_optional')}</label><input id="promotionExpires" type="date" value="${pr.expires_at?pr.expires_at.substring(0,10):''}"></div>
     </div>
     <div class="field">
-      <label>Produits concernés</label>
+      <label>${t('label_concerned_products')}</label>
       <div style="max-height:180px;overflow-y:auto;border:1px solid var(--border);border-radius:9px;padding:8px">
         ${products.length ? products.map(p => `<label style="display:flex;align-items:center;gap:8px;padding:3px 0">
           <input type="checkbox" class="promotionProductCheck" style="width:auto;flex-shrink:0" value="${p.id}" ${selectedIds.includes(p.id)?'checked':''}> <span>${escapeHtml(p.name)}</span>
-        </label>`).join('') : '<div class="muted">Ajoutez des produits à votre catalogue avant de créer une promotion.</div>'}
+        </label>`).join('') : '<div class="muted">'+t('add_products_before_promotion')+'</div>'}
       </div>
     </div>
-    <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal()">Annuler</button><button class="btn btn-primary" onclick="submitPromotionForm('${pr.id||''}')">${pr.id?'Enregistrer':'Créer'}</button></div>`);
+    <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal()">${t('btn_cancel')}</button><button class="btn btn-primary" onclick="submitPromotionForm('${pr.id||''}')">${pr.id?t('btn_save'):t('btn_create')}</button></div>`);
 }
 function submitPromotionForm(id) {
   const value = Number(document.getElementById('promotionValue').value||0);
   const product_ids = Array.from(document.querySelectorAll('.promotionProductCheck:checked')).map(c=>c.value);
-  if (value<=0) { document.getElementById('promotionMsg').innerHTML = '<div class="msg error">La valeur est requise</div>'; return; }
-  if (!product_ids.length) { document.getElementById('promotionMsg').innerHTML = '<div class="msg error">Sélectionnez au moins un produit</div>'; return; }
+  if (value<=0) { document.getElementById('promotionMsg').innerHTML = '<div class="msg error">'+t('err_value_required')+'</div>'; return; }
+  if (!product_ids.length) { document.getElementById('promotionMsg').innerHTML = '<div class="msg error">'+t('err_select_one_product')+'</div>'; return; }
   const payload = {
     boutique_id: CURRENT.id, type: document.getElementById('promotionType').value, value, product_ids,
     starts_at: document.getElementById('promotionStarts').value || null,
@@ -3099,9 +3099,9 @@ function submitPromotionForm(id) {
   });
 }
 function togglePromotion(id, active) { post('/marketing?action=promotion_update', {boutique_id:CURRENT.id, id, active}).then(()=>route()); }
-function deletePromotion(id) { if(!confirm('Supprimer cette promotion ?')) return; post('/marketing?action=promotion_delete', {boutique_id:CURRENT.id, id}).then(()=>route()); }
+function deletePromotion(id) { if(!confirm(t('confirm_delete_promotion'))) return; post('/marketing?action=promotion_delete', {boutique_id:CURRENT.id, id}).then(()=>route()); }
 function moderateReview(id, status) { post('/marketing?action=review_moderate', {boutique_id:CURRENT.id, id, status}).then(()=>route()); }
-function deleteReview(id) { if(!confirm('Supprimer cet avis ?')) return; post('/marketing?action=review_delete', {boutique_id:CURRENT.id, id}).then(()=>route());
+function deleteReview(id) { if(!confirm(t('confirm_delete_review'))) return; post('/marketing?action=review_delete', {boutique_id:CURRENT.id, id}).then(()=>route());
 }
 
 // ============================================================
