@@ -3109,23 +3109,23 @@ function deleteReview(id) { if(!confirm(t('confirm_delete_review'))) return; pos
 // ============================================================
 function renderSettings(bt) {
   document.getElementById('content').innerHTML = `
-    <h2 class="page-title">Général</h2>
+    <h2 class="page-title">${t('settings_title')}</h2>
     <div class="card">
       <div id="settingsMsg"></div>
-      <div class="field"><label>Nom de la boutique</label><input id="setName" value="${escapeHtml(bt.name)}"></div>
-      <div class="field"><label>Description publique</label><textarea id="setDescription" rows="2">${escapeHtml(bt.description||'')}</textarea></div>
-      <div class="field"><label>Logo</label>
+      <div class="field"><label>${t('label_boutique_name')}</label><input id="setName" value="${escapeHtml(bt.name)}"></div>
+      <div class="field"><label>${t('label_public_description')}</label><textarea id="setDescription" rows="2">${escapeHtml(bt.description||'')}</textarea></div>
+      <div class="field"><label>${t('label_logo')}</label>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
           <input type="file" accept="image/*" onchange="handleLogoFile(this)">
-          <label class="btn btn-ghost btn-sm" style="cursor:pointer">📷 Prendre une photo<input type="file" accept="image/*" capture="environment" style="display:none" onchange="handleLogoFile(this)"></label>
+          <label class="btn btn-ghost btn-sm" style="cursor:pointer">${t('btn_take_photo')}<input type="file" accept="image/*" capture="environment" style="display:none" onchange="handleLogoFile(this)"></label>
         </div>
         <div style="margin-top:8px"><img id="setLogoPreview" src="${escapeHtml(bt.logo_url||'')}" style="max-width:100px;max-height:100px;border-radius:8px;display:${bt.logo_url?'block':'none'}"></div>
         <input type="hidden" id="setLogo" value="${escapeHtml(bt.logo_url||'')}">
       </div>
-      <div class="field"><label>Lien public de la boutique</label>
+      <div class="field"><label>${t('label_public_store_link')}</label>
         <div class="field-row">
           <input id="storeLinkInput" value="${window.location.origin + window.location.pathname.replace(/dashboard\/.*/, '')}store/index.html?b=${escapeHtml(bt.slug)}" readonly>
-          <button type="button" class="btn btn-ghost" onclick="copyInput('storeLinkInput')">Copier</button>
+          <button type="button" class="btn btn-ghost" onclick="copyInput('storeLinkInput')">${t('btn_copy')}</button>
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
           <button type="button" class="btn btn-ghost btn-sm" onclick="shareStoreOn('whatsapp')">📲 WhatsApp</button>
@@ -3134,27 +3134,27 @@ function renderSettings(bt) {
           <button type="button" class="btn btn-ghost btn-sm" onclick="shareStoreOn('x')">✖️ X (Twitter)</button>
           <button type="button" class="btn btn-ghost btn-sm" onclick="shareStoreOn('tiktok')">🎵 TikTok</button>
         </div>
-        <div class="muted" style="font-size:12px;margin-top:6px">Chaque bouton ouvre le réseau avec le lien déjà rempli — plus besoin de le recopier à la main. Instagram et TikTok ne permettent pas ce pré-remplissage depuis un site : le lien est copié automatiquement, il ne reste qu'à le coller dans votre bio ou une story/vidéo.</div>
+        <div class="muted" style="font-size:12px;margin-top:6px">${t('share_note')}</div>
       </div>
-      <div class="field"><label>Frais de livraison par défaut (facturé au client)</label><input id="setDeliveryFee" type="number" min="0" value="${bt.default_delivery_fee||0}"></div>
-      <label style="display:flex;align-items:center;gap:8px;margin-bottom:14px"><input type="checkbox" id="setCod" ${bt.cod_enabled?'checked':''}> Paiement à la livraison activé</label>
-      <button class="btn btn-primary" onclick="saveSettings('settingsMsg')">Enregistrer</button>
+      <div class="field"><label>${t('label_default_delivery_fee')}</label><input id="setDeliveryFee" type="number" min="0" value="${bt.default_delivery_fee||0}"></div>
+      <label style="display:flex;align-items:center;gap:8px;margin-bottom:14px"><input type="checkbox" id="setCod" ${bt.cod_enabled?'checked':''}> ${t('checkbox_cod_enabled')}</label>
+      <button class="btn btn-primary" onclick="saveSettings('settingsMsg')">${t('btn_save')}</button>
     </div>
     <div class="card">
-      <h3>Notifications de commande</h3>
+      <h3>${t('order_notifications_title')}</h3>
       <div id="settingsMsg2"></div>
-      <label style="display:flex;align-items:center;gap:8px;margin-bottom:10px"><input type="checkbox" id="setNotifyEmail" ${bt.notify_order_email!=0?'checked':''}> Recevoir un email à chaque nouvelle commande</label>
-      <div class="field"><label>Adresse de réception (vide = email de votre compte)</label><input id="setNotifyAddr" type="email" value="${escapeHtml(bt.notify_email||'')}"></div>
-      <label style="display:flex;align-items:center;gap:8px;margin-bottom:10px"><input type="checkbox" id="setNotifyWhatsapp" ${bt.notify_whatsapp_enabled?'checked':''}> Recevoir une notification WhatsApp à chaque nouvelle commande</label>
-      <div class="field"><label>Numéro WhatsApp (format international, ex: +225 07 00 00 00 00)</label><input id="setNotifyWhatsappNumber" value="${escapeHtml(bt.notify_whatsapp_number||'')}"></div>
-      <div class="muted" style="margin:-6px 0 14px;font-size:12px">En attente d'un numéro WhatsApp Business approuvé — en attendant, le message est journalisé côté serveur pour test.</div>
-      <label style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><input type="checkbox" id="setStockAlert" ${bt.stock_alert_enabled!=0?'checked':''}> M'alerter automatiquement quand un produit passe en stock limité (au plus 1 fois/jour)</label>
-      <button class="btn btn-primary" onclick="saveSettings('settingsMsg2')">Enregistrer</button>
+      <label style="display:flex;align-items:center;gap:8px;margin-bottom:10px"><input type="checkbox" id="setNotifyEmail" ${bt.notify_order_email!=0?'checked':''}> ${t('checkbox_notify_email')}</label>
+      <div class="field"><label>${t('label_receiving_address')}</label><input id="setNotifyAddr" type="email" value="${escapeHtml(bt.notify_email||'')}"></div>
+      <label style="display:flex;align-items:center;gap:8px;margin-bottom:10px"><input type="checkbox" id="setNotifyWhatsapp" ${bt.notify_whatsapp_enabled?'checked':''}> ${t('checkbox_notify_whatsapp')}</label>
+      <div class="field"><label>${t('label_whatsapp_number')}</label><input id="setNotifyWhatsappNumber" value="${escapeHtml(bt.notify_whatsapp_number||'')}"></div>
+      <div class="muted" style="margin:-6px 0 14px;font-size:12px">${t('whatsapp_pending_note')}</div>
+      <label style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><input type="checkbox" id="setStockAlert" ${bt.stock_alert_enabled!=0?'checked':''}> ${t('checkbox_stock_alert')}</label>
+      <button class="btn btn-primary" onclick="saveSettings('settingsMsg2')">${t('btn_save')}</button>
     </div>
     <div class="card">
-      <h3>Sauvegarde</h3>
-      <div class="page-sub" style="margin-bottom:10px">Téléchargez toutes les données de cette boutique (produits, clients, commandes, finances…) dans un seul fichier, au cas où. Les photos ne sont pas incluses (fichier trop volumineux sinon).</div>
-      <button class="btn btn-ghost" onclick="downloadCsv('/boutiques?action=export_backup&boutique_id='+CURRENT.id,'sauvegarde-'+CURRENT.slug+'.json')">⬇️ Exporter une sauvegarde complète</button>
+      <h3>${t('backup_title')}</h3>
+      <div class="page-sub" style="margin-bottom:10px">${t('backup_subtitle')}</div>
+      <button class="btn btn-ghost" onclick="downloadCsv('/boutiques?action=export_backup&boutique_id='+CURRENT.id,'sauvegarde-'+CURRENT.slug+'.json')">${t('btn_export_backup')}</button>
     </div>
   `;
 }
@@ -3187,7 +3187,7 @@ function saveSettings(targetMsgId) {
     stock_alert_enabled:document.getElementById('setStockAlert').checked,
   }).then(({data}) => {
     if (!data.success) { msgEl.innerHTML = '<div class="msg error">'+data.message+'</div>'; return; }
-    msgEl.innerHTML = '<div class="msg success">Enregistré</div>';
+    msgEl.innerHTML = '<div class="msg success">'+t('saved_word')+'</div>';
     loadBoutiques();
   });
 }
@@ -3202,12 +3202,12 @@ function renderTeam(bt) {
     if (!data.success) { document.getElementById('content').innerHTML = '<div class="card">'+escapeHtml(data.message)+'</div>'; return; }
     const rows = data.data || [];
     document.getElementById('content').innerHTML = `
-      <div class="row-between"><div><h2 class="page-title">Équipe</h2><div class="page-sub">Invitez des collègues à gérer la boutique avec vous. Chacun garde son propre compte.</div></div>
-        <button class="btn btn-primary" onclick="openInviteForm()">+ Inviter un membre</button></div>
-      <div class="card"><table><thead><tr><th>Nom</th><th>Email</th><th>Rôle</th><th>Statut</th><th></th></tr></thead><tbody>
+      <div class="row-between"><div><h2 class="page-title">${t('team_title')}</h2><div class="page-sub">${t('team_subtitle')}</div></div>
+        <button class="btn btn-primary" onclick="openInviteForm()">${t('btn_invite_member')}</button></div>
+      <div class="card"><table><thead><tr><th>${t('col_full_name')}</th><th>${t('col_email')}</th><th>${t('label_role')}</th><th>${t('col_status')}</th><th></th></tr></thead><tbody>
         ${rows.map(m=>`<tr><td>${escapeHtml(m.full_name||'—')}</td><td>${escapeHtml(m.email)}</td><td>${ROLE_LABELS_FN()[m.role]||m.role}</td>
-          <td>${m.status==='active'?'<span class="pill pill-delivered">Actif</span>':'<span class="pill pill-pending">En attente</span>'}</td>
-          <td>${m.id?'<button class="btn btn-ghost btn-sm" onclick="removeTeamMember(\''+m.id+'\')">Retirer</button>':''}</td></tr>`).join('')}
+          <td>${m.status==='active'?'<span class="pill pill-delivered">'+t('status_active')+'</span>':'<span class="pill pill-pending">'+t('status_pending')+'</span>'}</td>
+          <td>${m.id?'<button class="btn btn-ghost btn-sm" onclick="removeTeamMember(\''+m.id+'\')">'+t('btn_remove')+'</button>':''}</td></tr>`).join('')}
       </tbody></table></div>
     `;
   });
@@ -3215,23 +3215,23 @@ function renderTeam(bt) {
 function openInviteForm() {
   api('/deliveries?action=persons&boutique_id='+CURRENT.id).then(({data}) => {
     const persons = (data.data || []).filter(p=>p.active);
-    openModal(`<h2>Inviter un membre</h2>
+    openModal(`<h2>${t('modal_invite_member')}</h2>
       <div id="inviteMsg"></div>
-      <div class="field"><label>Email</label><input id="inviteEmail" type="email" placeholder="collegue@exemple.com"></div>
-      <div class="field"><label>Rôle</label><select id="inviteRole" onchange="toggleInviteDeliveryPerson()">
-        <option value="admin">Admin — accès complet à toute la boutique</option>
-        <option value="manager" selected>Manager — tout sauf équipe et paramètres</option>
-        <option value="livreur">Livreur — voit les livraisons</option>
-        <option value="closeuse">Closeuse — commandes, clients, stock</option>
-        <option value="comptable">Comptable — finances et analytique</option>
+      <div class="field"><label>${t('col_email')}</label><input id="inviteEmail" type="email" placeholder="${t('placeholder_colleague_email')}"></div>
+      <div class="field"><label>${t('label_role')}</label><select id="inviteRole" onchange="toggleInviteDeliveryPerson()">
+        <option value="admin">${t('role_admin_desc')}</option>
+        <option value="manager" selected>${t('role_manager_desc')}</option>
+        <option value="livreur">${t('role_livreur_desc')}</option>
+        <option value="closeuse">${t('role_closeuse_desc')}</option>
+        <option value="comptable">${t('role_comptable_desc')}</option>
       </select></div>
       <div class="field" id="inviteDeliveryPersonField" style="display:none">
-        <label>Fiche livreur associée (pour ne voir que ses livraisons)</label>
-        <select id="inviteDeliveryPerson"><option value="">— aucune (verra ses livraisons dès qu'un admin le liera plus tard)</option>
+        <label>${t('label_linked_delivery_person')}</label>
+        <select id="inviteDeliveryPerson"><option value="">${t('none_will_link_later')}</option>
           ${persons.map(p=>'<option value="'+p.id+'">'+escapeHtml(p.name)+'</option>').join('')}
         </select>
       </div>
-      <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal()">Annuler</button><button class="btn btn-primary" onclick="submitInvite()">Envoyer l'invitation</button></div>`);
+      <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal()">${t('btn_cancel')}</button><button class="btn btn-primary" onclick="submitInvite()">${t('btn_send_invite')}</button></div>`);
   });
 }
 function toggleInviteDeliveryPerson() {
@@ -3245,12 +3245,12 @@ function submitInvite() {
   post('/team?action=invite', {boutique_id:CURRENT.id, email, role, delivery_person_id: dpField ? dpField.value : '',
     page_url: window.location.origin + window.location.pathname.replace(/dashboard\/.*/, '')}).then(({data}) => {
     if (!data.success) { document.getElementById('inviteMsg').innerHTML = '<div class="msg error">'+data.message+'</div>'; return; }
-    if (data.data && data.data.invite_link_dev_only) showToast('Mode développement — lien direct : '+data.data.invite_link_dev_only, 'info');
+    if (data.data && data.data.invite_link_dev_only) showToast(t('dev_mode_link_prefix')+data.data.invite_link_dev_only, 'info');
     closeModal(); route();
   });
 }
 function removeTeamMember(id) {
-  if (!confirm('Retirer ce membre de la boutique ?')) return;
+  if (!confirm(t('confirm_remove_member'))) return;
   post('/team?action=remove', {boutique_id:CURRENT.id, id}).then(()=>route());
 }
 
@@ -3263,16 +3263,16 @@ function renderProfile() {
     if (!data.success) { document.getElementById('content').innerHTML = '<div class="card">'+escapeHtml(data.message)+'</div>'; return; }
     const u = data.data;
     document.getElementById('content').innerHTML = `
-      <h2 class="page-title">Mon profil</h2>
+      <h2 class="page-title">${t('profile_title')}</h2>
       <div class="card">
         <div id="profileMsg"></div>
-        <div class="field"><label>Nom complet</label><input id="profName" value="${escapeHtml(u.full_name||'')}"></div>
-        <div class="field"><label>Email</label><input value="${escapeHtml(u.email)}" readonly></div>
-        <div class="field"><label>Nouveau mot de passe (laisser vide pour ne pas changer)</label>
-          <div class="password-wrap"><input id="profPassword" type="password" placeholder="6 caractères minimum">
+        <div class="field"><label>${t('label_full_name')}</label><input id="profName" value="${escapeHtml(u.full_name||'')}"></div>
+        <div class="field"><label>${t('col_email')}</label><input value="${escapeHtml(u.email)}" readonly></div>
+        <div class="field"><label>${t('label_new_password')}</label>
+          <div class="password-wrap"><input id="profPassword" type="password" placeholder="${t('placeholder_min_6_chars')}">
             <button type="button" class="pw-toggle" onclick="togglePasswordVisibility('profPassword', this)">🙈</button></div>
         </div>
-        <button class="btn btn-primary" onclick="saveProfile()">Enregistrer</button>
+        <button class="btn btn-primary" onclick="saveProfile()">${t('btn_save')}</button>
       </div>
     `;
   });
@@ -3283,7 +3283,7 @@ function saveProfile() {
   if (pwd) payload.new_password = pwd;
   post('/auth?action=profile_update', payload).then(({data}) => {
     if (!data.success) { document.getElementById('profileMsg').innerHTML = '<div class="msg error">'+data.message+'</div>'; return; }
-    document.getElementById('profileMsg').innerHTML = '<div class="msg success">Profil mis à jour</div>';
+    document.getElementById('profileMsg').innerHTML = '<div class="msg success">'+t('profile_updated')+'</div>';
     document.getElementById('profPassword').value = '';
     USER.full_name = payload.full_name;
     localStorage.setItem('myboutik_user', JSON.stringify(USER));
