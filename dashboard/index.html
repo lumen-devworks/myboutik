@@ -2735,47 +2735,47 @@ function renderStock(bt) {
   api('/products?action=list&boutique_id='+bt.id).then(({data}) => {
     const rows = data.data || [];
     document.getElementById('content').innerHTML = `
-      <h2 class="page-title">Stock</h2><div class="page-sub">Ajustez les quantités en stock.</div>
-      <div class="card">${rows.length ? `<table><thead><tr><th>Produit</th><th>Stock actuel</th><th>Ajuster</th></tr></thead><tbody>
+      <h2 class="page-title">${t('stock_title')}</h2><div class="page-sub">${t('stock_subtitle')}</div>
+      <div class="card">${rows.length ? `<table><thead><tr><th>${t('col_product')}</th><th>${t('col_current_stock')}</th><th>${t('col_adjust')}</th></tr></thead><tbody>
         ${rows.map(p=>{
           const low = p.track_inventory && Number(p.stock_qty) <= Number(p.low_stock_threshold ?? 5);
-          return `<tr><td>${escapeHtml(p.name)}</td><td>${p.stock_qty}${low?' <span class="pill pill-pending">limité</span>':''}</td>
+          return `<tr><td>${escapeHtml(p.name)}</td><td>${p.stock_qty}${low?' <span class="pill pill-pending">'+t('limited_word')+'</span>':''}</td>
           <td><button class="btn btn-ghost btn-sm" onclick="adjustStock('${p.id}',-1)">-1</button>
               <button class="btn btn-ghost btn-sm" onclick="adjustStock('${p.id}',1)">+1</button>
-              <button class="btn btn-ghost btn-sm" onclick="adjustStockCustom('${p.id}')">Autre…</button>
-              ${low?'<button class="btn btn-primary btn-sm" onclick="goReorder(\''+p.id+'\')">Commander</button>':''}</td></tr>`;
+              <button class="btn btn-ghost btn-sm" onclick="adjustStockCustom('${p.id}')">${t('btn_other_ellipsis')}</button>
+              ${low?'<button class="btn btn-primary btn-sm" onclick="goReorder(\''+p.id+'\')">'+t('btn_order')+'</button>':''}</td></tr>`;
         }).join('')}
-        </tbody></table>` : '<div class="empty">Aucun produit.</div>'}</div>
+        </tbody></table>` : '<div class="empty">'+t('no_products')+'</div>'}</div>
     `;
   });
 }
 function adjustStock(id, delta) { post('/products?action=stock_adjust', {boutique_id:CURRENT.id, id, delta}).then(()=>route()); }
-function adjustStockCustom(id) { const v = prompt('Ajuster le stock de combien (ex: -5 ou 10) ?'); if (v===null || isNaN(Number(v))) return; adjustStock(id, Number(v)); }
+function adjustStockCustom(id) { const v = prompt(t('prompt_adjust_stock')); if (v===null || isNaN(Number(v))) return; adjustStock(id, Number(v)); }
 
 function renderSuppliers(bt) {
   document.getElementById('content').innerHTML = '<div class="empty">Chargement…</div>';
   api('/products?action=suppliers_list&boutique_id='+bt.id).then(({data}) => {
     const rows = data.data || [];
     document.getElementById('content').innerHTML = `
-      <div class="row-between"><div><h2 class="page-title">Fournisseurs</h2></div><button class="btn btn-primary" onclick="openSupplierForm()">+ Nouveau fournisseur</button></div>
-      <div class="card">${rows.length ? `<table><thead><tr><th>Nom</th><th>Téléphone</th><th>Notes</th><th></th></tr></thead><tbody>
+      <div class="row-between"><div><h2 class="page-title">${t('suppliers_title')}</h2></div><button class="btn btn-primary" onclick="openSupplierForm()">${t('btn_new_supplier')}</button></div>
+      <div class="card">${rows.length ? `<table><thead><tr><th>${t('col_name')}</th><th>${t('label_phone')}</th><th>${t('col_notes')}</th><th></th></tr></thead><tbody>
         ${rows.map(s=>`<tr><td>${escapeHtml(s.name)}</td><td>${escapeHtml(s.phone||'')}</td><td>${escapeHtml(s.notes||'')}</td>
-          <td><button class="btn btn-danger btn-sm" onclick="deleteSupplier('${s.id}')">Suppr.</button></td></tr>`).join('')}
-        </tbody></table>` : '<div class="empty"><div class="big">🚛</div>Aucun fournisseur.</div>'}</div>
+          <td><button class="btn btn-danger btn-sm" onclick="deleteSupplier('${s.id}')">${t('btn_delete_short')}</button></td></tr>`).join('')}
+        </tbody></table>` : '<div class="empty"><div class="big">🚛</div>'+t('no_suppliers')+'</div>'}</div>
     `;
   });
 }
 function openSupplierForm() {
-  openModal(`<h2>Nouveau fournisseur</h2><div class="field"><label>Nom</label><input id="supName"></div>
-    <div class="field"><label>Téléphone</label><input id="supPhone"></div>
-    <div class="field"><label>Notes</label><textarea id="supNotes" rows="2"></textarea></div>
-    <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal()">Annuler</button><button class="btn btn-primary" onclick="submitSupplierForm()">Créer</button></div>`);
+  openModal(`<h2>${t('modal_new_supplier')}</h2><div class="field"><label>${t('col_name')}</label><input id="supName"></div>
+    <div class="field"><label>${t('label_phone')}</label><input id="supPhone"></div>
+    <div class="field"><label>${t('col_notes')}</label><textarea id="supNotes" rows="2"></textarea></div>
+    <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal()">${t('btn_cancel')}</button><button class="btn btn-primary" onclick="submitSupplierForm()">${t('btn_create')}</button></div>`);
 }
 function submitSupplierForm() {
   const name = document.getElementById('supName').value.trim(); if(!name) return;
   post('/products?action=supplier_create', {boutique_id:CURRENT.id, name, phone:document.getElementById('supPhone').value.trim(), notes:document.getElementById('supNotes').value.trim()}).then(()=>{closeModal(); route();});
 }
-function deleteSupplier(id) { if(!confirm('Supprimer ce fournisseur ?')) return; post('/products?action=supplier_delete', {boutique_id:CURRENT.id, id}).then(()=>route()); }
+function deleteSupplier(id) { if(!confirm(t('confirm_delete_supplier'))) return; post('/products?action=supplier_delete', {boutique_id:CURRENT.id, id}).then(()=>route()); }
 
 function renderSupplierOrders(bt) {
   document.getElementById('content').innerHTML = '<div class="empty">Chargement…</div>';
@@ -2783,14 +2783,14 @@ function renderSupplierOrders(bt) {
     .then(([so, sup, prod]) => {
       const rows = so.data.data || []; const suppliers = sup.data.data || []; const products = prod.data.data || [];
       document.getElementById('content').innerHTML = `
-        <div class="row-between"><div><h2 class="page-title">Commandes fournisseurs</h2></div>
-          <button class="btn btn-primary" onclick="openSupplierOrderForm(${JSON.stringify(suppliers).replace(/"/g,'&quot;')},${JSON.stringify(products).replace(/"/g,'&quot;')})">+ Nouvelle commande</button></div>
-        ${suppliers.length===0 ? '<div class="card" style="background:var(--amber-bg);border-color:#fde68a">⚠️ Ajoutez d\'abord un fournisseur (page <a href="#/'+bt.slug+'/products/suppliers" style="font-weight:600">Fournisseurs</a>) avant de pouvoir passer une commande.</div>' : ''}
-        <div class="card">${rows.length ? `<table><thead><tr><th>Fournisseur</th><th>Produit</th><th>Qté</th><th>Coût unitaire</th><th>Statut</th><th></th></tr></thead><tbody>
+        <div class="row-between"><div><h2 class="page-title">${t('supplier_orders_title')}</h2></div>
+          <button class="btn btn-primary" onclick="openSupplierOrderForm(${JSON.stringify(suppliers).replace(/"/g,'&quot;')},${JSON.stringify(products).replace(/"/g,'&quot;')})">${t('btn_new_supplier_order')}</button></div>
+        ${suppliers.length===0 ? '<div class="card" style="background:var(--amber-bg);border-color:#fde68a">'+t('add_supplier_first_warning_prefix')+'<a href="#/'+bt.slug+'/products/suppliers" style="font-weight:600">'+t('suppliers_link_text')+'</a>'+t('before_order_suffix')+'</div>' : ''}
+        <div class="card">${rows.length ? `<table><thead><tr><th>${t('col_supplier')}</th><th>${t('col_product')}</th><th>${t('col_qty_short')}</th><th>${t('col_unit_cost')}</th><th>${t('col_status')}</th><th></th></tr></thead><tbody>
           ${rows.map(r=>`<tr><td>${escapeHtml(r.supplier_name)}</td><td>${escapeHtml(r.product_name||'—')}</td><td>${r.qty}</td><td>${fmtMoney(r.unit_cost, bt.currency)}</td>
             <td>${pill(r.status==='received'?'delivered':(r.status==='cancelled'?'cancelled':'pending'))}</td>
-            <td>${r.status==='pending' ? '<button class="btn btn-ghost btn-sm" onclick="supplierOrderStatus(\''+r.id+'\',\'received\')">Reçue</button> <button class="btn btn-ghost btn-sm" onclick="supplierOrderStatus(\''+r.id+'\',\'cancelled\')">Annuler</button>' : ''}</td></tr>`).join('')}
-          </tbody></table>` : '<div class="empty">Aucune commande fournisseur.</div>'}</div>
+            <td>${r.status==='pending' ? '<button class="btn btn-ghost btn-sm" onclick="supplierOrderStatus(\''+r.id+'\',\'received\')">'+t('btn_received')+'</button> <button class="btn btn-ghost btn-sm" onclick="supplierOrderStatus(\''+r.id+'\',\'cancelled\')">'+t('btn_cancel_order')+'</button>' : ''}</td></tr>`).join('')}
+          </tbody></table>` : '<div class="empty">'+t('no_supplier_orders')+'</div>'}</div>
       `;
       // Arrivee depuis le bouton "Commander" d'un produit en stock bas
       // (voir goReorder) : ouvre directement le formulaire pre-rempli au
@@ -2799,7 +2799,7 @@ function renderSupplierOrders(bt) {
         const preselectId = window.__reorderProductId;
         window.__reorderProductId = null;
         if (suppliers.length === 0) {
-          showToast('Ajoutez d\'abord un fournisseur avant de passer une commande de réapprovisionnement.', 'info');
+          showToast(t('add_supplier_before_reorder'), 'info');
         } else {
           openSupplierOrderForm(suppliers, products, preselectId);
         }
@@ -2807,15 +2807,15 @@ function renderSupplierOrders(bt) {
     });
 }
 function openSupplierOrderForm(suppliers, products, preselectProductId) {
-  if (!suppliers.length) { showToast('Ajoutez d\'abord un fournisseur (page Fournisseurs) avant de passer une commande.', 'info'); return; }
+  if (!suppliers.length) { showToast(t('add_supplier_before_order'), 'info'); return; }
   const preselect = preselectProductId ? products.find(p=>p.id===preselectProductId) : null;
   const suggestedQty = preselect ? Math.max(1, Number(preselect.low_stock_threshold ?? 5) * 2 - Number(preselect.stock_qty)) : 1;
-  openModal(`<h2>Nouvelle commande fournisseur</h2>
-    <div class="field"><label>Fournisseur</label><select id="soSupplier">${suppliers.map(s=>'<option value="'+s.id+'">'+escapeHtml(s.name)+'</option>').join('')}</select></div>
-    <div class="field"><label>Produit</label><select id="soProduct"><option value="">—</option>${products.map(p=>'<option value="'+p.id+'" '+(p.id===preselectProductId?'selected':'')+'>'+escapeHtml(p.name)+'</option>').join('')}</select></div>
-    <div class="field-row"><div class="field"><label>Quantité</label><input id="soQty" type="number" min="1" value="${preselect?suggestedQty:1}"></div>
-      <div class="field"><label>Coût unitaire</label><input id="soCost" type="number" min="0" value="${preselect && preselect.cost_price!=null ? preselect.cost_price : ''}"></div></div>
-    <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal()">Annuler</button><button class="btn btn-primary" onclick="submitSupplierOrderForm()">Créer</button></div>`);
+  openModal(`<h2>${t('modal_new_supplier_order')}</h2>
+    <div class="field"><label>${t('col_supplier')}</label><select id="soSupplier">${suppliers.map(s=>'<option value="'+s.id+'">'+escapeHtml(s.name)+'</option>').join('')}</select></div>
+    <div class="field"><label>${t('label_product')}</label><select id="soProduct"><option value="">—</option>${products.map(p=>'<option value="'+p.id+'" '+(p.id===preselectProductId?'selected':'')+'>'+escapeHtml(p.name)+'</option>').join('')}</select></div>
+    <div class="field-row"><div class="field"><label>${t('label_qty')}</label><input id="soQty" type="number" min="1" value="${preselect?suggestedQty:1}"></div>
+      <div class="field"><label>${t('col_unit_cost')}</label><input id="soCost" type="number" min="0" value="${preselect && preselect.cost_price!=null ? preselect.cost_price : ''}"></div></div>
+    <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal()">${t('btn_cancel')}</button><button class="btn btn-primary" onclick="submitSupplierOrderForm()">${t('btn_create')}</button></div>`);
 }
 function submitSupplierOrderForm() {
   post('/products?action=supplier_order_create', {boutique_id:CURRENT.id, supplier_id:document.getElementById('soSupplier').value,
