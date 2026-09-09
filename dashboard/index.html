@@ -2835,7 +2835,7 @@ function renderReports(bt, period) {
     const R = data.data;
     window.__reportsData = R; window.__reportsPeriod = period;
     document.getElementById('content').innerHTML = `
-      <div class="row-between"><div><h2 class="page-title">Rapports de ventes</h2><div class="page-sub">Suivez les performances de votre boutique.</div></div>
+      <div class="row-between"><div><h2 class="page-title">${t('reports_title')}</h2><div class="page-sub">${t('reports_subtitle')}</div></div>
         <div style="display:flex;gap:8px;align-items:center">
           <button class="btn btn-ghost btn-sm" onclick="downloadCsv('/analytics?action=export&boutique_id=${bt.id}&period=${period}','rapport-ventes-${bt.slug}.csv')">⬇️ CSV</button>
           <button class="btn btn-ghost btn-sm" onclick="downloadCsv('/analytics?action=export_excel&boutique_id=${bt.id}&period=${period}','rapport-ventes-${bt.slug}.xls')">⬇️ Excel</button>
@@ -2843,26 +2843,26 @@ function renderReports(bt, period) {
           ${periodSelectHtml('reportPeriod', period)}
         </div></div>
       <div class="kpi-grid">
-        <div class="kpi"><div class="lbl">Ventes brutes</div><div class="val">${fmtMoney(R.ventes_brutes, bt.currency)}</div></div>
-        <div class="kpi"><div class="lbl">Commandes</div><div class="val">${R.commandes}</div></div>
-        <div class="kpi"><div class="lbl">Panier moyen</div><div class="val">${fmtMoney(R.panier_moyen, bt.currency)}</div></div>
-        <div class="kpi"><div class="lbl">Livrées</div><div class="val">${R.livrees}</div></div>
+        <div class="kpi"><div class="lbl">${t('kpi_gross_sales')}</div><div class="val">${fmtMoney(R.ventes_brutes, bt.currency)}</div></div>
+        <div class="kpi"><div class="lbl">${t('kpi_orders')}</div><div class="val">${R.commandes}</div></div>
+        <div class="kpi"><div class="lbl">${t('kpi_avg_cart2')}</div><div class="val">${fmtMoney(R.panier_moyen, bt.currency)}</div></div>
+        <div class="kpi"><div class="lbl">${t('kpi_delivered')}</div><div class="val">${R.livrees}</div></div>
       </div>
-      <div class="card"><h3>Décomposition</h3>
+      <div class="card"><h3>${t('breakdown_title')}</h3>
         <table><tbody>
-          <tr><td>Ventes brutes</td><td>${fmtMoney(R.decomposition.ventes_brutes, bt.currency)}</td></tr>
-          <tr><td>Retours</td><td>-${fmtMoney(R.decomposition.retours, bt.currency)}</td></tr>
-          <tr><td>Ventes nettes</td><td>${fmtMoney(R.decomposition.ventes_nettes, bt.currency)}</td></tr>
-          <tr><td>Frais de livraison (client)</td><td>${fmtMoney(R.decomposition.frais_livraison, bt.currency)}</td></tr>
-          <tr><td><strong>Total</strong></td><td><strong>${fmtMoney(R.decomposition.total, bt.currency)}</strong></td></tr>
+          <tr><td>${t('row_gross_sales')}</td><td>${fmtMoney(R.decomposition.ventes_brutes, bt.currency)}</td></tr>
+          <tr><td>${t('row_returns')}</td><td>-${fmtMoney(R.decomposition.retours, bt.currency)}</td></tr>
+          <tr><td>${t('row_net_sales')}</td><td>${fmtMoney(R.decomposition.ventes_nettes, bt.currency)}</td></tr>
+          <tr><td>${t('row_delivery_fee_customer')}</td><td>${fmtMoney(R.decomposition.frais_livraison, bt.currency)}</td></tr>
+          <tr><td><strong>${t('row_total')}</strong></td><td><strong>${fmtMoney(R.decomposition.total, bt.currency)}</strong></td></tr>
         </tbody></table>
       </div>
-      <div class="card"><h3>Meilleures ventes</h3>
-        ${R.best_sellers.length ? '<table><thead><tr><th>Produit</th><th>Qté</th><th>Revenu</th></tr></thead><tbody>'+R.best_sellers.map(p=>'<tr><td>'+escapeHtml(p.product_name||'—')+'</td><td>'+p.qty+'</td><td>'+fmtMoney(p.revenue,bt.currency)+'</td></tr>').join('')+'</tbody></table>' : '<div class="empty">Aucune donnée trouvée pour cette plage de dates.</div>'}
+      <div class="card"><h3>${t('best_sellers_title')}</h3>
+        ${R.best_sellers.length ? '<table><thead><tr><th>'+t('col_product')+'</th><th>'+t('col_qty_sold')+'</th><th>'+t('col_revenue')+'</th></tr></thead><tbody>'+R.best_sellers.map(p=>'<tr><td>'+escapeHtml(p.product_name||'—')+'</td><td>'+p.qty+'</td><td>'+fmtMoney(p.revenue,bt.currency)+'</td></tr>').join('')+'</tbody></table>' : '<div class="empty">'+t('no_data_period')+'</div>'}
       </div>
-      <div class="card"><h3>Données UTM (Meta, etc.)</h3>
-        ${R.utm.length ? '<table><thead><tr><th>Source</th><th>Campagne</th><th>Commandes</th><th>Ventes</th></tr></thead><tbody>'+R.utm.map(u=>'<tr><td>'+escapeHtml(u.utm_source||'—')+'</td><td>'+escapeHtml(u.utm_campaign||'—')+'</td><td>'+u.commandes+'</td><td>'+fmtMoney(u.ventes,bt.currency)+'</td></tr>').join('')+'</tbody></table>'
-        : '<div class="empty" style="text-align:left">Aucune donnée de campagne. Les commandes n\'atterrissent avec une campagne que si le lien de votre publicité porte des paramètres UTM. Dans Meta, renseignez le champ "Paramètres d\'URL" de votre publicité avec :<br><code>utm_source=facebook&utm_medium=paid&utm_campaign={{campaign.id}}</code></div>'}
+      <div class="card"><h3>${t('utm_data_title')}</h3>
+        ${R.utm.length ? '<table><thead><tr><th>'+t('col_source')+'</th><th>'+t('col_campaign')+'</th><th>'+t('col_orders_count')+'</th><th>'+t('kpi_gross_sales')+'</th></tr></thead><tbody>'+R.utm.map(u=>'<tr><td>'+escapeHtml(u.utm_source||'—')+'</td><td>'+escapeHtml(u.utm_campaign||'—')+'</td><td>'+u.commandes+'</td><td>'+fmtMoney(u.ventes,bt.currency)+'</td></tr>').join('')+'</tbody></table>'
+        : '<div class="empty" style="text-align:left">'+t('no_campaign_data')+'<br><code>utm_source=facebook&utm_medium=paid&utm_campaign={{campaign.id}}</code></div>'}
       </div>
     `;
     window.__periodChange = p => renderReports(bt, p);
@@ -2872,16 +2872,16 @@ function printReportsPdf() {
   const R = window.__reportsData;
   if (!R) return;
   const kpis = `<div class="kpis">
-      <div class="kpi"><div class="lbl">Ventes brutes</div><div class="val">${fmtMoney(R.ventes_brutes, CURRENT.currency)}</div></div>
-      <div class="kpi"><div class="lbl">Commandes</div><div class="val">${R.commandes}</div></div>
-      <div class="kpi"><div class="lbl">Panier moyen</div><div class="val">${fmtMoney(R.panier_moyen, CURRENT.currency)}</div></div>
-      <div class="kpi"><div class="lbl">Livrées</div><div class="val">${R.livrees}</div></div>
+      <div class="kpi"><div class="lbl">${t('kpi_gross_sales')}</div><div class="val">${fmtMoney(R.ventes_brutes, CURRENT.currency)}</div></div>
+      <div class="kpi"><div class="lbl">${t('kpi_orders')}</div><div class="val">${R.commandes}</div></div>
+      <div class="kpi"><div class="lbl">${t('kpi_avg_cart2')}</div><div class="val">${fmtMoney(R.panier_moyen, CURRENT.currency)}</div></div>
+      <div class="kpi"><div class="lbl">${t('kpi_delivered')}</div><div class="val">${R.livrees}</div></div>
     </div>`;
-  const bestSellers = R.best_sellers.length ? `<h3 style="font-size:14px">Meilleures ventes</h3>
-    <table><thead><tr><th>Produit</th><th>Qté</th><th>Revenu</th></tr></thead><tbody>
+  const bestSellers = R.best_sellers.length ? `<h3 style="font-size:14px">${t('best_sellers_title')}</h3>
+    <table><thead><tr><th>${t('col_product')}</th><th>${t('col_qty_sold')}</th><th>${t('col_revenue')}</th></tr></thead><tbody>
     ${R.best_sellers.map(p=>'<tr><td>'+escapeHtml(p.product_name||'—')+'</td><td>'+p.qty+'</td><td>'+fmtMoney(p.revenue,CURRENT.currency)+'</td></tr>').join('')}
     </tbody></table>` : '';
-  openPrintReport('Rapport de ventes', PERIOD_LABELS_FN()[window.__reportsPeriod]||'', kpis+bestSellers);
+  openPrintReport(t('reports_title'), PERIOD_LABELS_FN()[window.__reportsPeriod]||'', kpis+bestSellers);
 }
 function renderLive(bt) {
   document.getElementById('content').innerHTML = '<div class="empty">Chargement…</div>';
@@ -2892,18 +2892,18 @@ function renderLive(bt) {
       document.getElementById('content').innerHTML = `
         <div class="card" style="background:linear-gradient(135deg,#1d4ed8,#2563eb);color:#fff">
           <div style="display:flex;justify-content:space-between;align-items:center">
-            <div><span style="background:rgba(255,255,255,.2);padding:3px 10px;border-radius:999px;font-size:12px">● EN DIRECT</span>
-              <h2 style="margin-top:8px">Activité en direct</h2></div>
-            <div style="font-size:13px">${new Date(L.server_time).toLocaleString('fr-FR')}</div>
+            <div><span style="background:rgba(255,255,255,.2);padding:3px 10px;border-radius:999px;font-size:12px">${t('live_badge')}</span>
+              <h2 style="margin-top:8px">${t('live_activity_title')}</h2></div>
+            <div style="font-size:13px">${new Date(L.server_time).toLocaleString(LANG === 'en' ? 'en-US' : 'fr-FR')}</div>
           </div>
         </div>
         <div class="kpi-grid">
-          <div class="kpi"><div class="lbl">Commandes aujourd'hui</div><div class="val">${L.commandes_aujourdhui}</div></div>
-          <div class="kpi"><div class="lbl">Revenus aujourd'hui</div><div class="val">${fmtMoney(L.revenus_aujourdhui, bt.currency)}</div></div>
-          <div class="kpi"><div class="lbl">Panier moyen</div><div class="val">${fmtMoney(L.panier_moyen, bt.currency)}</div></div>
+          <div class="kpi"><div class="lbl">${t('kpi_orders_today')}</div><div class="val">${L.commandes_aujourdhui}</div></div>
+          <div class="kpi"><div class="lbl">${t('kpi_revenue_today')}</div><div class="val">${fmtMoney(L.revenus_aujourdhui, bt.currency)}</div></div>
+          <div class="kpi"><div class="lbl">${t('kpi_avg_cart2')}</div><div class="val">${fmtMoney(L.panier_moyen, bt.currency)}</div></div>
         </div>
-        <div class="card"><h3>Commandes récentes</h3>${renderOrdersTable(L.commandes_recentes, bt, true)}</div>
-        <div class="card"><h3>Flux d'activité</h3>${L.activite.length ? L.activite.map(a=>'<div style="padding:8px 0;border-bottom:1px solid var(--border);font-size:13px"><span class="muted">'+fmtDate(a.created_at)+'</span> — '+escapeHtml(a.message)+'</div>').join('') : '<div class="empty">Aucune commande pour l\'instant.</div>'}</div>
+        <div class="card"><h3>${t('recent_orders_title')}</h3>${renderOrdersTable(L.commandes_recentes, bt, true)}</div>
+        <div class="card"><h3>${t('activity_feed_title')}</h3>${L.activite.length ? L.activite.map(a=>'<div style="padding:8px 0;border-bottom:1px solid var(--border);font-size:13px"><span class="muted">'+fmtDate(a.created_at)+'</span> — '+escapeHtml(a.message)+'</div>').join('') : '<div class="empty">'+t('no_orders_yet')+'</div>'}</div>
       `;
     });
   }
@@ -2921,13 +2921,13 @@ function renderHistory(bt) {
     if (!data.success) { document.getElementById('content').innerHTML = '<div class="card">'+escapeHtml(data.message)+'</div>'; return; }
     const rows = data.data || [];
     document.getElementById('content').innerHTML = `
-      <h2 class="page-title">Historique</h2>
-      <div class="page-sub">Les 300 dernières actions sur cette boutique — qui a fait quoi, et quand.</div>
-      <div class="card">${rows.length ? `<table><thead><tr><th>Date</th><th>Heure</th><th>Auteur</th><th>Action</th></tr></thead><tbody>
-        ${rows.map(a=>{ const d = new Date(a.created_at); return `<tr>
-          <td>${d.toLocaleDateString('fr-FR')}</td><td>${d.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit',second:'2-digit'})}</td>
-          <td>${escapeHtml(a.actor_email || 'Client (vitrine)')}</td><td>${escapeHtml(a.message)}</td></tr>`; }).join('')}
-        </tbody></table>` : '<div class="empty"><div class="big">🕒</div>Aucune activité enregistrée pour l\'instant.</div>'}</div>
+      <h2 class="page-title">${t('history_title')}</h2>
+      <div class="page-sub">${t('history_subtitle')}</div>
+      <div class="card">${rows.length ? `<table><thead><tr><th>${t('col_date')}</th><th>${t('col_time')}</th><th>${t('col_author')}</th><th>${t('col_action')}</th></tr></thead><tbody>
+        ${rows.map(a=>{ const d = new Date(a.created_at); const locale = LANG === 'en' ? 'en-US' : 'fr-FR'; return `<tr>
+          <td>${d.toLocaleDateString(locale)}</td><td>${d.toLocaleTimeString(locale,{hour:'2-digit',minute:'2-digit',second:'2-digit'})}</td>
+          <td>${escapeHtml(a.actor_email || t('customer_storefront_word'))}</td><td>${escapeHtml(a.message)}</td></tr>`; }).join('')}
+        </tbody></table>` : '<div class="empty"><div class="big">🕒</div>'+t('no_activity_recorded')+'</div>'}</div>
     `;
   });
 }
