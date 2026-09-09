@@ -34,6 +34,9 @@
   th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--border)}
   th{color:var(--gray);font-size:12px;text-transform:uppercase}
   .top{display:none}
+  .lang-switch{display:flex;gap:3px;background:var(--bg);border:1px solid var(--border);border-radius:999px;padding:3px;margin-bottom:16px}
+  .lang-switch button{background:none;color:var(--gray);border:none;padding:6px 10px;font-size:11px;font-weight:700;border-radius:999px;cursor:pointer;flex:1}
+  .lang-switch button.active{background:var(--blue);color:#fff}
   @media (max-width: 820px){
     .layout{display:block}
     nav{position:static;width:auto;max-height:none;border-bottom:1px solid var(--border)}
@@ -45,6 +48,8 @@
 <div class="layout">
   <nav>
     <div class="brand"><div class="mark">M</div> MYBOUTIK</div>
+    <div class="lang-switch"><button type="button" id="langFr" onclick="setLang('fr')">FR</button><button type="button" id="langEn" onclick="setLang('en')">EN</button></div>
+    <div id="navFr">
     <a href="#compte"><span class="num">1</span>Créer son compte</a>
     <a href="#boutique"><span class="num">2</span>Créer une boutique</a>
     <a href="#produits"><span class="num">3</span>Ajouter des produits</a>
@@ -64,8 +69,32 @@
     <a href="#grade"><span class="num">17</span>Mon grade</a>
     <a href="#marketing-avance"><span class="num">18</span>Codes promo & avis clients</a>
     <a href="#faq"><span class="num">19</span>Questions fréquentes</a>
+    </div>
+    <div id="navEn" style="display:none">
+    <a href="#compte-en"><span class="num">1</span>Create your account</a>
+    <a href="#boutique-en"><span class="num">2</span>Create a shop</a>
+    <a href="#produits-en"><span class="num">3</span>Add products</a>
+    <a href="#variantes-en"><span class="num">4</span>Variants (Size, Color…)</a>
+    <a href="#general-en"><span class="num">5</span>Customize (logo, delivery)</a>
+    <a href="#partager-en"><span class="num">6</span>Share your shop</a>
+    <a href="#commandes-en"><span class="num">7</span>Orders & deliveries</a>
+    <a href="#stock-en"><span class="num">8</span>Stock & suppliers</a>
+    <a href="#clients-en"><span class="num">9</span>Customers & contacts</a>
+    <a href="#finances-en"><span class="num">10</span>Finance</a>
+    <a href="#analytique-en"><span class="num">11</span>Analytics & history</a>
+    <a href="#equipe-en"><span class="num">12</span>Team & roles</a>
+    <a href="#notifications-en"><span class="num">13</span>Notifications</a>
+    <a href="#integrations-en"><span class="num">14</span>Google Sheets</a>
+    <a href="#abonnement-en"><span class="num">15</span>Subscription</a>
+    <a href="#affiliation-en"><span class="num">16</span>Affiliate</a>
+    <a href="#grade-en"><span class="num">17</span>My rank</a>
+    <a href="#marketing-avance-en"><span class="num">18</span>Promo codes & reviews</a>
+    <a href="#faq-en"><span class="num">19</span>FAQ</a>
+    </div>
   </nav>
   <main>
+<div id="mainFr">
+
     <h1>Guide d'utilisation MYBOUTIK</h1>
     <p class="subtitle">Tout ce qu'il faut savoir pour créer sa boutique, vendre en ligne et suivre son activité. Cliquez une section à gauche pour y aller directement.</p>
 
@@ -344,7 +373,306 @@
       <h3>Une page reste bloquée sur « Chargement… »</h3>
       <p>Rechargez la page. Si ça persiste, contactez la personne qui gère l'hébergement technique de votre boutique.</p>
     </section>
-  </main>
+  
 </div>
+<div id="mainEn" style="display:none">
+    <h1>MYBOUTIK User Guide</h1>
+    <p class="subtitle">Everything you need to know to create your shop, sell online, and track your activity. Click a section on the left to jump straight to it.</p>
+
+    <section id="compte-en">
+      <h2><span class="badge">1</span>Create your account</h2>
+      <ol>
+        <li>On the home page, click <strong>Start for free</strong>.</li>
+        <li>Enter your name, your email, and a password (6 characters minimum).</li>
+        <li>A verification link is sent to your email — click it to activate your account.</li>
+        <li>Log in with <strong>Log in</strong>.</li>
+      </ol>
+      <div class="card">
+        <strong>Didn't receive the email?</strong>
+        Check your spam folder, or click "Resend confirmation email" from the registration screen.
+      </div>
+    </section>
+
+    <section id="boutique-en">
+      <h2><span class="badge">2</span>Create your first shop</h2>
+      <p>Once logged in, you land on <strong>My shops</strong> — where all your shops are listed.</p>
+      <ol>
+        <li>Click <strong>+ Create a shop</strong>.</li>
+        <li>Give it a name (e.g. "Rom's Shop") — a web address is generated automatically from the name.</li>
+        <li>You land directly on that shop's dashboard.</li>
+      </ol>
+      <div class="card">
+        <strong>Multiple shops?</strong>
+        You can create several from a single account (depending on your plan, see the Subscription section) and switch between them with the selector at the top of the left menu. As soon as you manage at least two, an <strong>"Overview — all shops"</strong> block appears at the top of the "My shops" screen with total orders and revenue collected across all shops.
+      </div>
+    </section>
+
+    <section id="produits-en">
+      <h2><span class="badge">3</span>Add products</h2>
+      <p>Menu <strong>Products</strong> → <strong>+ New product</strong>. The most important fields:</p>
+      <table>
+        <tr><th>Field</th><th>What it's for</th></tr>
+        <tr><td>Sale price</td><td>Price shown to the customer on the storefront.</td></tr>
+        <tr><td>Compare-at price</td><td>Optional — shows a struck-through "before discount" price next to the sale price.</td></tr>
+        <tr><td>Cost price</td><td>What the product costs you — stays internal, used to calculate your margin (Detailed finance).</td></tr>
+        <tr><td>Delivery fee</td><td>Optional — if empty, the shop's default fee applies (see section 5).</td></tr>
+        <tr><td>Status</td><td><strong>Draft</strong> = invisible on the storefront. <strong>Active</strong> = visible and purchasable.</td></tr>
+        <tr><td>Track stock quantity</td><td>Uncheck for an unlimited-stock product (e.g. a service, a digital product).</td></tr>
+        <tr><td>Low-stock alert</td><td>Threshold below which you'll be alerted (Products page) to reorder.</td></tr>
+      </table>
+      <p><strong>Photos</strong>: up to 12 per product. Use "Choose a file" (gallery) or "📷 Take a photo" (opens the camera directly on a phone). The first photo added becomes the main image; you can set another as main, or delete one, at any time.</p>
+      <p><strong>Related products</strong>: at the bottom of the form, check other products from your catalog to suggest as "You may also like" on this product's storefront page — useful for upselling (e.g. suggesting a case with a phone).</p>
+      <p><strong>Categories</strong>: the "Categories" button at the top of the Products page lets you create/delete categories (e.g. Shoes, Clothing), then pick one in the product form (optional field). On the storefront, your customers can filter the catalog by category, and a search bar lets them find a product by name.</p>
+    </section>
+
+    <section id="variantes-en">
+      <h2><span class="badge">4</span>Variants (Size, Color…)</h2>
+      <p>If your product comes in several sizes/colors, use the option generator in the product form:</p>
+      <ol>
+        <li>Under "Options", type an option name (e.g. <code>Size</code>) then <strong>Enter</strong> to confirm.</li>
+        <li>Type each value (<code>S</code>, <code>M</code>, <code>L</code>…), one at a time, pressing Enter after each — they appear as tags.</li>
+        <li>Add a second option if needed (e.g. <code>Color</code> with <code>Red</code>, <code>Blue</code>…), up to 3 options.</li>
+        <li>Click <strong>Generate variants</strong> — every combination is created automatically (e.g. 3 sizes × 2 colors = 6 variants).</li>
+        <li>Adjust the price (optional) and stock for each variant, then <strong>Save</strong>.</li>
+      </ol>
+      <div class="card warn">
+        <strong>Common pitfall</strong>
+        Each value must be confirmed with Enter separately. Typing "S, M, L" into the field without pressing Enter between each only creates one catch-all value — the combinations won't work on the storefront.
+      </div>
+      <p>On the buyer's side, each option appears as a separate dropdown (one for Size, one for Color). If they pick a combination that wasn't generated, the "Add to cart" button stays disabled.</p>
+    </section>
+
+    <section id="general-en">
+      <h2><span class="badge">5</span>Customize your shop</h2>
+      <p>Menu <strong>Settings → General</strong>:</p>
+      <ul>
+        <li><strong>Logo</strong>: shown at the top of your public storefront.</li>
+        <li><strong>Description</strong>: an introductory text shown under the storefront header.</li>
+        <li><strong>Default delivery fee</strong>: added automatically to the customer's cart, unless a product has its own delivery fee set (which then takes over).</li>
+        <li><strong>Cash on delivery</strong>: leave it enabled — it's the only payment method currently supported.</li>
+      </ul>
+      <p><strong>Backup</strong> (bottom of the page): "⬇️ Export a full backup" button — downloads a file with all the shop's data (products, customers, orders, finances…), to keep aside just in case. Owner/admin only. Photos aren't included, to keep the file light.</p>
+    </section>
+
+    <section id="partager-en">
+      <h2><span class="badge">6</span>Share your shop</h2>
+      <p>Your public storefront link is shown at the bottom of the <strong>Settings → General</strong> page — in the form <code>store/index.html?b=your-shop-name</code>. This is the link you share on WhatsApp, Instagram, Facebook, etc.</p>
+      <p>To share a specific product page directly (e.g. in a WhatsApp message), add <code>&p=product-slug</code> to the end of the link — each product's slug is visible/editable on its form.</p>
+      <p>Even simpler: on the storefront, open a product page and click <strong>"📲 Share on WhatsApp"</strong> — it opens WhatsApp directly with the name, price, and product link already written, ready to send.</p>
+      <p><strong>Sharing the whole shop</strong>: right next to the link, in Settings → General, <strong>WhatsApp / Facebook / Telegram / X</strong> buttons open each network with your shop's link already filled in — no need to copy-paste it yourself. Instagram and TikTok don't allow this automatic pre-filling: copy the link and paste it yourself into your bio or a story.</p>
+      <div class="card">
+        <strong>Special link for an ad campaign</strong>
+        To track the return on a Facebook/TikTok ad (section 10), add <code>&utm_campaign=campaign-name</code>:
+        <ul>
+          <li>A single product: <code>store/index.html?b=your-shop&p=product-slug&utm_campaign=campaign-name</code></li>
+          <li>Several products (or a general promo): <code>store/index.html?b=your-shop&utm_campaign=campaign-name</code> (without <code>&p=</code>, since a single link can only open one product page at a time)</li>
+        </ul>
+        You don't need to build this link yourself: in "+ New expense" (Ads & ROAS page), the link is generated automatically based on the products you check, with a "Copy link" button. Use exactly the same <code>campaign-name</code> as the one entered in that form.
+      </div>
+    </section>
+
+    <section id="commandes-en">
+      <h2><span class="badge">7</span>Orders & deliveries</h2>
+      <p>Every order placed on your storefront appears in <strong>Orders</strong>. Its status changes as it's processed:</p>
+      <table>
+        <tr><th>Status</th><th>Meaning</th></tr>
+        <tr><td>Pending</td><td>Order received, not yet processed.</td></tr>
+        <tr><td>Confirmed</td><td>You've confirmed the order (usually automatic once a delivery person is assigned).</td></tr>
+        <tr><td>Shipped</td><td>The delivery person is on the way.</td></tr>
+        <tr><td>Delivered</td><td>The customer received and paid — the money is counted as collected in your finances.</td></tr>
+        <tr><td>Refused</td><td>The customer refused it at delivery.</td></tr>
+      </table>
+      <p><strong>Deliveries</strong>: assign each order to a delivery person (create one via "+ Add a delivery person" — name, phone, vehicle…), then move its status forward at each step.</p>
+      <p><strong>Delivery waybill</strong>: the "🖨️ Waybill" button on an order (Orders page) opens a printable sheet with the customer's details, the items, and the amount to collect, to hand to the delivery person.</p>
+      <p><strong>Customer confirmation</strong>: if the customer enters their email at the "Your information" step (optional field), they automatically receive an order summary by email (reference, items, total due on delivery).</p>
+      <div class="card">
+        <strong>Stock never blocks an order</strong>
+        An order always goes through, even if stock is insufficient — it's up to you to manage it once received. Use the low-stock alert threshold instead (section 3) to anticipate shortages and reorder in time (the "Order" button on the Products/Stock page).
+      </div>
+      <p><strong>Abandoned orders</strong>: if a customer types their phone number without completing their order, it shows up here — you can call them back to recover the sale. The "Automatically follow up with the customer" checkbox (settings at the top of this page) sends an email/WhatsApp follow-up 30 minutes after abandonment, once a sending provider is connected (see section 13).</p>
+      <p><strong>Customer-side order tracking</strong>: the "📦 Track my order" button at the top of your storefront lets your customers check their order's status themselves by entering their order number and phone — without having to contact you. If they've forgotten their reference, as soon as they type their phone, the list of their past orders with that number shows up automatically — they click one instead of having to look it up.</p>
+    </section>
+
+    <section id="stock-en">
+      <h2><span class="badge">8</span>Stock & suppliers</h2>
+      <p>Menu <strong>Products → Stock</strong>: adjust quantities (+1/-1/other); products under their alert threshold show a badge and an <strong>Order</strong> button.</p>
+      <p>Clicking <strong>Order</strong> opens a pre-filled supplier order directly (product + suggested quantity). You need to have created at least one supplier beforehand (menu <strong>Suppliers</strong>).</p>
+      <p>A supplier order marked <strong>Received</strong> automatically restocks the corresponding product.</p>
+    </section>
+
+    <section id="clients-en">
+      <h2><span class="badge">9</span>Customers & contacts</h2>
+      <p><strong>Customers</strong>: an automatic list of all buyers (created as soon as they place their first order), with their order count and total spent.</p>
+      <p><strong>Customers to re-engage</strong>: at the top of the page, the list of customers who've ordered before but not in the last 30/60/90 days (your choice). A <strong>"Create a targeted promo code"</strong> button on each — opens the promo code form directly with their number already filled in for targeting (see section 18).</p>
+      <p><strong>Address book</strong>: contacts useful to your business who aren't customers (lawyer, accountant, carrier…). First create a "role" (e.g. Accountant), then add contacts under that role.</p>
+    </section>
+
+    <section id="finances-en">
+      <h2><span class="badge">10</span>Finance</h2>
+      <table>
+        <tr><th>Page</th><th>What it's for</th></tr>
+        <tr><td>Overview</td><td>Your net result for the period: revenue collected minus product cost, delivery fees, advertising, and other expenses.</td></tr>
+        <tr><td>Account ledger</td><td>Your accounts (cash, bank, mobile money) and their transactions — money in, money out, transfers between accounts.</td></tr>
+        <tr><td>Delivery fees</td><td>What <strong>you</strong> pay delivery persons/carriers (different from the fee charged to the customer).</td></tr>
+        <tr><td>Detailed finance</td><td>The real margin of each delivered order (requires having entered the cost price of your products).</td></tr>
+        <tr><td>Ads & ROAS</td><td>See the dedicated section below.</td></tr>
+      </table>
+      <div class="card">
+        <strong>Delivery fees: an expense you enter by hand</strong>
+        Unlike the delivery fee charged to the customer (automatic), what you pay the delivery person is declared yourself via "+ Add fees" — MYBOUTIK doesn't calculate it on its own, since the real amount often depends on distance, number of grouped packages, etc. To keep proof in case of a dispute, link each fee to the relevant <strong>order</strong> and <strong>delivery person</strong> in the form (both fields are optional but recommended).
+      </div>
+      <p><strong>Exporting your data</strong>: on Detailed finance (and on Reports in Analytics), three buttons:</p>
+      <ul>
+        <li><strong>⬇️ CSV</strong>: a simple file, openable in Excel/Google Sheets/LibreOffice.</li>
+        <li><strong>⬇️ Excel</strong>: same content but already formatted (bold headers, borders, colored title) — nothing to format after opening.</li>
+        <li><strong>🖨️ PDF</strong>: opens an already laid-out preview in a new tab and launches printing — choose "Save as PDF" as the printer in the window that opens to get a PDF file.</li>
+      </ul>
+      <h3>Understanding Ads & ROAS</h3>
+      <ol>
+        <li>Click <strong>+ New expense</strong> for every ad campaign you launch (Facebook, TikTok…).</li>
+        <li>Enter the campaign name and the amount spent, then check the product(s) featured in the list (no product checked = a general promo for the whole shop).</li>
+        <li>The link to use in your ad is generated automatically below, with a "Copy link" button.</li>
+        <li>MYBOUTIK calculates the attributed revenue (matching delivered sales over the period) and the ROAS = revenue ÷ spend.</li>
+      </ol>
+      <div class="card">
+        <strong>One product or several products?</strong>
+        <ul>
+          <li><strong>1 product checked</strong>: the link points directly to its page (<code>&p=slug</code>). The expense appears in the "By product" table with its own ROAS.</li>
+          <li><strong>2 or more products checked</strong>: the link points to the whole shop (a single link can't open several pages at once). The budget is split evenly among the checked products in the "By product" table. A <strong>"ROAS by product"</strong> button then appears in "Recent expenses" to see the breakdown specific to that campaign (budget, revenue, and ROAS for each product in the group).</li>
+        </ul>
+      </div>
+      <p>To track a specific campaign independently of the product (e.g. comparing two ad creatives), find it in the "By campaign" table using the name you entered.</p>
+      <p>A ROAS above 1 means the ad brings in more than it costs.</p>
+    </section>
+
+    <section id="analytique-en">
+      <h2><span class="badge">11</span>Analytics & history</h2>
+      <p><strong>Reports</strong>: sales, average cart, best sellers over a chosen period. <strong>Live</strong>: today's activity, updated automatically. <strong>History</strong> (owner and admins only): the list of the last 300 actions on the shop, with who did them and when — useful for tracking your team's work.</p>
+    </section>
+
+    <section id="equipe-en">
+      <h2><span class="badge">12</span>Team & roles</h2>
+      <p>Menu <strong>Settings → Team → Invite a member</strong>. Each person keeps their own MYBOUTIK account (to be created with the same email address that was invited).</p>
+      <table>
+        <tr><th>Role</th><th>Access</th></tr>
+        <tr><td>Admin</td><td>Full access, including team and settings.</td></tr>
+        <tr><td>Manager</td><td>Everything except team, settings, and subscription.</td></tr>
+        <tr><td>Closer</td><td>Orders, customers, and products/stock only.</td></tr>
+        <tr><td>Accountant</td><td>Finance and analytics only.</td></tr>
+        <tr><td>Delivery person</td><td>Only sees and updates the deliveries assigned to them.</td></tr>
+      </table>
+      <p>For a delivery person, link them to their delivery-person profile (created under Deliveries) at invitation time, otherwise they won't see any deliveries until that link is made.</p>
+    </section>
+
+    <section id="notifications-en">
+      <h2><span class="badge">13</span>Notifications</h2>
+      <p>Menu <strong>Settings → General</strong>, at the bottom: enable email and/or WhatsApp to be notified on every new order.</p>
+      <p><strong>Low-stock alert</strong>: the "Automatically alert me when a product goes into low stock" checkbox (same page) — notifies you at most once a day as soon as one or more products drop below their alert threshold.</p>
+      <div class="card">
+        <strong>Actual email/WhatsApp sending</strong>
+        Emails (account verification, invitations, order notifications) and WhatsApp messages are only actually sent once MYBOUTIK's operator has connected a provider (Brevo for email, Twilio for WhatsApp). With the test WhatsApp number (sandbox), only alerts sent to your own number work immediately; following up with real customers by WhatsApp requires an approved WhatsApp Business number.
+      </div>
+    </section>
+
+    <section id="integrations-en">
+      <h2><span class="badge">14</span>Google Sheets import</h2>
+      <p>Menu <strong>Settings → Integrations</strong>. Useful if you're still noting down orders taken over WhatsApp in a spreadsheet.</p>
+      <ol>
+        <li>In Google Sheets: <strong>File → Share → Publish to web</strong>, choose the CSV format, publish, and copy the link.</li>
+        <li>Paste this link into MYBOUTIK and save.</li>
+        <li>First row of your sheet = column names: <code>id_commande</code>, <code>client</code>, <code>telephone</code>, and <code>sku</code> are required (the SKU must exactly match an existing product).</li>
+        <li>Click <strong>Import now</strong> whenever you want to pull in new rows — a row already imported is never imported twice.</li>
+      </ol>
+    </section>
+
+    <section id="abonnement-en">
+      <h2><span class="badge">15</span>Subscription</h2>
+      <p>The chosen plan limits how many shops you can create. Menu <strong>Settings → Subscription</strong>: choose a plan, send the amount via <strong>Orange Money, Wave, or Djomo</strong> to <strong>+225 07 78 79 83 19</strong> (also shown on screen), then your plan is activated after manual verification (usually within 24h).</p>
+      <div class="card">
+        <strong>30 free days, then a monthly cycle</strong>
+        Every new account starts with <strong>30 days of free access</strong> on the Starter plan. After that (or at the end of a paid month), access to your shops is blocked until you (re)subscribe — the Subscription page itself always stays reachable so you can pay and unblock yourself. A warning banner appears automatically 5 days before the deadline. Every approved payment extends access by one more month, whichever plan is chosen (including Starter at 7,000 FCFA).
+      </div>
+    </section>
+
+    <section id="affiliation-en">
+      <h2><span class="badge">16</span>Affiliate</h2>
+      <p>Menu <strong>Settings → Affiliate</strong>: share your personal link. You earn 10% of every subscription paid by people who sign up through it.</p>
+      <ul>
+        <li>A commission stays "pending validation" for 7 days, then becomes "available to withdraw".</li>
+        <li>Minimum withdrawal: 5,000 FCFA, paid via Mobile Money after manual verification.</li>
+      </ul>
+    </section>
+
+    <section id="grade-en">
+      <h2><span class="badge">17</span>My rank</h2>
+      <p>A simple visual reward based on the total collected since the shop opened (Bronze from 1,000,000 FCFA, up to Titan). Each tier is earned for good.</p>
+    </section>
+
+    <section id="marketing-avance-en">
+      <h2><span class="badge">18</span>Promo codes & customer reviews</h2>
+      <p>Menu <strong>Marketing</strong> (new page): discount codes and customer review moderation, alongside newsletter subscribers and contact messages already there.</p>
+      <h3>Promo codes</h3>
+      <ol>
+        <li><strong>+ New code</strong> button: choose a code (e.g. <code>PROMO10</code>), a type (percentage or fixed amount), and a value.</li>
+        <li>Optional: a maximum number of uses and/or an expiration date.</li>
+        <li>The customer enters this code at the "Your information" step of their cart (right after entering their phone) — the discount shows immediately, then is re-verified when the order is confirmed.</li>
+      </ol>
+      <div class="card">
+        <strong>Number of active codes limited by your subscription</strong>
+        Starter: 1 active code at a time. Pro: 5. Premium: unlimited. Disable or delete an old code to create a new one if you hit the limit.
+      </div>
+      <h4 style="margin:14px 0 6px;font-size:14px">A code visible to everyone, or reserved for specific customers?</h4>
+      <ul>
+        <li><strong>Open code (the "Reserve for..." field left empty)</strong>: shown automatically in a banner at the top of your storefront as soon as it's active — no communication needed, your visitors see it on their own.</li>
+        <li><strong>Targeted code</strong>: in the form (or via the "Targeting" button on an existing code), list one or more phone numbers, one per line. This code <strong>never</strong> shows up in the public banner, and above all: <strong>only those numbers can use it</strong>, even if someone else gets hold of it (forwarded on WhatsApp, etc.) — the server checks the phone entered at checkout before accepting the code.</li>
+      </ul>
+      <p>Useful for example to win back a specific customer ("-15% just for you, ROMARIO") without that code circulating to everyone.</p>
+      <div class="card">
+        <strong>The customer doesn't need to know the code in advance</strong>
+        As soon as they type their phone number at the "Your information" step, MYBOUTIK automatically checks whether they have a personal code reserved and offers it to them directly ("Use" button) — you don't need to contact them one by one to let them know.
+      </div>
+      <h3>Product promotions (no code)</h3>
+      <p>Different from promo codes: here, the discount shows <strong>directly on the price</strong> of the chosen products (struck-through price + reduced price, like a manual sale price) — the customer doesn't need to enter anything.</p>
+      <ol>
+        <li>Marketing → "Product promotions" card → <strong>+ New promotion</strong>.</li>
+        <li>Choose a type (% or fixed amount) and a value, then check one or more products in the list.</li>
+        <li>Optional: a start and/or end date — with no end date, the promotion stays active until you disable it.</li>
+      </ol>
+      <p>The reduced price shows immediately on the storefront (catalog and product page), and is automatically applied when the order is placed — no need to change the product's price yourself, your catalog price stays unchanged behind the scenes.</p>
+      <h3>Customer reviews</h3>
+      <p>On every storefront product page, a customer can leave a rating (1 to 5 stars) and a comment. By default, a review is <strong>pending</strong> and not publicly visible: open Marketing → Customer reviews to <strong>publish</strong> or <strong>reject</strong> it. This prevents fake reviews or spam from showing up on your shop immediately.</p>
+    </section>
+
+    <section id="faq-en">
+      <h2><span class="badge">19</span>Frequently asked questions</h2>
+      <h3>A customer can't add a product to their cart</h3>
+      <p>Check that the product's status is <strong>Active</strong> (not Draft). If the product has variants, the chosen combination must have been generated (section 4).</p>
+      <h3>The total shown to the customer doesn't match what I expected</h3>
+      <p>The delivery fee shown is the highest among the physical products in the cart (not the sum) — see section 5.</p>
+      <h3>I don't see some pages in the menu</h3>
+      <p>Your role on this shop limits which pages you can access (section 12) — ask an administrator if you think you need broader access.</p>
+      <h3>A page stays stuck on "Loading…"</h3>
+      <p>Reload the page. If it persists, contact whoever manages your shop's technical hosting.</p>
+    </section>
+
+</div>
+</main>
+</div>
+
+<script>
+let LANG = localStorage.getItem('myboutik_guide_lang') === 'en' ? 'en' : 'fr';
+function setLang(lang) {
+  LANG = lang === 'en' ? 'en' : 'fr';
+  localStorage.setItem('myboutik_guide_lang', LANG);
+  document.documentElement.lang = LANG;
+  document.getElementById('langFr').classList.toggle('active', LANG === 'fr');
+  document.getElementById('langEn').classList.toggle('active', LANG === 'en');
+  document.getElementById('navFr').style.display = LANG === 'fr' ? 'block' : 'none';
+  document.getElementById('navEn').style.display = LANG === 'en' ? 'block' : 'none';
+  document.getElementById('mainFr').style.display = LANG === 'fr' ? 'block' : 'none';
+  document.getElementById('mainEn').style.display = LANG === 'en' ? 'block' : 'none';
+}
+setLang(LANG);
+</script>
 </body>
 </html>
