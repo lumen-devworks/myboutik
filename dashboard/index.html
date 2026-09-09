@@ -1652,7 +1652,7 @@ function periodSelectHtml(id, current) {
 // Accueil
 // ============================================================
 function renderHome(bt) {
-  document.getElementById('content').innerHTML = '<div class="empty">Chargement…</div>';
+  document.getElementById('content').innerHTML = `<div class="empty">${t('loading')}</div>`;
   Promise.all([
     api('/analytics?action=live&boutique_id='+bt.id),
     api('/analytics?action=report&boutique_id='+bt.id+'&period=30d'),
@@ -1811,7 +1811,7 @@ function printFinanceDetailPdf() {
 // Mon grade
 // ============================================================
 function renderGrade(bt) {
-  document.getElementById('content').innerHTML = '<div class="empty">Chargement…</div>';
+  document.getElementById('content').innerHTML = `<div class="empty">${t('loading')}</div>`;
   api('/boutiques?action=grade&boutique_id='+bt.id).then(({data}) => {
     if (!data.success) { document.getElementById('content').innerHTML = '<div class="card">'+escapeHtml(data.message)+'</div>'; return; }
     const g = data.data;
@@ -1841,7 +1841,7 @@ function renderGrade(bt) {
 // Commandes
 // ============================================================
 function renderOrders(bt) {
-  document.getElementById('content').innerHTML = '<div class="empty">Chargement…</div>';
+  document.getElementById('content').innerHTML = `<div class="empty">${t('loading')}</div>`;
   loadOrdersView(bt, '', '');
 }
 function loadOrdersView(bt, status, q) {
@@ -1909,7 +1909,7 @@ function submitNewOrder() {
 // Livraisons
 // ============================================================
 function renderDeliveries(bt) {
-  document.getElementById('content').innerHTML = '<div class="empty">Chargement…</div>';
+  document.getElementById('content').innerHTML = `<div class="empty">${t('loading')}</div>`;
   Promise.all([api('/deliveries?action=list&boutique_id='+bt.id), api('/deliveries?action=persons&boutique_id='+bt.id)]).then(([dl, persons]) => {
     const rows = dl.data.data || []; const P = persons.data.data || [];
     const cols = ['to_assign','assigned','in_delivery','delivered','refused'];
@@ -2007,7 +2007,7 @@ function submitDeliveryPersonForm(id) {
 // Commandes abandonnées
 // ============================================================
 function renderAbandoned(bt) {
-  document.getElementById('content').innerHTML = '<div class="empty">Chargement…</div>';
+  document.getElementById('content').innerHTML = `<div class="empty">${t('loading')}</div>`;
   Promise.all([api('/orders?action=abandoned_list&boutique_id='+bt.id+'&filter=abandoned'), api('/orders?action=abandoned_settings_get&boutique_id='+bt.id)])
     .then(([list, settings]) => {
       const rows = list.data.data || []; const S = settings.data.data || {};
@@ -2044,7 +2044,7 @@ function markAbandonedConverted(id) { post('/orders?action=abandoned_mark', {bou
 // ============================================================
 function renderCustomers(bt, inactiveDays) {
   inactiveDays = inactiveDays || 60;
-  document.getElementById('content').innerHTML = '<div class="empty">Chargement…</div>';
+  document.getElementById('content').innerHTML = `<div class="empty">${t('loading')}</div>`;
   Promise.all([
     api('/customers?action=list&boutique_id='+bt.id),
     api('/customers?action=inactive_list&boutique_id='+bt.id+'&days='+inactiveDays),
@@ -2077,7 +2077,7 @@ function renderCustomers(bt, inactiveDays) {
   });
 }
 function renderContacts(bt) {
-  document.getElementById('content').innerHTML = '<div class="empty">Chargement…</div>';
+  document.getElementById('content').innerHTML = `<div class="empty">${t('loading')}</div>`;
   Promise.all([api('/contacts?action=roles&boutique_id='+bt.id), api('/contacts?action=list&boutique_id='+bt.id)]).then(([roles, list]) => {
     const R = roles.data.data || []; const rows = list.data.data || [];
     document.getElementById('content').innerHTML = `
@@ -2121,7 +2121,7 @@ function deleteContact(id) { if(!confirm(t('confirm_delete_contact'))) return; p
 // ============================================================
 function renderFinanceOverview(bt, period) {
   period = period || '30d';
-  document.getElementById('content').innerHTML = '<div class="empty">Chargement…</div>';
+  document.getElementById('content').innerHTML = `<div class="empty">${t('loading')}</div>`;
   api('/finance?action=overview&boutique_id='+bt.id+'&period='+period).then(({data}) => {
     if (!data.success) { document.getElementById('content').innerHTML = '<div class="card">'+escapeHtml(data.message)+'</div>'; return; }
     const F = data.data;
@@ -2144,7 +2144,7 @@ function renderFinanceOverview(bt, period) {
   });
 }
 function renderFinanceAccounts(bt) {
-  document.getElementById('content').innerHTML = '<div class="empty">Chargement…</div>';
+  document.getElementById('content').innerHTML = `<div class="empty">${t('loading')}</div>`;
   api('/finance?action=accounts&boutique_id='+bt.id).then(({data}) => {
     const rows = data.data || [];
     const total = rows.reduce((s,a)=>s+Number(a.balance),0);
@@ -2203,7 +2203,7 @@ function submitTransfer() {
 }
 function renderFinanceDeliveryFees(bt, period) {
   period = period || '30d';
-  document.getElementById('content').innerHTML = '<div class="empty">Chargement…</div>';
+  document.getElementById('content').innerHTML = `<div class="empty">${t('loading')}</div>`;
   api('/finance?action=delivery_fees&boutique_id='+bt.id+'&period='+period).then(({data}) => {
     const F = data.data;
     document.getElementById('content').innerHTML = `
@@ -2250,7 +2250,7 @@ function submitAddDeliveryFee() {
 }
 function renderFinanceDetail(bt, period) {
   period = period || '30d';
-  document.getElementById('content').innerHTML = '<div class="empty">Chargement…</div>';
+  document.getElementById('content').innerHTML = `<div class="empty">${t('loading')}</div>`;
   api('/finance?action=detail&boutique_id='+bt.id+'&period='+period).then(({data}) => {
     if (!data.success) { document.getElementById('content').innerHTML = '<div class="card">'+escapeHtml(data.message)+'</div>'; return; }
     const F = data.data;
@@ -2278,7 +2278,7 @@ function renderFinanceDetail(bt, period) {
 }
 function renderFinanceAds(bt, period) {
   period = period || '30d';
-  document.getElementById('content').innerHTML = '<div class="empty">Chargement…</div>';
+  document.getElementById('content').innerHTML = `<div class="empty">${t('loading')}</div>`;
   api('/finance?action=ads&boutique_id='+bt.id+'&period='+period).then(({data}) => {
     if (!data.success) { document.getElementById('content').innerHTML = '<div class="card">'+escapeHtml(data.message)+'</div>'; return; }
     const F = data.data;
@@ -2388,7 +2388,7 @@ function openAdExpenseDetail(id) {
 // ============================================================
 function renderProducts(bt, categoryFilter) {
   categoryFilter = categoryFilter || '';
-  document.getElementById('content').innerHTML = '<div class="empty">Chargement…</div>';
+  document.getElementById('content').innerHTML = `<div class="empty">${t('loading')}</div>`;
   Promise.all([
     api('/products?action=list&boutique_id='+bt.id),
     api('/products?action=categories_list&boutique_id='+bt.id),
@@ -2574,7 +2574,7 @@ function renderOptionRows() {
       <input placeholder="${OPTION_NAME_PLACEHOLDERS_FN()[i] || t('option_placeholder_material')}" value="${escapeHtml(r.name)}" oninput="window.__optionRows[${i}].name=this.value">
       <div style="display:flex;flex-wrap:wrap;gap:6px;border:1px solid var(--border);border-radius:9px;padding:6px;min-height:20px">
         ${(r.values||[]).map((v,vi)=>`<span style="background:var(--bg);border-radius:6px;padding:3px 8px;font-size:13px;display:inline-flex;align-items:center;gap:5px">${escapeHtml(v)}<button type="button" onclick="removeOptionTag(${i},${vi})" style="border:none;background:none;cursor:pointer;color:var(--gray);font-size:12px;line-height:1;padding:0">✕</button></span>`).join('')}
-        <input type="text" data-option-row="${i}" placeholder="Tape une valeur puis Entrée" style="border:none;outline:none;flex:1;min-width:120px;font-size:13px" onkeydown="handleOptionTagInput(event,${i})">
+        <input type="text" data-option-row="${i}" placeholder="${t('placeholder_type_value_enter')}" style="border:none;outline:none;flex:1;min-width:120px;font-size:13px" onkeydown="handleOptionTagInput(event,${i})">
       </div>
     </div>
   `).join('');
@@ -2703,7 +2703,7 @@ function setPrimaryProductImage(imgId) {
 }
 function submitProductForm(id) {
   const name = document.getElementById('prodName').value.trim();
-  if (!name) { document.getElementById('prodMsg').innerHTML = '<div class="msg error">Le nom est requis</div>'; return; }
+  if (!name) { document.getElementById('prodMsg').innerHTML = '<div class="msg error">'+t('err_name_required')+'</div>'; return; }
   const payload = {
     boutique_id: CURRENT.id, name, description: document.getElementById('prodDesc').value.trim(),
     price: Number(document.getElementById('prodPrice').value||0),
@@ -2733,7 +2733,7 @@ function submitProductForm(id) {
 function deleteProduct(id) { if(!confirm(t('confirm_delete_product'))) return; post('/products?action=delete', {boutique_id:CURRENT.id, id}).then(()=>route()); }
 
 function renderStock(bt) {
-  document.getElementById('content').innerHTML = '<div class="empty">Chargement…</div>';
+  document.getElementById('content').innerHTML = `<div class="empty">${t('loading')}</div>`;
   api('/products?action=list&boutique_id='+bt.id).then(({data}) => {
     const rows = data.data || [];
     document.getElementById('content').innerHTML = `
@@ -2755,7 +2755,7 @@ function adjustStock(id, delta) { post('/products?action=stock_adjust', {boutiqu
 function adjustStockCustom(id) { const v = prompt(t('prompt_adjust_stock')); if (v===null || isNaN(Number(v))) return; adjustStock(id, Number(v)); }
 
 function renderSuppliers(bt) {
-  document.getElementById('content').innerHTML = '<div class="empty">Chargement…</div>';
+  document.getElementById('content').innerHTML = `<div class="empty">${t('loading')}</div>`;
   api('/products?action=suppliers_list&boutique_id='+bt.id).then(({data}) => {
     const rows = data.data || [];
     document.getElementById('content').innerHTML = `
@@ -2780,7 +2780,7 @@ function submitSupplierForm() {
 function deleteSupplier(id) { if(!confirm(t('confirm_delete_supplier'))) return; post('/products?action=supplier_delete', {boutique_id:CURRENT.id, id}).then(()=>route()); }
 
 function renderSupplierOrders(bt) {
-  document.getElementById('content').innerHTML = '<div class="empty">Chargement…</div>';
+  document.getElementById('content').innerHTML = `<div class="empty">${t('loading')}</div>`;
   Promise.all([api('/products?action=supplier_orders_list&boutique_id='+bt.id), api('/products?action=suppliers_list&boutique_id='+bt.id), api('/products?action=list&boutique_id='+bt.id)])
     .then(([so, sup, prod]) => {
       const rows = so.data.data || []; const suppliers = sup.data.data || []; const products = prod.data.data || [];
@@ -2831,7 +2831,7 @@ function supplierOrderStatus(id, status) { post('/products?action=supplier_order
 // ============================================================
 function renderReports(bt, period) {
   period = period || '30d';
-  document.getElementById('content').innerHTML = '<div class="empty">Chargement…</div>';
+  document.getElementById('content').innerHTML = `<div class="empty">${t('loading')}</div>`;
   api('/analytics?action=report&boutique_id='+bt.id+'&period='+period).then(({data}) => {
     if (!data.success) { document.getElementById('content').innerHTML = '<div class="card">'+escapeHtml(data.message)+'</div>'; return; }
     const R = data.data;
@@ -2886,7 +2886,7 @@ function printReportsPdf() {
   openPrintReport(t('reports_title'), PERIOD_LABELS_FN()[window.__reportsPeriod]||'', kpis+bestSellers);
 }
 function renderLive(bt) {
-  document.getElementById('content').innerHTML = '<div class="empty">Chargement…</div>';
+  document.getElementById('content').innerHTML = `<div class="empty">${t('loading')}</div>`;
   function load() {
     api('/analytics?action=live&boutique_id='+bt.id).then(({data}) => {
       if (!data.success) { document.getElementById('content').innerHTML = '<div class="card">'+escapeHtml(data.message)+'</div>'; return; }
@@ -2918,7 +2918,7 @@ function renderLive(bt) {
 // Historique — qui a fait quoi, quand (reserve proprietaire/admin)
 // ============================================================
 function renderHistory(bt) {
-  document.getElementById('content').innerHTML = '<div class="empty">Chargement…</div>';
+  document.getElementById('content').innerHTML = `<div class="empty">${t('loading')}</div>`;
   api('/analytics?action=activity_log&boutique_id='+bt.id).then(({data}) => {
     if (!data.success) { document.getElementById('content').innerHTML = '<div class="card">'+escapeHtml(data.message)+'</div>'; return; }
     const rows = data.data || [];
@@ -2938,7 +2938,7 @@ function renderHistory(bt) {
 // Marketing
 // ============================================================
 function renderMarketing(bt) {
-  document.getElementById('content').innerHTML = '<div class="empty">Chargement…</div>';
+  document.getElementById('content').innerHTML = `<div class="empty">${t('loading')}</div>`;
   Promise.all([
     api('/marketing?action=newsletter&boutique_id='+bt.id), api('/marketing?action=messages&boutique_id='+bt.id),
     api('/marketing?action=promo_list&boutique_id='+bt.id), api('/marketing?action=review_list&boutique_id='+bt.id),
@@ -3199,7 +3199,7 @@ function saveSettings(targetMsgId) {
 // ============================================================
 function ROLE_LABELS_FN() { return {owner:t('role_owner'), admin:t('role_admin'), manager:t('role_manager'), livreur:t('role_livreur'), closeuse:t('role_closeuse'), comptable:t('role_comptable')}; }
 function renderTeam(bt) {
-  document.getElementById('content').innerHTML = '<div class="empty">Chargement…</div>';
+  document.getElementById('content').innerHTML = `<div class="empty">${t('loading')}</div>`;
   api('/team?action=list&boutique_id='+bt.id).then(({data}) => {
     if (!data.success) { document.getElementById('content').innerHTML = '<div class="card">'+escapeHtml(data.message)+'</div>'; return; }
     const rows = data.data || [];
@@ -3260,7 +3260,7 @@ function removeTeamMember(id) {
 // Mon profil (niveau compte, pas boutique)
 // ============================================================
 function renderProfile() {
-  document.getElementById('content').innerHTML = '<div class="empty">Chargement…</div>';
+  document.getElementById('content').innerHTML = `<div class="empty">${t('loading')}</div>`;
   api('/auth?action=me').then(({data}) => {
     if (!data.success) { document.getElementById('content').innerHTML = '<div class="card">'+escapeHtml(data.message)+'</div>'; return; }
     const u = data.data;
@@ -3296,7 +3296,7 @@ function saveProfile() {
 // Abonnement
 // ============================================================
 function renderBilling() {
-  document.getElementById('content').innerHTML = '<div class="empty">Chargement…</div>';
+  document.getElementById('content').innerHTML = `<div class="empty">${t('loading')}</div>`;
   api('/billing?action=plans').then(({data}) => {
     if (!data.success) { document.getElementById('content').innerHTML = '<div class="card">'+escapeHtml(data.message)+'</div>'; return; }
     const B = data.data;
@@ -3337,7 +3337,7 @@ function subscribeToPlan(plan, planName, price) {
 // Affiliation (niveau compte)
 // ============================================================
 function renderAffiliate() {
-  document.getElementById('content').innerHTML = '<div class="empty">Chargement…</div>';
+  document.getElementById('content').innerHTML = `<div class="empty">${t('loading')}</div>`;
   api('/billing?action=affiliate_info').then(({data}) => {
     if (!data.success) { document.getElementById('content').innerHTML = '<div class="card">'+escapeHtml(data.message)+'</div>'; return; }
     const A = data.data;
@@ -3433,37 +3433,37 @@ function requestPayout() {
 // Intégrations (Google Sheets)
 // ============================================================
 function renderIntegrations(bt) {
-  document.getElementById('content').innerHTML = '<div class="empty">Chargement…</div>';
+  document.getElementById('content').innerHTML = `<div class="empty">${t('loading')}</div>`;
   api('/integrations?action=sheet_get&boutique_id='+bt.id).then(({data}) => {
     if (!data.success) { document.getElementById('content').innerHTML = '<div class="card">'+escapeHtml(data.message)+'</div>'; return; }
     const S = data.data;
     document.getElementById('content').innerHTML = `
-      <h2 class="page-title">Intégrations</h2>
-      <div class="page-sub">Reliez une source de commandes extérieure. Chaque ligne devient une vraie commande MYBOUTIK.</div>
+      <h2 class="page-title">${t('integrations_title')}</h2>
+      <div class="page-sub">${t('integrations_subtitle')}</div>
       <div class="card">
-        <h3>Google Sheets</h3>
-        <div class="page-sub">Publiez votre feuille en CSV (Fichier → Partager → Publier sur le web → CSV) puis collez le lien ici.</div>
+        <h3>${t('gsheets_title')}</h3>
+        <div class="page-sub">${t('gsheets_subtitle')}</div>
         <div id="sheetMsg"></div>
-        <div class="field"><label>Lien de votre Google Sheet (CSV)</label><input id="sheetUrl" value="${escapeHtml(S.sheet_url||'')}" placeholder="https://docs.google.com/spreadsheets/d/.../pub?output=csv"></div>
-        <label style="display:flex;align-items:center;gap:8px;margin-bottom:14px"><input type="checkbox" id="sheetEnabled" ${S.sheet_sync_enabled?'checked':''}> Activer cette intégration</label>
+        <div class="field"><label>${t('label_sheet_link')}</label><input id="sheetUrl" value="${escapeHtml(S.sheet_url||'')}" placeholder="https://docs.google.com/spreadsheets/d/.../pub?output=csv"></div>
+        <label style="display:flex;align-items:center;gap:8px;margin-bottom:14px"><input type="checkbox" id="sheetEnabled" ${S.sheet_sync_enabled?'checked':''}> ${t('checkbox_enable_integration')}</label>
         <div style="display:flex;gap:8px">
-          <button class="btn btn-primary" onclick="saveSheetSettings()">Enregistrer</button>
-          <button class="btn btn-ghost" onclick="importSheetNow()">Importer maintenant</button>
+          <button class="btn btn-primary" onclick="saveSheetSettings()">${t('btn_save')}</button>
+          <button class="btn btn-ghost" onclick="importSheetNow()">${t('btn_import_now')}</button>
         </div>
       </div>
       <div class="card">
-        <h3>Colonnes attendues</h3>
-        <table><thead><tr><th>Colonne</th><th>Obligatoire</th><th>Exemple</th></tr></thead><tbody>
-          <tr><td>id_commande</td><td>Oui</td><td>CMD-1042</td></tr>
-          <tr><td>client</td><td>Oui</td><td>Awa Diallo</td></tr>
-          <tr><td>telephone</td><td>Oui</td><td>+225 07 00 00 00</td></tr>
-          <tr><td>sku</td><td>Oui</td><td>TS-BLEU-M (doit exister dans vos produits)</td></tr>
-          <tr><td>quantite</td><td>Non</td><td>2 (vide = 1)</td></tr>
-          <tr><td>prix_unitaire</td><td>Non</td><td>14900 (vide = prix catalogue)</td></tr>
-          <tr><td>frais_livraison</td><td>Non</td><td>2000 (une seule ligne par commande)</td></tr>
-          <tr><td>ville / quartier / adresse</td><td>Non</td><td>Abidjan / Cocody / Rue des Jardins</td></tr>
+        <h3>${t('expected_columns_title')}</h3>
+        <table><thead><tr><th>${t('col_column')}</th><th>${t('col_required')}</th><th>${t('col_example')}</th></tr></thead><tbody>
+          <tr><td>id_commande</td><td>${t('yes_word')}</td><td>CMD-1042</td></tr>
+          <tr><td>client</td><td>${t('yes_word')}</td><td>Awa Diallo</td></tr>
+          <tr><td>telephone</td><td>${t('yes_word')}</td><td>+225 07 00 00 00</td></tr>
+          <tr><td>sku</td><td>${t('yes_word')}</td><td>TS-BLEU-M (doit exister dans vos produits)</td></tr>
+          <tr><td>quantite</td><td>${t('no_word')}</td><td>2 (vide = 1)</td></tr>
+          <tr><td>prix_unitaire</td><td>${t('no_word')}</td><td>14900 (vide = prix catalogue)</td></tr>
+          <tr><td>frais_livraison</td><td>${t('no_word')}</td><td>2000 (une seule ligne par commande)</td></tr>
+          <tr><td>ville / quartier / adresse</td><td>${t('no_word')}</td><td>Abidjan / Cocody / Rue des Jardins</td></tr>
         </tbody></table>
-        <div class="muted" style="margin-top:10px">Une commande avec plusieurs produits ? Mettez une ligne par produit avec le même id_commande.</div>
+        <div class="muted" style="margin-top:10px">${t('multi_product_order_note')}</div>
       </div>
       <div class="card" id="sheetResultCard" style="display:none"></div>
     `;
@@ -3480,8 +3480,8 @@ function importSheetNow() {
     const card = document.getElementById('sheetResultCard');
     card.style.display = 'block';
     if (!data.success) { card.innerHTML = '<div class="msg error">'+data.message+'</div>'; return; }
-    card.innerHTML = '<h3>Résultat de l\'import</h3><div class="msg success">'+data.message+'</div>' +
-      (data.data.skipped.length ? '<div class="muted">Lignes ignorées :<br>'+data.data.skipped.map(escapeHtml).join('<br>')+'</div>' : '');
+    card.innerHTML = '<h3>'+t('import_result_title')+'</h3><div class="msg success">'+data.message+'</div>' +
+      (data.data.skipped.length ? '<div class="muted">'+t('skipped_rows_prefix')+'<br>'+data.data.skipped.map(escapeHtml).join('<br>')+'</div>' : '');
   });
 }
 </script>
