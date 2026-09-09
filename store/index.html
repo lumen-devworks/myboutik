@@ -16,6 +16,9 @@
   .shop-name{font-weight:800;font-size:18px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:50vw}
   #cartBtn{position:relative;border:1px solid var(--border);background:#fff;border-radius:10px;padding:9px 14px;font-weight:600;cursor:pointer}
   #cartCount{position:absolute;top:-8px;right:-8px;background:var(--blue);color:#fff;border-radius:999px;font-size:11px;padding:1px 6px}
+  .lang-switch{display:flex;gap:3px;background:var(--bg);border:1px solid var(--border);border-radius:999px;padding:3px}
+  .lang-switch button{background:none;color:var(--gray);border:none;padding:6px 10px;font-size:11px;font-weight:700;border-radius:999px;cursor:pointer}
+  .lang-switch button.active{background:var(--blue);color:#fff}
 
   .products-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:18px;padding:28px 0}
   .cat-pill{flex-shrink:0;padding:7px 14px;border-radius:999px;border:1px solid var(--border);background:#fff;font-size:13px;cursor:pointer;white-space:nowrap}
@@ -89,13 +92,185 @@ function sessionId() {
   return id;
 }
 function api(path, opts) {
-  return fetch(API_URL+path, Object.assign({headers:{'Content-Type':'application/json'}}, opts||{}))
+  return fetch(API_URL+path, Object.assign({headers:{'Content-Type':'application/json','X-Lang':LANG}}, opts||{}))
     .then(r => r.json().then(data => ({status:r.status, data})))
-    .catch(() => ({status:0, data:{success:false, message:'Impossible de contacter le serveur.'}}));
+    .catch(() => ({status:0, data:{success:false, message:t('server_unreachable')}}));
 }
 function post(path, body) { return api(path, {method:'POST', body:JSON.stringify(body||{})}); }
-function fmtMoney(n, currency) { return Math.round(n||0).toLocaleString('fr-FR') + ' ' + (currency||'FCFA'); }
+function fmtMoney(n, currency) { return Math.round(n||0).toLocaleString(LANG === 'en' ? 'en-US' : 'fr-FR') + ' ' + (currency||'FCFA'); }
 function escapeHtml(s){ return (s==null?'':String(s)).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+// ============================================================
+// TRADUCTION (FR/EN) - textes fixes de la vitrine publique. Les messages
+// qui viennent du serveur sont deja traduits cote backend via l'entete
+// X-Lang envoye ci-dessus (voir t()/EN_DICT dans index.php).
+// ============================================================
+let LANG = localStorage.getItem('myboutik_shop_lang') === 'en' ? 'en' : 'fr';
+const I18N = {
+  fr: {
+    loading: 'Chargement de la boutique…',
+    shop_not_found: 'Boutique introuvable.',
+    add_slug_hint: "Ajoutez ?b=nom-de-la-boutique à l'adresse.",
+    shop_not_found_closed: 'Boutique introuvable ou fermée.',
+    track_order_btn: '📦 Suivre ma commande',
+    cart_btn: '🛒 Panier',
+    promo_banner_suffix: ' — à saisir au moment de commander !',
+    search_placeholder: 'Rechercher un produit…',
+    all_categories: 'Tous',
+    newsletter_title: 'Newsletter',
+    email_placeholder: 'Votre email',
+    newsletter_btn: "S'inscrire",
+    contact_title: 'Nous contacter',
+    contact_name_placeholder: 'Votre nom',
+    contact_message_placeholder: 'Votre message',
+    contact_send_btn: 'Envoyer',
+    no_products_match: 'Aucun produit ne correspond à votre recherche.',
+    no_products_yet: "Cette boutique n'a pas encore de produits en ligne.",
+    add_to_cart_btn: 'Ajouter au panier',
+    share_whatsapp_btn: '📲 Partager sur WhatsApp',
+    related_products_title: 'Vous aimerez aussi',
+    reviews_title: 'Avis clients',
+    no_reviews_yet: 'Aucun avis pour le moment.',
+    leave_review_btn: 'Laisser un avis',
+    review_name_label: 'Votre nom',
+    review_rating_label: 'Note',
+    rating_5: '★★★★★ Excellent', rating_4: '★★★★☆ Très bien', rating_3: '★★★☆☆ Correct',
+    rating_2: '★★☆☆☆ Moyen', rating_1: '★☆☆☆☆ Décevant',
+    review_comment_label: 'Commentaire (optionnel)',
+    review_name_required: 'Votre nom est requis',
+    option_choice_label: 'Choix',
+    variant_standard: 'Standard',
+    cart_title: 'Votre panier',
+    cart_empty: 'Votre panier est vide.',
+    order_cod_btn: 'Commander (paiement à la livraison)',
+    checkout_title: 'Vos informations',
+    checkout_fullname_label: 'Nom complet',
+    checkout_phone_label: 'Téléphone',
+    checkout_address_label: 'Adresse de livraison',
+    checkout_email_label: 'Email (optionnel — pour recevoir la confirmation de commande)',
+    promo_placeholder: 'Code promo',
+    promo_remove_btn: 'Retirer',
+    promo_apply_btn: 'Appliquer',
+    confirm_order_btn: 'Confirmer la commande (paiement à la livraison)',
+    back_to_cart_btn: '← Retour au panier',
+    order_confirmed_title: 'Commande confirmée',
+    order_ref_label: 'Référence : ',
+    order_confirmed_note: 'Vous serez contacté(e) pour la livraison. Paiement à la réception.',
+    close_btn: 'Fermer',
+    subtotal_label: 'Sous-total',
+    delivery_fee_label: 'Frais de livraison',
+    total_label: 'Total',
+    sending_in_progress: 'Envoi en cours…',
+    personal_promo_prefix: '🎁 Code personnel ',
+    personal_promo_suffix: ' disponible pour vous',
+    use_btn: 'Utiliser',
+    track_order_title: 'Suivre ma commande',
+    track_phone_label: 'Téléphone utilisé à la commande',
+    track_ref_label: 'Numéro de commande (si vous le connaissez)',
+    search_btn: 'Rechercher',
+    found_orders_hint: 'Vos commandes trouvées avec ce numéro (cliquez-en une) :',
+    delivery_label: 'Livraison : ',
+    delivery_person_label: 'Livreur : ',
+    order_total_label: 'Total : ',
+    name_phone_required: 'Nom et téléphone requis',
+    cart_empty_error: 'Votre panier est vide',
+    order_number_phone_required: 'Numéro de commande et téléphone requis',
+    server_unreachable: 'Impossible de contacter le serveur.',
+    status_pending: 'En attente', status_processing: 'Validée', status_shipped: 'Expédiée',
+    status_delivered: 'Livrée', status_refused: 'Refusée', status_cancelled: 'Annulée',
+    delivery_to_assign: "En attente d'un livreur", delivery_assigned: 'Livreur assigné',
+    delivery_in_delivery: 'En cours de livraison', delivery_delivered: 'Livrée', delivery_refused: 'Refusée',
+  },
+  en: {
+    loading: 'Loading shop…',
+    shop_not_found: 'Shop not found.',
+    add_slug_hint: 'Add ?b=shop-name to the address.',
+    shop_not_found_closed: 'Shop not found or closed.',
+    track_order_btn: '📦 Track my order',
+    cart_btn: '🛒 Cart',
+    promo_banner_suffix: ' — enter it when you order!',
+    search_placeholder: 'Search for a product…',
+    all_categories: 'All',
+    newsletter_title: 'Newsletter',
+    email_placeholder: 'Your email',
+    newsletter_btn: 'Subscribe',
+    contact_title: 'Contact us',
+    contact_name_placeholder: 'Your name',
+    contact_message_placeholder: 'Your message',
+    contact_send_btn: 'Send',
+    no_products_match: 'No product matches your search.',
+    no_products_yet: 'This shop has no products online yet.',
+    add_to_cart_btn: 'Add to cart',
+    share_whatsapp_btn: '📲 Share on WhatsApp',
+    related_products_title: 'You may also like',
+    reviews_title: 'Customer reviews',
+    no_reviews_yet: 'No reviews yet.',
+    leave_review_btn: 'Leave a review',
+    review_name_label: 'Your name',
+    review_rating_label: 'Rating',
+    rating_5: '★★★★★ Excellent', rating_4: '★★★★☆ Very good', rating_3: '★★★☆☆ Okay',
+    rating_2: '★★☆☆☆ Below average', rating_1: '★☆☆☆☆ Disappointing',
+    review_comment_label: 'Comment (optional)',
+    review_name_required: 'Your name is required',
+    option_choice_label: 'Choice',
+    variant_standard: 'Standard',
+    cart_title: 'Your cart',
+    cart_empty: 'Your cart is empty.',
+    order_cod_btn: 'Order (cash on delivery)',
+    checkout_title: 'Your information',
+    checkout_fullname_label: 'Full name',
+    checkout_phone_label: 'Phone',
+    checkout_address_label: 'Delivery address',
+    checkout_email_label: 'Email (optional — to receive the order confirmation)',
+    promo_placeholder: 'Promo code',
+    promo_remove_btn: 'Remove',
+    promo_apply_btn: 'Apply',
+    confirm_order_btn: 'Confirm order (cash on delivery)',
+    back_to_cart_btn: '← Back to cart',
+    order_confirmed_title: 'Order confirmed',
+    order_ref_label: 'Reference: ',
+    order_confirmed_note: "You'll be contacted for delivery. Payment on receipt.",
+    close_btn: 'Close',
+    subtotal_label: 'Subtotal',
+    delivery_fee_label: 'Delivery fee',
+    total_label: 'Total',
+    sending_in_progress: 'Sending…',
+    personal_promo_prefix: '🎁 Personal code ',
+    personal_promo_suffix: ' available for you',
+    use_btn: 'Use',
+    track_order_title: 'Track my order',
+    track_phone_label: 'Phone used for the order',
+    track_ref_label: 'Order number (if you know it)',
+    search_btn: 'Search',
+    found_orders_hint: 'Your orders found with this number (click one):',
+    delivery_label: 'Delivery: ',
+    delivery_person_label: 'Delivery person: ',
+    order_total_label: 'Total: ',
+    name_phone_required: 'Name and phone required',
+    cart_empty_error: 'Your cart is empty',
+    order_number_phone_required: 'Order number and phone required',
+    server_unreachable: 'Unable to reach the server.',
+    status_pending: 'Pending', status_processing: 'Confirmed', status_shipped: 'Shipped',
+    status_delivered: 'Delivered', status_refused: 'Refused', status_cancelled: 'Cancelled',
+    delivery_to_assign: 'Awaiting a delivery person', delivery_assigned: 'Delivery person assigned',
+    delivery_in_delivery: 'Out for delivery', delivery_delivered: 'Delivered', delivery_refused: 'Refused',
+  },
+};
+function t(key) { return (I18N[LANG] && I18N[LANG][key]) ?? I18N.fr[key] ?? key; }
+function tf(key, vars) {
+  let s = t(key);
+  Object.keys(vars || {}).forEach(k => { s = s.split('{'+k+'}').join(vars[k]); });
+  return s;
+}
+function setLang(lang) {
+  LANG = lang === 'en' ? 'en' : 'fr';
+  localStorage.setItem('myboutik_shop_lang', LANG);
+  if (BOUTIQUE) renderShop();
+  const step = window.__cartStep;
+  if (document.getElementById('cartOverlay').classList.contains('open')) renderCartSheet(step, checkoutFieldValues());
+  if (document.getElementById('productOverlay').classList.contains('open') && window.__currentProductId) openProduct(window.__currentProductId);
+  if (document.getElementById('trackOverlay').classList.contains('open')) openTrackOrder();
+}
 
 let BOUTIQUE = null, PRODUCTS = [], ACTIVE_PROMOS = [], CATEGORIES = [], CART = JSON.parse(sessionStorage.getItem('myboutik_cart')||'[]');
 let CATALOG_FILTER = { category: '', search: '' };
@@ -110,10 +285,10 @@ function renderCartCount() {
 }
 
 if (!SLUG) {
-  document.getElementById('root').innerHTML = '<div class="empty"><div class="big">🏬</div>Boutique introuvable.<br><span style="font-size:13px">Ajoutez ?b=nom-de-la-boutique a l\'adresse.</span></div>';
+  document.getElementById('root').innerHTML = '<div class="empty"><div class="big">🏬</div>'+t('shop_not_found')+'<br><span style="font-size:13px">'+t('add_slug_hint')+'</span></div>';
 } else {
   Promise.all([api('/shop?action=boutique&slug='+encodeURIComponent(SLUG)), api('/shop?action=products&slug='+encodeURIComponent(SLUG)), api('/shop?action=active_promos&slug='+encodeURIComponent(SLUG)), api('/shop?action=categories&slug='+encodeURIComponent(SLUG))]).then(([bt, prods, promos, cats]) => {
-    if (!bt.data.success) { document.getElementById('root').innerHTML = '<div class="empty"><div class="big">🏬</div>Boutique introuvable ou fermee.</div>'; return; }
+    if (!bt.data.success) { document.getElementById('root').innerHTML = '<div class="empty"><div class="big">🏬</div>'+t('shop_not_found_closed')+'</div>'; return; }
     BOUTIQUE = bt.data.data; PRODUCTS = prods.data.data || []; ACTIVE_PROMOS = (promos.data.success && promos.data.data) || [];
     CATEGORIES = (cats.data.success && cats.data.data) || [];
     document.title = BOUTIQUE.name;
@@ -137,20 +312,21 @@ function renderShop() {
         <div class="shop-name">${escapeHtml(BOUTIQUE.name)}</div>
       </div>
       <div style="display:flex;align-items:center;gap:8px">
-        <button class="btn btn-ghost btn-sm" onclick="openTrackOrder()">📦 Suivre ma commande</button>
-        <button id="cartBtn" onclick="openCart()">🛒 Panier<span id="cartCount">0</span></button>
+        <div class="lang-switch"><button type="button" onclick="setLang('fr')" class="${LANG==='fr'?'active':''}">FR</button><button type="button" onclick="setLang('en')" class="${LANG==='en'?'active':''}">EN</button></div>
+        <button class="btn btn-ghost btn-sm" onclick="openTrackOrder()">${t('track_order_btn')}</button>
+        <button id="cartBtn" onclick="openCart()">${t('cart_btn')}<span id="cartCount">0</span></button>
       </div>
     </div></header>
     ${ACTIVE_PROMOS.length ? `<div class="wrap" style="padding-top:12px">
       <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:10px 14px;font-size:14px;color:#1e40af">
-        🎉 ${ACTIVE_PROMOS.map(p => 'Code <strong>'+escapeHtml(p.code)+'</strong> : -'+(p.type==='percent' ? Number(p.value)+'%' : fmtMoney(p.value, BOUTIQUE.currency))).join(' &nbsp;|&nbsp; ')} — à saisir au moment de commander !
+        🎉 ${ACTIVE_PROMOS.map(p => 'Code <strong>'+escapeHtml(p.code)+'</strong> : -'+(p.type==='percent' ? Number(p.value)+'%' : fmtMoney(p.value, BOUTIQUE.currency))).join(' &nbsp;|&nbsp; ')}${t('promo_banner_suffix')}
       </div>
     </div>` : ''}
     <div class="wrap">
       ${BOUTIQUE.description ? '<p style="color:var(--gray);margin:16px 0 0">'+escapeHtml(BOUTIQUE.description)+'</p>' : ''}
       ${PRODUCTS.length ? `
       <div style="margin:16px 0 8px">
-        <input id="catalogSearch" placeholder="Rechercher un produit…" oninput="onCatalogSearchInput(this.value)" style="width:100%;padding:10px 14px;border:1px solid var(--border);border-radius:10px;font-size:14px">
+        <input id="catalogSearch" placeholder="${t('search_placeholder')}" oninput="onCatalogSearchInput(this.value)" style="width:100%;padding:10px 14px;border:1px solid var(--border);border-radius:10px;font-size:14px">
       </div>
       ${CATEGORIES.length ? `<div id="categoryPills" style="display:flex;gap:8px;overflow-x:auto;padding-bottom:10px"></div>` : ''}
       ` : ''}
@@ -158,18 +334,18 @@ function renderShop() {
     </div>
     <footer><div class="wrap cols">
       <div>
-        <h4>Newsletter</h4>
+        <h4>${t('newsletter_title')}</h4>
         <div id="nlMsg"></div>
-        <input id="nlEmail" type="email" placeholder="Votre email">
-        <button class="btn btn-primary" onclick="subscribeNewsletter()">S'inscrire</button>
+        <input id="nlEmail" type="email" placeholder="${t('email_placeholder')}">
+        <button class="btn btn-primary" onclick="subscribeNewsletter()">${t('newsletter_btn')}</button>
       </div>
       <div>
-        <h4>Nous contacter</h4>
+        <h4>${t('contact_title')}</h4>
         <div id="ctMsg"></div>
-        <input id="ctName" placeholder="Votre nom">
-        <input id="ctEmail" type="email" placeholder="Votre email">
-        <textarea id="ctMessage" rows="2" placeholder="Votre message"></textarea>
-        <button class="btn btn-primary" onclick="sendContactMessage()">Envoyer</button>
+        <input id="ctName" placeholder="${t('contact_name_placeholder')}">
+        <input id="ctEmail" type="email" placeholder="${t('email_placeholder')}">
+        <textarea id="ctMessage" rows="2" placeholder="${t('contact_message_placeholder')}"></textarea>
+        <button class="btn btn-primary" onclick="sendContactMessage()">${t('contact_send_btn')}</button>
       </div>
     </div></footer>
   `;
@@ -180,7 +356,7 @@ function renderShop() {
 function renderCategoryPills() {
   const el = document.getElementById('categoryPills');
   if (!el) return;
-  el.innerHTML = `<button class="cat-pill ${!CATALOG_FILTER.category?'active':''}" onclick="selectCategory('')">Tous</button>
+  el.innerHTML = `<button class="cat-pill ${!CATALOG_FILTER.category?'active':''}" onclick="selectCategory('')">${t('all_categories')}</button>
     ${CATEGORIES.map(c=>`<button class="cat-pill ${CATALOG_FILTER.category===c.id?'active':''}" onclick="selectCategory('${c.id}')">${escapeHtml(c.name)}</button>`).join('')}`;
 }
 // Ne touche jamais au reste de la page (recherche en cours, etc.) - seuls
@@ -206,13 +382,14 @@ function renderProductGrid() {
           <div class="price">${fmtMoney(p.price, BOUTIQUE.currency)}${p.compare_at_price && Number(p.compare_at_price) > Number(p.price) ? ' <span style="color:var(--gray);font-weight:400;text-decoration:line-through;font-size:13px">'+fmtMoney(p.compare_at_price, BOUTIQUE.currency)+'</span>' : ''}</div>
         </div>
       </div>`).join('')+'</div>'
-    : '<div class="empty"><div class="big">🔍</div>Aucun produit ne correspond à votre recherche.</div>')
-    : '<div class="empty"><div class="big">🛍️</div>Cette boutique n\'a pas encore de produits en ligne.</div>';
+    : '<div class="empty"><div class="big">🔍</div>'+t('no_products_match')+'</div>')
+    : '<div class="empty"><div class="big">🛍️</div>'+t('no_products_yet')+'</div>';
 }
 
 function openProduct(id) {
   const p = PRODUCTS.find(x => x.id === id);
   if (!p) return;
+  window.__currentProductId = id;
   const images = (p.images && p.images.length) ? p.images.map(img => img.data) : (p.image_url ? [p.image_url] : []);
   let optionGroups = [];
   try { optionGroups = p.options_json ? JSON.parse(p.options_json) : []; } catch(e) { optionGroups = []; }
@@ -231,7 +408,7 @@ function openProduct(id) {
         </select>
       </div>`).join('');
   } else if (hasVariants) {
-    variantHtml = '<div class="field"><label>Choix</label><select id="pdVariant" onchange="updateVariantPrice(\''+p.id+'\')"><option value="">Standard</option>'+
+    variantHtml = '<div class="field"><label>'+t('option_choice_label')+'</label><select id="pdVariant" onchange="updateVariantPrice(\''+p.id+'\')"><option value="">'+t('variant_standard')+'</option>'+
       p.variants.map(v=>'<option value="'+v.id+'" data-price="'+(v.price??p.price)+'">'+escapeHtml(v.name)+'</option>').join('')+'</select></div>';
   }
 
@@ -244,8 +421,8 @@ function openProduct(id) {
     <div id="pdPrice">${renderPriceHtml(p.price, p.compare_at_price)}</div>
     ${variantHtml}
     <div class="qty-row"><button onclick="stepQty(-1)">-</button><span id="pdQty">1</span><button onclick="stepQty(1)">+</button></div>
-    <button class="btn btn-primary" id="pdAddBtn" onclick="addToCart('${p.id}')">Ajouter au panier</button>
-    <button class="btn btn-ghost" style="margin-top:8px" onclick="shareProductOnWhatsApp('${p.id}')">📲 Partager sur WhatsApp</button>
+    <button class="btn btn-primary" id="pdAddBtn" onclick="addToCart('${p.id}')">${t('add_to_cart_btn')}</button>
+    <button class="btn btn-ghost" style="margin-top:8px" onclick="shareProductOnWhatsApp('${p.id}')">${t('share_whatsapp_btn')}</button>
     <div id="pdRelated"></div>
     <div id="pdReviewsSection"></div>
   `;
@@ -283,7 +460,7 @@ function renderRelatedProducts(related) {
   const el = document.getElementById('pdRelated');
   if (!el) return;
   if (!related.length) { el.innerHTML = ''; return; }
-  el.innerHTML = `<h3 style="margin-top:18px;font-size:15px">Vous aimerez aussi</h3>
+  el.innerHTML = `<h3 style="margin-top:18px;font-size:15px">${t('related_products_title')}</h3>
     <div style="display:flex;gap:10px;overflow-x:auto;padding-bottom:4px">
       ${related.map(r => `<div onclick="openProductBySlug('${escapeHtml(r.slug)}')" style="min-width:110px;max-width:110px;cursor:pointer">
         ${r.image_url ? '<img src="'+escapeHtml(r.image_url)+'" style="width:110px;height:110px;object-fit:cover;border-radius:8px">' : '<div class="ph" style="width:110px;height:110px;border-radius:8px">🛍️</div>'}
@@ -298,15 +475,15 @@ function loadReviews(productId) {
     const avg = rows.length ? (rows.reduce((s,r)=>s+Number(r.rating),0)/rows.length) : 0;
     const el = document.getElementById('pdReviewsSection');
     if (!el) return;
-    el.innerHTML = `<h3 style="margin-top:18px;font-size:15px">Avis clients ${rows.length?'('+rows.length+')':''}</h3>
+    el.innerHTML = `<h3 style="margin-top:18px;font-size:15px">${t('reviews_title')} ${rows.length?'('+rows.length+')':''}</h3>
       ${rows.length ? '<div style="color:var(--gray);font-size:13px;margin-bottom:6px">'+'★'.repeat(Math.round(avg))+'☆'.repeat(5-Math.round(avg))+' '+avg.toFixed(1)+'/5</div>' : ''}
       <div style="max-height:160px;overflow-y:auto">
         ${rows.length ? rows.map(r => `<div style="border-bottom:1px solid var(--border);padding:8px 0">
             <div style="font-weight:600;font-size:13px">${escapeHtml(r.customer_name)} — ${'★'.repeat(r.rating)}${'☆'.repeat(5-r.rating)}</div>
             ${r.comment ? '<div style="font-size:13px;color:var(--gray)">'+escapeHtml(r.comment)+'</div>' : ''}
-          </div>`).join('') : '<div class="empty" style="padding:10px 0">Aucun avis pour le moment.</div>'}
+          </div>`).join('') : '<div class="empty" style="padding:10px 0">'+t('no_reviews_yet')+'</div>'}
       </div>
-      <button class="btn btn-ghost btn-sm" style="margin-top:8px" onclick="toggleReviewForm('${productId}')">Laisser un avis</button>
+      <button class="btn btn-ghost btn-sm" style="margin-top:8px" onclick="toggleReviewForm('${productId}')">${t('leave_review_btn')}</button>
       <div id="reviewFormWrap"></div>`;
   });
 }
@@ -315,18 +492,18 @@ function toggleReviewForm(productId) {
   if (!wrap) return;
   wrap.innerHTML = `<div style="margin-top:10px">
     <div id="reviewMsg"></div>
-    <div class="field"><label>Votre nom</label><input id="rvName"></div>
-    <div class="field"><label>Note</label><select id="rvRating">
-      <option value="5">★★★★★ Excellent</option><option value="4">★★★★☆ Très bien</option>
-      <option value="3">★★★☆☆ Correct</option><option value="2">★★☆☆☆ Moyen</option><option value="1">★☆☆☆☆ Décevant</option>
+    <div class="field"><label>${t('review_name_label')}</label><input id="rvName"></div>
+    <div class="field"><label>${t('review_rating_label')}</label><select id="rvRating">
+      <option value="5">${t('rating_5')}</option><option value="4">${t('rating_4')}</option>
+      <option value="3">${t('rating_3')}</option><option value="2">${t('rating_2')}</option><option value="1">${t('rating_1')}</option>
     </select></div>
-    <div class="field"><label>Commentaire (optionnel)</label><textarea id="rvComment" rows="2"></textarea></div>
-    <button class="btn btn-primary btn-sm" onclick="submitReview('${productId}')">Envoyer</button>
+    <div class="field"><label>${t('review_comment_label')}</label><textarea id="rvComment" rows="2"></textarea></div>
+    <button class="btn btn-primary btn-sm" onclick="submitReview('${productId}')">${t('contact_send_btn')}</button>
   </div>`;
 }
 function submitReview(productId) {
   const name = document.getElementById('rvName').value.trim();
-  if (!name) { document.getElementById('reviewMsg').innerHTML = '<div class="msg error">Votre nom est requis</div>'; return; }
+  if (!name) { document.getElementById('reviewMsg').innerHTML = '<div class="msg error">'+t('review_name_required')+'</div>'; return; }
   post('/shop?action=review_add', {
     slug: SLUG, product_id: productId, customer_name: name,
     rating: Number(document.getElementById('rvRating').value), comment: document.getElementById('rvComment').value.trim(),
@@ -417,17 +594,17 @@ let APPLIED_PROMO = null; // {code, type, value, discount} - revalide de toute f
 function cartTotalsHtml(subtotal, deliveryFee) {
   const discount = APPLIED_PROMO ? Math.min(APPLIED_PROMO.discount, subtotal) : 0;
   const total = Math.max(0, subtotal + deliveryFee - discount);
-  return `<div class="cart-line"><div>Sous-total</div><div>${fmtMoney(subtotal, BOUTIQUE.currency)}</div></div>
-       ${deliveryFee > 0 ? '<div class="cart-line"><div>Frais de livraison</div><div>'+fmtMoney(deliveryFee, BOUTIQUE.currency)+'</div></div>' : ''}
+  return `<div class="cart-line"><div>${t('subtotal_label')}</div><div>${fmtMoney(subtotal, BOUTIQUE.currency)}</div></div>
+       ${deliveryFee > 0 ? '<div class="cart-line"><div>'+t('delivery_fee_label')+'</div><div>'+fmtMoney(deliveryFee, BOUTIQUE.currency)+'</div></div>' : ''}
        ${discount > 0 ? '<div class="cart-line" style="color:var(--green,#16a34a)"><div>Code '+escapeHtml(APPLIED_PROMO.code)+'</div><div>-'+fmtMoney(discount, BOUTIQUE.currency)+'</div></div>' : ''}
-       <div class="cart-total"><div>Total</div><div>${fmtMoney(total, BOUTIQUE.currency)}</div></div>`;
+       <div class="cart-total"><div>${t('total_label')}</div><div>${fmtMoney(total, BOUTIQUE.currency)}</div></div>`;
 }
 function promoFieldHtml() {
   return `<div class="field-row" style="margin:10px 0">
-    <input id="promoInput" placeholder="Code promo" value="${APPLIED_PROMO?escapeHtml(APPLIED_PROMO.code):''}" ${APPLIED_PROMO?'disabled':''}>
+    <input id="promoInput" placeholder="${t('promo_placeholder')}" value="${APPLIED_PROMO?escapeHtml(APPLIED_PROMO.code):''}" ${APPLIED_PROMO?'disabled':''}>
     ${APPLIED_PROMO
-      ? '<button class="btn btn-ghost" onclick="removePromoCode()">Retirer</button>'
-      : '<button class="btn btn-ghost" onclick="applyPromoCode()">Appliquer</button>'}
+      ? '<button class="btn btn-ghost" onclick="removePromoCode()">'+t('promo_remove_btn')+'</button>'
+      : '<button class="btn btn-ghost" onclick="applyPromoCode()">'+t('promo_apply_btn')+'</button>'}
   </div><div id="promoMsg"></div>`;
 }
 // Capture ce que le client a deja tape avant un re-rendu du panier
@@ -466,36 +643,36 @@ function renderCartSheet(step, prefill) {
   if (step === 'cart') {
     document.getElementById('cartSheet').innerHTML = `
       <button class="close" onclick="closeOverlay('cartOverlay')">✕</button>
-      <h2>Votre panier</h2>
+      <h2>${t('cart_title')}</h2>
       ${CART.length ? CART.map(l => `<div class="cart-line"><div>${escapeHtml(l.name)} × ${l.qty}<br><span style="color:var(--gray)">${fmtMoney(l.price,BOUTIQUE.currency)}</span></div><button onclick="removeFromCart('${l.key}')">✕</button></div>`).join('')
-        : '<div class="empty" style="padding:30px 0"><div class="big">🛒</div>Votre panier est vide.</div>'}
-      ${CART.length ? totalsHtml+'<button class="btn btn-primary" onclick="renderCartSheet(\'checkout\')">Commander (paiement à la livraison)</button>' : ''}
+        : '<div class="empty" style="padding:30px 0"><div class="big">🛒</div>'+t('cart_empty')+'</div>'}
+      ${CART.length ? totalsHtml+'<button class="btn btn-primary" onclick="renderCartSheet(\'checkout\')">'+t('order_cod_btn')+'</button>' : ''}
     `;
     if (CART.length) trackAbandoned();
   } else if (step === 'checkout') {
     document.getElementById('cartSheet').innerHTML = `
       <button class="close" onclick="closeOverlay('cartOverlay')">✕</button>
-      <h2>Vos informations</h2>
+      <h2>${t('checkout_title')}</h2>
       <div id="checkoutMsg"></div>
-      <div class="field"><label>Nom complet</label><input id="coName" value="${escapeHtml(prefill.name||'')}"></div>
-      <div class="field"><label>Téléphone</label><input id="coPhone" value="${escapeHtml(prefill.phone||'')}" oninput="onCheckoutPhoneInput()"></div>
+      <div class="field"><label>${t('checkout_fullname_label')}</label><input id="coName" value="${escapeHtml(prefill.name||'')}"></div>
+      <div class="field"><label>${t('checkout_phone_label')}</label><input id="coPhone" value="${escapeHtml(prefill.phone||'')}" oninput="onCheckoutPhoneInput()"></div>
       <div id="personalPromoHint"></div>
-      <div class="field"><label>Adresse de livraison</label><textarea id="coAddress" rows="2">${escapeHtml(prefill.address||'')}</textarea></div>
-      <div class="field"><label>Email (optionnel — pour recevoir la confirmation de commande)</label><input id="coEmail" type="email" value="${escapeHtml(prefill.email||'')}"></div>
+      <div class="field"><label>${t('checkout_address_label')}</label><textarea id="coAddress" rows="2">${escapeHtml(prefill.address||'')}</textarea></div>
+      <div class="field"><label>${t('checkout_email_label')}</label><input id="coEmail" type="email" value="${escapeHtml(prefill.email||'')}"></div>
       ${promoFieldHtml()}
       ${totalsHtml}
-      <button class="btn btn-primary" id="coSubmitBtn" onclick="submitCheckout()">Confirmer la commande (paiement à la livraison)</button>
-      <button class="btn btn-ghost" style="margin-top:8px" onclick="renderCartSheet('cart')">← Retour au panier</button>
+      <button class="btn btn-primary" id="coSubmitBtn" onclick="submitCheckout()">${t('confirm_order_btn')}</button>
+      <button class="btn btn-ghost" style="margin-top:8px" onclick="renderCartSheet('cart')">${t('back_to_cart_btn')}</button>
     `;
   } else if (step === 'confirm') {
     document.getElementById('cartSheet').innerHTML = `
       <button class="close" onclick="closeOverlay('cartOverlay')">✕</button>
       <div class="confirm-box">
         <div class="ic">✓</div>
-        <h2>Commande confirmée</h2>
-        <p style="color:var(--gray);margin-top:8px">Référence : <strong>${escapeHtml(window.__lastOrderRef||'')}</strong></p>
-        <p style="color:var(--gray)">Vous serez contacté(e) pour la livraison. Paiement à la réception.</p>
-        <button class="btn btn-primary" style="margin-top:16px" onclick="closeOverlay('cartOverlay')">Fermer</button>
+        <h2>${t('order_confirmed_title')}</h2>
+        <p style="color:var(--gray);margin-top:8px">${t('order_ref_label')}<strong>${escapeHtml(window.__lastOrderRef||'')}</strong></p>
+        <p style="color:var(--gray)">${t('order_confirmed_note')}</p>
+        <button class="btn btn-primary" style="margin-top:16px" onclick="closeOverlay('cartOverlay')">${t('close_btn')}</button>
       </div>
     `;
   }
@@ -526,8 +703,8 @@ function checkPersonalPromo() {
     hint.innerHTML = rows.map(p => {
       const label = p.type === 'percent' ? Number(p.value)+'%' : fmtMoney(p.value, BOUTIQUE.currency);
       return `<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:9px;padding:8px 10px;margin:8px 0;font-size:13px;display:flex;justify-content:space-between;align-items:center;gap:8px">
-        <span>🎁 Code personnel <strong>${escapeHtml(p.code)}</strong> : -${label} disponible pour vous</span>
-        <button class="btn btn-primary btn-sm" onclick="applyDiscoveredPromo('${escapeHtml(p.code)}')" style="width:auto;flex-shrink:0">Utiliser</button>
+        <span>${t('personal_promo_prefix')}<strong>${escapeHtml(p.code)}</strong> : -${label}${t('personal_promo_suffix')}</span>
+        <button class="btn btn-primary btn-sm" onclick="applyDiscoveredPromo('${escapeHtml(p.code)}')" style="width:auto;flex-shrink:0">${t('use_btn')}</button>
       </div>`;
     }).join('');
   });
@@ -550,9 +727,9 @@ function submitCheckout() {
   const phone = document.getElementById('coPhone').value.trim();
   const address = document.getElementById('coAddress').value.trim();
   const email = document.getElementById('coEmail').value.trim();
-  if (!name || !phone) { document.getElementById('checkoutMsg').innerHTML = '<div class="msg error">Nom et téléphone requis</div>'; return; }
-  if (CART.length === 0) { document.getElementById('checkoutMsg').innerHTML = '<div class="msg error">Votre panier est vide</div>'; return; }
-  const btn = document.getElementById('coSubmitBtn'); btn.disabled = true; btn.textContent = 'Envoi en cours…';
+  if (!name || !phone) { document.getElementById('checkoutMsg').innerHTML = '<div class="msg error">'+t('name_phone_required')+'</div>'; return; }
+  if (CART.length === 0) { document.getElementById('checkoutMsg').innerHTML = '<div class="msg error">'+t('cart_empty_error')+'</div>'; return; }
+  const btn = document.getElementById('coSubmitBtn'); btn.disabled = true; btn.textContent = t('sending_in_progress');
   const params = new URLSearchParams(window.location.search);
   post('/shop?action=checkout', {
     slug: SLUG, session_id: sessionId(),
@@ -561,7 +738,7 @@ function submitCheckout() {
     utm_source: params.get('utm_source')||'', utm_campaign: params.get('utm_campaign')||'',
     promo_code: APPLIED_PROMO ? APPLIED_PROMO.code : '',
   }).then(({data}) => {
-    btn.disabled = false; btn.textContent = 'Confirmer la commande (paiement à la livraison)';
+    btn.disabled = false; btn.textContent = t('confirm_order_btn');
     if (!data.success) { document.getElementById('checkoutMsg').innerHTML = '<div class="msg error">'+data.message+'</div>'; return; }
     window.__lastOrderRef = data.data.ref;
     CART = []; saveCart(); APPLIED_PROMO = null;
@@ -569,17 +746,21 @@ function submitCheckout() {
   });
 }
 
-const TRACK_STATUS_LABELS = {pending:'En attente', processing:'Validée', shipped:'Expédiée', delivered:'Livrée', refused:'Refusée', cancelled:'Annulée'};
-const TRACK_DELIVERY_LABELS = {to_assign:'En attente d\'un livreur', assigned:'Livreur assigné', in_delivery:'En cours de livraison', delivered:'Livrée', refused:'Refusée'};
+function trackStatusLabels() {
+  return {pending:t('status_pending'), processing:t('status_processing'), shipped:t('status_shipped'), delivered:t('status_delivered'), refused:t('status_refused'), cancelled:t('status_cancelled')};
+}
+function trackDeliveryLabels() {
+  return {to_assign:t('delivery_to_assign'), assigned:t('delivery_assigned'), in_delivery:t('delivery_in_delivery'), delivered:t('delivery_delivered'), refused:t('delivery_refused')};
+}
 function openTrackOrder() {
   document.getElementById('trackSheet').innerHTML = `
     <button class="close" onclick="closeOverlay('trackOverlay')">✕</button>
-    <h2>Suivre ma commande</h2>
+    <h2>${t('track_order_title')}</h2>
     <div id="trackMsg"></div>
-    <div class="field"><label>Téléphone utilisé à la commande</label><input id="trkPhone" oninput="onTrackPhoneInput()"></div>
+    <div class="field"><label>${t('track_phone_label')}</label><input id="trkPhone" oninput="onTrackPhoneInput()"></div>
     <div id="trkOrdersHint"></div>
-    <div class="field"><label>Numéro de commande (si vous le connaissez)</label><input id="trkRef" placeholder="CMD-..."></div>
-    <button class="btn btn-primary" onclick="submitTrackOrder()">Rechercher</button>
+    <div class="field"><label>${t('track_ref_label')}</label><input id="trkRef" placeholder="CMD-..."></div>
+    <button class="btn btn-primary" onclick="submitTrackOrder()">${t('search_btn')}</button>
     <div id="trackResult"></div>
   `;
   document.getElementById('trackOverlay').classList.add('open');
@@ -602,9 +783,9 @@ function loadOrdersForTrackPhone() {
   post('/shop?action=orders_for_phone', {slug:SLUG, phone}).then(({data}) => {
     const rows = (data.success && data.data) || [];
     if (!rows.length) { hint.innerHTML = ''; return; }
-    hint.innerHTML = '<div class="muted" style="font-size:12px;margin:6px 0 4px">Vos commandes trouvées avec ce numéro (cliquez-en une) :</div>' +
+    hint.innerHTML = '<div class="muted" style="font-size:12px;margin:6px 0 4px">'+t('found_orders_hint')+'</div>' +
       rows.map(o => `<div onclick="selectTrackOrder('${o.ref}')" style="border:1px solid var(--border);border-radius:9px;padding:8px 10px;margin-bottom:6px;cursor:pointer;font-size:13px;display:flex;justify-content:space-between;gap:8px">
-        <span>${escapeHtml(o.ref)}</span><span style="color:var(--gray)">${fmtMoney(o.total, BOUTIQUE.currency)} — ${TRACK_STATUS_LABELS[o.status]||o.status}</span>
+        <span>${escapeHtml(o.ref)}</span><span style="color:var(--gray)">${fmtMoney(o.total, BOUTIQUE.currency)} — ${trackStatusLabels()[o.status]||o.status}</span>
       </div>`).join('');
   });
 }
@@ -615,18 +796,18 @@ function selectTrackOrder(ref) {
 function submitTrackOrder() {
   const ref = document.getElementById('trkRef').value.trim();
   const phone = document.getElementById('trkPhone').value.trim();
-  if (!ref || !phone) { document.getElementById('trackMsg').innerHTML = '<div class="msg error">Numéro de commande et téléphone requis</div>'; return; }
+  if (!ref || !phone) { document.getElementById('trackMsg').innerHTML = '<div class="msg error">'+t('order_number_phone_required')+'</div>'; return; }
   post('/shop?action=track_order', {slug:SLUG, ref, phone}).then(({data}) => {
     if (!data.success) { document.getElementById('trackMsg').innerHTML = '<div class="msg error">'+data.message+'</div>'; document.getElementById('trackResult').innerHTML=''; return; }
     document.getElementById('trackMsg').innerHTML = '';
     const o = data.data;
     document.getElementById('trackResult').innerHTML = `
       <div style="margin-top:14px;border:1px solid var(--border);border-radius:12px;padding:14px">
-        <div><strong>${escapeHtml(o.ref)}</strong> — ${TRACK_STATUS_LABELS[o.status]||o.status}</div>
-        ${o.delivery_status ? '<div style="color:var(--gray);font-size:13px;margin-top:4px">Livraison : '+(TRACK_DELIVERY_LABELS[o.delivery_status]||o.delivery_status)+'</div>' : ''}
-        ${o.delivery_person_name ? '<div style="color:var(--gray);font-size:13px">Livreur : '+escapeHtml(o.delivery_person_name)+' ('+escapeHtml(o.delivery_person_phone||'')+')</div>' : ''}
+        <div><strong>${escapeHtml(o.ref)}</strong> — ${trackStatusLabels()[o.status]||o.status}</div>
+        ${o.delivery_status ? '<div style="color:var(--gray);font-size:13px;margin-top:4px">'+t('delivery_label')+(trackDeliveryLabels()[o.delivery_status]||o.delivery_status)+'</div>' : ''}
+        ${o.delivery_person_name ? '<div style="color:var(--gray);font-size:13px">'+t('delivery_person_label')+escapeHtml(o.delivery_person_name)+' ('+escapeHtml(o.delivery_person_phone||'')+')</div>' : ''}
         <div style="margin-top:10px">${(o.items||[]).map(it=>'<div style="font-size:13px">'+it.qty+' × '+escapeHtml(it.product_name)+'</div>').join('')}</div>
-        <div style="font-weight:700;margin-top:8px">Total : ${fmtMoney(o.total, BOUTIQUE.currency)}</div>
+        <div style="font-weight:700;margin-top:8px">${t('order_total_label')}${fmtMoney(o.total, BOUTIQUE.currency)}</div>
       </div>`;
   });
 }
