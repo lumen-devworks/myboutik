@@ -60,14 +60,6 @@ define('ADMIN_PASSWORD', getenv('ADMIN_PASSWORD') ?: null);
 define('BREVO_API_KEY',     getenv('BREVO_API_KEY')     ?: null);
 define('BREVO_SENDER_EMAIL',getenv('BREVO_SENDER_EMAIL')?: null);
 define('BREVO_SENDER_NAME', getenv('BREVO_SENDER_NAME') ?: 'MYBOUTIK');
-// Envoi WhatsApp (Twilio, https://console.twilio.com) - TWILIO_WHATSAPP_FROM
-// est le numero expediteur au format "whatsapp:+14155238886" (sandbox de
-// test) ou "whatsapp:+..." (numero WhatsApp Business valide une fois
-// approuve). Meme principe : optionnel, repli sur le journal si absent.
-define('TWILIO_ACCOUNT_SID',    getenv('TWILIO_ACCOUNT_SID')    ?: null);
-define('TWILIO_AUTH_TOKEN',     getenv('TWILIO_AUTH_TOKEN')     ?: null);
-define('TWILIO_WHATSAPP_FROM',  getenv('TWILIO_WHATSAPP_FROM')  ?: null);
-
 // CORS restreint : seules les origines listees ici peuvent appeler l'API
 // directement depuis un navigateur. A completer avec le(s) domaine(s) ou
 // sont hebergees index.html / dashboard / store une fois deployees.
@@ -531,35 +523,6 @@ function send_email($to, $subject, $body) {
     }
 }
 
-// Meme principe que send_email(), via l'API Twilio si TWILIO_ACCOUNT_SID/
-// TWILIO_AUTH_TOKEN/TWILIO_WHATSAPP_FROM sont configures. Avec le numero
-// "sandbox" gratuit de Twilio, seuls les numeros ayant rejoint le sandbox
-// (join <code> envoye au numero sandbox depuis WhatsApp) recoivent
-// reellement le message - suffisant pour tester les alertes marchand
-// (envoyees a son propre numero), mais pas pour relancer de vrais clients
-// en production (necessite un numero WhatsApp Business approuve).
-function send_whatsapp($to, $message) {
-    error_log('[MYBOUTIK] WhatsApp a envoyer -> '.$to.' : '.$message);
-    if (!TWILIO_ACCOUNT_SID || !TWILIO_AUTH_TOKEN || !TWILIO_WHATSAPP_FROM || !$to) return;
-    try {
-        $toFormatted = 'whatsapp:'.preg_replace('/[^0-9+]/', '', $to);
-        $ch = curl_init('https://api.twilio.com/2010-04-01/Accounts/'.TWILIO_ACCOUNT_SID.'/Messages.json');
-        curl_setopt_array($ch, [
-            CURLOPT_POST => true,
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_TIMEOUT => 10,
-            CURLOPT_USERPWD => TWILIO_ACCOUNT_SID.':'.TWILIO_AUTH_TOKEN,
-            CURLOPT_POSTFIELDS => http_build_query(['From' => TWILIO_WHATSAPP_FROM, 'To' => $toFormatted, 'Body' => $message]),
-        ]);
-        $res = curl_exec($ch);
-        $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        if ($code >= 300) error_log('[MYBOUTIK] Twilio erreur HTTP '.$code.': '.$res);
-        curl_close($ch);
-    } catch (Throwable $e) {
-        error_log('[MYBOUTIK] Twilio exception: '.$e->getMessage());
-    }
-}
-
 // Paliers de grade (gamification), calcules sur le cumul "vie" des revenus
 // encaisses de la boutique. Le cumul ne redescend jamais (meme principe que
 // l'ecran "Mon grade" : chaque palier est acquis pour de bon).
@@ -747,9 +710,9 @@ function route_install() {
     "ALTER TABLE boutiques ADD COLUMN IF NOT EXISTS logo_url TEXT",
     "ALTER TABLE boutiques ADD COLUMN IF NOT EXISTS notify_order_email SMALLINT DEFAULT 1",
     "ALTER TABLE boutiques ADD COLUMN IF NOT EXISTS notify_email VARCHAR(190)",
-    // Notification WhatsApp a chaque commande - meme statut que l'email
-    // pour l'instant (voir send_whatsapp()) : le numero/le reglage sont deja
-    // geres, l'envoi reel necessite un compte WhatsApp Business API.
+    // notify_whatsapp_enabled/number : colonnes conservees pour compatibilite
+    // (evite une migration DROP COLUMN) mais plus utilisees par l'appli -
+    // le canal WhatsApp a ete retire, seul l'email reste propose.
     "ALTER TABLE boutiques ADD COLUMN IF NOT EXISTS notify_whatsapp_enabled SMALLINT DEFAULT 0",
     "ALTER TABLE boutiques ADD COLUMN IF NOT EXISTS notify_whatsapp_number VARCHAR(30)",
     // Import de commandes depuis une feuille Google Sheets publiee en CSV
@@ -1447,13 +1410,11 @@ function boutiques_update($pl) {
     $logoUrl = trim($b['logo_url'] ?? $row['logo_url']);
     $notifyOrderEmail = isset($b['notify_order_email']) ? (int)!!$b['notify_order_email'] : $row['notify_order_email'];
     $notifyEmail = trim($b['notify_email'] ?? $row['notify_email']);
-    $notifyWhatsappEnabled = isset($b['notify_whatsapp_enabled']) ? (int)!!$b['notify_whatsapp_enabled'] : $row['notify_whatsapp_enabled'];
-    $notifyWhatsappNumber = trim($b['notify_whatsapp_number'] ?? $row['notify_whatsapp_number']);
     $stockAlertEnabled = isset($b['stock_alert_enabled']) ? (int)!!$b['stock_alert_enabled'] : $row['stock_alert_enabled'];
     q("UPDATE boutiques SET name=?, cod_enabled=?, currency=?, default_delivery_fee=?, description=?, logo_url=?,
-       notify_order_email=?, notify_email=?, notify_whatsapp_enabled=?, notify_whatsapp_number=?, stock_alert_enabled=? WHERE id=?",
+       notify_order_email=?, notify_email=?, stock_alert_enabled=? WHERE id=?",
       [$name, $codEnabled, $currency, $deliveryFee, $description, $logoUrl, $notifyOrderEmail, $notifyEmail,
-       $notifyWhatsappEnabled, $notifyWhatsappNumber, $stockAlertEnabled, $id]);
+       $stockAlertEnabled, $id]);
     ok(q("SELECT * FROM boutiques WHERE id=?", [$id])->fetch(), 'Boutique mise a jour');
 }
 
@@ -2152,7 +2113,7 @@ function shop_checkout() {
 }
 
 function notify_new_order($bt, $ref, $customerName, $total) {
-    $settings = q("SELECT notify_order_email, notify_email, notify_whatsapp_enabled, notify_whatsapp_number FROM boutiques WHERE id=?", [$bt['id']])->fetch();
+    $settings = q("SELECT notify_order_email, notify_email FROM boutiques WHERE id=?", [$bt['id']])->fetch();
     if (!$settings) return;
     $summary = "Client: $customerName\nTotal: $total ".($bt['currency'] ?: 'XOF')."\nReference: $ref\n\nOuvrez votre tableau de bord MYBOUTIK pour la traiter.";
     if ($settings['notify_order_email']) {
@@ -2162,9 +2123,6 @@ function notify_new_order($bt, $ref, $customerName, $total) {
             $to = $owner['email'] ?? null;
         }
         if ($to) send_email($to, 'Nouvelle commande '.$ref.' - '.$bt['name'], $summary);
-    }
-    if ($settings['notify_whatsapp_enabled'] && $settings['notify_whatsapp_number']) {
-        send_whatsapp($settings['notify_whatsapp_number'], 'Nouvelle commande '.$ref.' - '.$bt['name']."\n".$summary);
     }
 }
 
@@ -3872,7 +3830,6 @@ function cron_abandoned_reminders() {
         $total = number_format((float)$c['total'], 0, ',', ' ').' '.($c['currency'] ?: 'XOF');
         $message = "Bonjour, vous avez laisse des articles dans votre panier chez ".$c['boutique_name']." (".$total."). Revenez finaliser votre commande !";
         if ($c['email']) send_email($c['email'], 'Votre panier vous attend - '.$c['boutique_name'], $message);
-        if ($c['phone']) send_whatsapp($c['phone'], $message);
         q("UPDATE abandoned_carts SET reminded_at=NOW() WHERE id=?", [$c['id']]);
         $sent++;
     }
@@ -3893,13 +3850,10 @@ function cron_stock_alerts() {
         if (!$low) continue;
         $lines = array_map(fn($p) => '- '.$p['name'].' : '.$p['stock_qty'].' restant(s)', $low);
         $message = "Stock limite sur ".count($low)." produit(s) de ".$bt['name'].":\n".implode("\n", $lines);
-        $settings = q("SELECT notify_order_email, notify_email, notify_whatsapp_enabled, notify_whatsapp_number FROM boutiques WHERE id=?", [$bt['id']])->fetch();
+        $settings = q("SELECT notify_order_email, notify_email FROM boutiques WHERE id=?", [$bt['id']])->fetch();
         if ($settings['notify_order_email']) {
             $to = $settings['notify_email'] ?: (q("SELECT email FROM users WHERE id=?", [$bt['owner_user_id']])->fetchColumn() ?: null);
             if ($to) send_email($to, 'Alerte stock limite - '.$bt['name'], $message);
-        }
-        if ($settings['notify_whatsapp_enabled'] && $settings['notify_whatsapp_number']) {
-            send_whatsapp($settings['notify_whatsapp_number'], $message);
         }
         q("UPDATE boutiques SET last_stock_alert_at=NOW() WHERE id=?", [$bt['id']]);
         $sent++;

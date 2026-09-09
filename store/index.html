@@ -658,7 +658,7 @@ function renderCartSheet(step, prefill) {
       <div class="field"><label>${t('checkout_phone_label')}</label><input id="coPhone" value="${escapeHtml(prefill.phone||'')}" oninput="onCheckoutPhoneInput()"></div>
       <div id="personalPromoHint"></div>
       <div class="field"><label>${t('checkout_address_label')}</label><textarea id="coAddress" rows="2">${escapeHtml(prefill.address||'')}</textarea></div>
-      <div class="field"><label>${t('checkout_email_label')}</label><input id="coEmail" type="email" value="${escapeHtml(prefill.email||'')}"></div>
+      <div class="field"><label>${t('checkout_email_label')}</label><input id="coEmail" type="email" value="${escapeHtml(prefill.email||'')}" oninput="onCheckoutPhoneInput()"></div>
       ${promoFieldHtml()}
       ${totalsHtml}
       <button class="btn btn-primary" id="coSubmitBtn" onclick="submitCheckout()">${t('confirm_order_btn')}</button>
@@ -717,9 +717,10 @@ function applyDiscoveredPromo(code) {
 }
 function trackAbandoned() {
   const phone = (document.getElementById('coPhone')||{}).value || '';
-  if (!phone && CART.length === 0) return;
+  const email = (document.getElementById('coEmail')||{}).value || '';
+  if (!phone && !email) return;
   const total = CART.reduce((s,l)=>s+l.price*l.qty, 0);
-  post('/shop?action=track_abandoned', {slug:SLUG, session_id:sessionId(), phone, cart:CART, total});
+  post('/shop?action=track_abandoned', {slug:SLUG, session_id:sessionId(), phone, email, cart:CART, total});
 }
 
 function submitCheckout() {

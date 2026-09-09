@@ -392,8 +392,7 @@ const I18N = {
     capture_settings_title: 'Réglages de capture',
     checkbox_capture_abandoned: 'Capturer les commandes abandonnées',
     label_abandoned_after_minutes: 'Considérer comme abandonné après (minutes)',
-    checkbox_auto_reminder: 'Relancer automatiquement le client (email/WhatsApp) 30 min après l\'abandon',
-    reminder_requires_provider_note: 'Nécessite qu\'un fournisseur d\'envoi email/WhatsApp soit branché côté serveur pour être réellement envoyé (voir le guide).',
+    checkbox_auto_reminder: 'Relancer automatiquement le client par email 30 min après l\'abandon',
     abandoned_carts_title: 'Paniers abandonnés',
     col_phone_email: 'Téléphone / Email',
     col_estimated_total: 'Total estimé',
@@ -708,9 +707,6 @@ const I18N = {
     order_notifications_title: 'Notifications de commande',
     checkbox_notify_email: 'Recevoir un email à chaque nouvelle commande',
     label_receiving_address: 'Adresse de réception (vide = email de votre compte)',
-    checkbox_notify_whatsapp: 'Recevoir une notification WhatsApp à chaque nouvelle commande',
-    label_whatsapp_number: 'Numéro WhatsApp (format international, ex: +225 07 00 00 00 00)',
-    whatsapp_pending_note: 'En attente d\'un numéro WhatsApp Business approuvé — en attendant, le message est journalisé côté serveur pour test.',
     checkbox_stock_alert: 'M\'alerter automatiquement quand un produit passe en stock limité (au plus 1 fois/jour)',
     backup_title: 'Sauvegarde',
     backup_subtitle: 'Téléchargez toutes les données de cette boutique (produits, clients, commandes, finances…) dans un seul fichier, au cas où. Les photos ne sont pas incluses (fichier trop volumineux sinon).',
@@ -986,8 +982,7 @@ const I18N = {
     capture_settings_title: 'Capture settings',
     checkbox_capture_abandoned: 'Capture abandoned orders',
     label_abandoned_after_minutes: 'Consider abandoned after (minutes)',
-    checkbox_auto_reminder: 'Automatically follow up with the customer (email/WhatsApp) 30 min after abandonment',
-    reminder_requires_provider_note: 'Requires an email/WhatsApp sending provider set up server-side to actually be sent (see the guide).',
+    checkbox_auto_reminder: 'Automatically follow up with the customer by email 30 min after abandonment',
     abandoned_carts_title: 'Abandoned carts',
     col_phone_email: 'Phone / Email',
     col_estimated_total: 'Estimated total',
@@ -1302,9 +1297,6 @@ const I18N = {
     order_notifications_title: 'Order notifications',
     checkbox_notify_email: 'Receive an email for every new order',
     label_receiving_address: 'Receiving address (empty = your account email)',
-    checkbox_notify_whatsapp: 'Receive a WhatsApp notification for every new order',
-    label_whatsapp_number: 'WhatsApp number (international format, e.g.: +225 07 00 00 00 00)',
-    whatsapp_pending_note: 'Waiting on an approved WhatsApp Business number — in the meantime, the message is logged server-side for testing.',
     checkbox_stock_alert: 'Automatically alert me when a product goes into low stock (at most once/day)',
     backup_title: 'Backup',
     backup_subtitle: 'Download all this shop\'s data (products, customers, orders, finances…) into a single file, just in case. Photos aren\'t included (file would be too large otherwise).',
@@ -2075,13 +2067,12 @@ function renderAbandoned(bt) {
             <div class="field"><label>${t('label_abandoned_after_minutes')}</label><input type="number" id="capTimeout" value="${S.timeout_minutes||15}"></div>
           </div>
           <label style="display:flex;align-items:center;gap:8px;margin-bottom:10px"><input type="checkbox" id="capCustomerReminder" ${S.customer_reminder_enabled?'checked':''}> ${t('checkbox_auto_reminder')}</label>
-          <div class="muted" style="margin:-4px 0 10px;font-size:12px">${t('reminder_requires_provider_note')}</div>
           <button class="btn btn-primary btn-sm" onclick="saveAbandonedSettings()">${t('btn_save')}</button>
         </div>
         <div class="card">
           <h3>${t('abandoned_carts_title')}</h3>
           ${rows.length ? `<table><thead><tr><th>${t('col_phone_email')}</th><th>${t('col_estimated_total')}</th><th>${t('col_captured_at')}</th><th></th></tr></thead><tbody>
-            ${rows.map(r=>`<tr><td>${escapeHtml(r.phone||r.email||'—')}</td><td>${fmtMoney(r.total, bt.currency)}</td><td>${fmtDate(r.captured_at)}</td>
+            ${rows.map(r=>`<tr><td>${escapeHtml(r.phone||'—')}${r.email?'<br><span class="muted">'+escapeHtml(r.email)+'</span>':''}</td><td>${fmtMoney(r.total, bt.currency)}</td><td>${fmtDate(r.captured_at)}</td>
               <td><button class="btn btn-ghost btn-sm" onclick="markAbandonedConverted('${r.id}')">${t('btn_mark_converted')}</button></td></tr>`).join('')}
             </tbody></table>` : '<div class="empty"><div class="big">📭</div>'+t('no_abandoned_orders')+'</div>'}
         </div>
@@ -3201,9 +3192,6 @@ function renderSettings(bt) {
       <div id="settingsMsg2"></div>
       <label style="display:flex;align-items:center;gap:8px;margin-bottom:10px"><input type="checkbox" id="setNotifyEmail" ${bt.notify_order_email!=0?'checked':''}> ${t('checkbox_notify_email')}</label>
       <div class="field"><label>${t('label_receiving_address')}</label><input id="setNotifyAddr" type="email" value="${escapeHtml(bt.notify_email||'')}"></div>
-      <label style="display:flex;align-items:center;gap:8px;margin-bottom:10px"><input type="checkbox" id="setNotifyWhatsapp" ${bt.notify_whatsapp_enabled?'checked':''}> ${t('checkbox_notify_whatsapp')}</label>
-      <div class="field"><label>${t('label_whatsapp_number')}</label><input id="setNotifyWhatsappNumber" value="${escapeHtml(bt.notify_whatsapp_number||'')}"></div>
-      <div class="muted" style="margin:-6px 0 14px;font-size:12px">${t('whatsapp_pending_note')}</div>
       <label style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><input type="checkbox" id="setStockAlert" ${bt.stock_alert_enabled!=0?'checked':''}> ${t('checkbox_stock_alert')}</label>
       <button class="btn btn-primary" onclick="saveSettings('settingsMsg2')">${t('btn_save')}</button>
     </div>
@@ -3238,8 +3226,6 @@ function saveSettings(targetMsgId) {
     default_delivery_fee:Number(document.getElementById('setDeliveryFee').value||0),
     notify_order_email:document.getElementById('setNotifyEmail').checked,
     notify_email:document.getElementById('setNotifyAddr').value.trim(),
-    notify_whatsapp_enabled:document.getElementById('setNotifyWhatsapp').checked,
-    notify_whatsapp_number:document.getElementById('setNotifyWhatsappNumber').value.trim(),
     stock_alert_enabled:document.getElementById('setStockAlert').checked,
   }).then(({data}) => {
     if (!data.success) { msgEl.innerHTML = '<div class="msg error">'+data.message+'</div>'; return; }
