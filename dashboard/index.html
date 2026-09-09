@@ -112,6 +112,9 @@
 
   #menuToggle{display:none;font-size:18px;padding:6px 10px}
   #sidebarBackdrop{display:none}
+  .lang-switch{display:flex;gap:3px;background:var(--bg);border:1px solid var(--border);border-radius:999px;padding:3px}
+  .lang-switch button{background:none;color:var(--gray);border:none;padding:6px 10px;font-size:11px;font-weight:700;border-radius:999px;cursor:pointer}
+  .lang-switch button.active{background:var(--blue);color:#fff}
 
   /* Telephones/petites tablettes : la barre laterale devient un tiroir qui
      se superpose au contenu au lieu de lui voler en permanence 230px de
@@ -143,8 +146,8 @@
       <div class="logo"><div class="mark">M</div> MYBOUTIK</div>
       <select id="boutiqueSwitch" onchange="switchBoutique(this.value)"></select>
     </div>
-    <a class="side-back" href="#/boutiques" onclick="closeSidebar()">← Toutes mes boutiques</a>
-    <a class="side-back" href="../guide.html" target="_blank">📖 Guide d'utilisation</a>
+    <a class="side-back" href="#/boutiques" onclick="closeSidebar()" id="sideBackAll">← Toutes mes boutiques</a>
+    <a class="side-back" href="../guide.html" target="_blank" id="sideGuideLink">📖 Guide d'utilisation</a>
     <nav class="side-nav" id="sideNav"></nav>
   </div>
   <div id="main">
@@ -154,8 +157,9 @@
         <h1 id="topTitle">Tableau de bord</h1>
       </div>
       <div class="top-actions">
+        <div class="lang-switch"><button type="button" id="langFr" onclick="setLang('fr')">FR</button><button type="button" id="langEn" onclick="setLang('en')">EN</button></div>
         <span class="muted" id="userEmail"></span>
-        <button class="btn btn-ghost btn-sm" onclick="logout()">Se déconnecter</button>
+        <button class="btn btn-ghost btn-sm" onclick="logout()" id="logoutBtn">Se déconnecter</button>
       </div>
     </div>
     <div id="content"></div>
@@ -178,9 +182,10 @@ let CURRENT = null; // boutique courante {id,slug,name,...}
 function api(path, opts) {
   opts = opts || {};
   const headers = Object.assign({'Content-Type':'application/json','Authorization':'Bearer '+TOKEN}, opts.headers||{});
+  headers['X-Lang'] = LANG;
   return fetch(API_URL+path, Object.assign({}, opts, {headers}))
-    .then(r => r.json().then(data => ({status:r.status, data})).catch(()=>({status:r.status,data:{success:false,message:'Reponse invalide'}})))
-    .catch(() => ({status:0, data:{success:false, message:'Impossible de contacter le serveur.'}}))
+    .then(r => r.json().then(data => ({status:r.status, data})).catch(()=>({status:r.status,data:{success:false,message:t('invalid_response')}})))
+    .catch(() => ({status:0, data:{success:false, message:t('server_unreachable')}}))
     .then(res => {
       if (res.status === 401) { logout(); }
       return res;
@@ -201,7 +206,7 @@ function downloadCsv(path, filename) {
     a.href = url; a.download = filename;
     document.body.appendChild(a); a.click(); a.remove();
     URL.revokeObjectURL(url);
-  }).catch(() => showToast('Export impossible. Réessayez plus tard.', 'error'));
+  }).catch(() => showToast(t('export_impossible'), 'error'));
 }
 function logout() { localStorage.removeItem('myboutik_token'); localStorage.removeItem('myboutik_user'); window.location.href = '../index.html'; }
 
@@ -209,12 +214,1199 @@ function fmtMoney(n, currency) { return Math.round(n||0).toLocaleString('fr-FR')
 function fmtDate(iso) { if(!iso) return '—'; const d = new Date(iso); return d.toLocaleDateString('fr-FR') + ' ' + d.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}); }
 function escapeHtml(s){ return (s==null?'':String(s)).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
-const STATUS_LABELS = {
-  pending:'En attente', processing:'Validée', shipped:'Expédiée', delivered:'Livrée',
-  refused:'Refusée', cancelled:'Annulée',
-  to_assign:'À assigner', assigned:'Assignée', in_delivery:'En livraison',
+
+// ============================================================
+// TRADUCTION (FR/EN) - textes fixes de l'interface. Les messages qui
+// viennent du serveur sont deja traduits cote backend via l'entete
+// X-Lang envoye par api() (voir t()/EN_DICT dans index.php).
+// ============================================================
+let LANG = localStorage.getItem('myboutik_dash_lang') === 'en' ? 'en' : 'fr';
+const I18N = {
+  fr: {
+    topbar_default_title: 'Tableau de bord',
+    btn_logout: 'Se déconnecter',
+    side_back_all_boutiques: '← Toutes mes boutiques',
+    side_guide: '📖 Guide d\'utilisation',
+    no_boutique_option: 'Aucune boutique',
+    my_boutiques_title: 'Mes boutiques',
+    invalid_response: 'Reponse invalide',
+    server_unreachable: 'Impossible de contacter le serveur.',
+    export_impossible: 'Export impossible. Réessayez plus tard.',
+    nav_group_sales: 'Ventes',
+    nav_group_customers: 'Clients',
+    nav_group_finance: 'Finances',
+    nav_group_catalog: 'Catalogue',
+    nav_group_analytics: 'Analytique',
+    nav_group_marketing: 'Marketing',
+    nav_group_settings: 'Paramètres',
+    nav_home: 'Accueil',
+    nav_grade: 'Mon grade',
+    nav_orders: 'Commandes',
+    nav_deliveries: 'Livraisons',
+    nav_abandoned: 'Commandes abandonnées',
+    nav_customers: 'Liste des clients',
+    nav_contacts: 'Carnet d\'adresses',
+    nav_finance_overview: 'Vue Globale',
+    nav_finance_accounts: 'Livre de Compte',
+    nav_finance_delivery_fees: 'Frais de livraison',
+    nav_finance_detail: 'Finance Détaillée',
+    nav_finance_ads: 'Publicités & ROAS',
+    nav_products: 'Produits',
+    nav_stock: 'Stock',
+    nav_suppliers: 'Fournisseurs',
+    nav_supplier_orders: 'Commandes fournisseurs',
+    nav_reports: 'Rapports',
+    nav_live: 'Live',
+    nav_history: 'Historique',
+    nav_marketing: 'Messages et abonnés',
+    nav_settings: 'Général',
+    nav_team: 'Équipe',
+    nav_integrations: 'Intégrations',
+    nav_profile: 'Mon profil',
+    nav_billing: 'Abonnement',
+    nav_affiliate: 'Affiliation',
+    my_boutiques_subtitle: 'Choisissez la boutique à gérer, ou lancez-en une nouvelle.',
+    btn_create_boutique: '+ Créer une boutique',
+    overview_all_boutiques: 'Vue d\'ensemble — toutes boutiques',
+    kpi_boutiques: 'Boutiques',
+    kpi_orders_total: 'Commandes (total)',
+    kpi_pending: 'En attente',
+    kpi_revenue_total: 'Revenus encaissés (total)',
+    no_boutiques_yet: 'Aucune boutique pour le moment.',
+    btn_create_first_boutique: 'Créer ma première boutique',
+    label_orders_word: 'commandes',
+    label_pending_word: 'en attente',
+    btn_manage: 'Gérer →',
+    modal_create_boutique_title: 'Créer une boutique',
+    label_boutique_name: 'Nom de la boutique',
+    placeholder_boutique_name: 'Ex: Boutik de Rom',
+    btn_cancel: 'Annuler',
+    btn_create: 'Créer',
+    btn_save: 'Enregistrer',
+    btn_close: 'Fermer',
+    btn_delete: 'Supprimer',
+    btn_edit: 'Modifier',
+    loading: 'Chargement…',
+    period_7d: '7 derniers jours',
+    period_30d: '30 derniers jours',
+    period_90d: '90 derniers jours',
+    period_all: 'Depuis le début',
+    home_title: 'Bonjour 👋',
+    home_subtitle_prefix: 'Voici comment ',
+    home_subtitle_suffix: ' se porte aujourd\'hui.',
+    kpi_sales_30d: '💰 Ventes totales (30j)',
+    kpi_orders_30d: '🛒 Commandes (30j)',
+    kpi_delivered_30d: '📦 Livrées (30j)',
+    kpi_avg_cart: '🧾 Panier moyen',
+    recent_orders_title: 'Commandes récentes',
+    best_products_30d_title: 'Meilleurs produits (30 derniers jours)',
+    col_product: 'Produit',
+    col_qty_sold: 'Qté vendue',
+    col_revenue: 'Revenu',
+    no_sales_yet: 'Pas encore de ventes.',
+    best_products_will_appear: 'Les produits les plus vendus apparaîtront ici.',
+    activity_feed_title: 'Flux d\'activité',
+    no_activity_yet: 'Aucune activité pour l\'instant.',
+    no_orders_yet: 'Aucune commande pour l\'instant.',
+    col_ref: 'Réf',
+    col_client: 'Client',
+    col_total: 'Total',
+    col_status: 'Statut',
+    col_date: 'Date',
+    btn_bordereau: '🖨️ Bordereau',
+    orders_title: 'Commandes',
+    orders_subtitle: 'Gérer toutes vos commandes COD',
+    btn_new_order: '+ Nouvelle commande',
+    orders_search_placeholder: 'Rechercher (réf, nom, téléphone)…',
+    filter_all_status_orders: 'Toutes',
+    modal_new_order_title: 'Nouvelle commande',
+    label_customer_name: 'Nom du client',
+    label_phone: 'Téléphone',
+    label_address: 'Adresse',
+    label_product: 'Produit',
+    label_qty: 'Quantité',
+    label_delivery_fee: 'Frais de livraison',
+    btn_create_order: 'Créer la commande',
+    err_add_active_product: 'Ajoutez au moins un produit actif avant de créer une commande.',
+    invoice_title_prefix: 'Facture ',
+    invoice_subtitle: 'Facture / Bordereau de livraison',
+    label_client_box: 'Client',
+    label_delivery_person_box: 'Livreur',
+    col_article: 'Article',
+    col_qty_short: 'Qté',
+    col_unit_price: 'Prix unt',
+    col_amount: 'Montant',
+    row_subtotal: 'Sous-total',
+    row_delivery_fee: 'Frais de livraison',
+    row_discount_prefix: 'Remise',
+    row_total_due: 'À encaisser',
+    invoice_footer_note: 'Paiement à la livraison (COD). Merci de vérifier le montant avec le client avant remise du colis.',
+    finance_detail_title: 'Finance Détaillée',
+    kpi_revenue: 'Revenu',
+    kpi_cost: 'Coût',
+    kpi_margin: 'Marge',
+    no_grade_yet: 'Pas encore de grade',
+    on_way_to_prefix: 'En route vers ',
+    max_grade_reached: 'Grade maximum atteint !',
+    collected_since_opening_suffix: ' encaissés depuis l\'ouverture.',
+    remaining_prefix: 'Encore ',
+    remaining_suffix: ' pour devenir ',
+    all_tiers_title: 'Tous les paliers',
+    tiers_subtitle: 'Chaque palier est acquis pour de bon : le cumul ne redescend jamais.',
+    tier_reached: 'Atteint',
+    tier_in_progress: 'En cours',
+    deliveries_title: 'Livraisons',
+    deliveries_subtitle: 'Assignez les commandes à un livreur et suivez chaque étape.',
+    btn_add_delivery_person: '+ Ajouter un livreur',
+    no_active_delivery_person_warning: 'Aucun livreur actif sur cette boutique. Ajoutez-en un pour pouvoir assigner les commandes.',
+    no_orders_in_category: 'Aucune commande dans cette catégorie.',
+    delivery_persons_title: 'Livreurs',
+    col_name: 'Nom',
+    col_vehicle: 'Véhicule',
+    status_active: 'Actif',
+    status_inactive: 'Inactif',
+    no_delivery_person_yet: 'Aucun livreur pour le moment.',
+    choose_ellipsis: 'Choisir…',
+    modal_edit_delivery_person: 'Modifier le livreur',
+    modal_add_delivery_person: 'Ajouter un livreur',
+    label_name_required: 'Nom *',
+    label_phone_required: 'Téléphone *',
+    label_email_optional: 'Email (optionnel)',
+    label_vehicle: 'Véhicule',
+    label_plate: 'Immatriculation',
+    label_photo_url_optional: 'URL photo (optionnel)',
+    label_internal_notes: 'Notes internes',
+    placeholder_notes_availability: 'Disponibilités, zones préférées…',
+    checkbox_active: 'Actif',
+    err_name_phone_required: 'Nom et téléphone requis',
+    vehicle_moto: 'Moto',
+    vehicle_voiture: 'Voiture',
+    vehicle_velo: 'Vélo',
+    vehicle_a_pied: 'À pied',
+    vehicle_autre: 'Autre',
+    abandoned_title: 'Commandes abandonnées',
+    abandoned_subtitle: 'Les visiteurs qui ont commencé une commande sans la valider. Rappelez-les pour la récupérer.',
+    capture_settings_title: 'Réglages de capture',
+    checkbox_capture_abandoned: 'Capturer les commandes abandonnées',
+    label_abandoned_after_minutes: 'Considérer comme abandonné après (minutes)',
+    checkbox_auto_reminder: 'Relancer automatiquement le client (email/WhatsApp) 30 min après l\'abandon',
+    reminder_requires_provider_note: 'Nécessite qu\'un fournisseur d\'envoi email/WhatsApp soit branché côté serveur pour être réellement envoyé (voir le guide).',
+    abandoned_carts_title: 'Paniers abandonnés',
+    col_phone_email: 'Téléphone / Email',
+    col_estimated_total: 'Total estimé',
+    col_captured_at: 'Capturé le',
+    btn_mark_converted: 'Marquer converti',
+    no_abandoned_orders: 'Aucune commande abandonnée pour le moment.',
+    customers_title: 'Clients',
+    customers_subtitle: 'Gérez vos clients, leurs statuts et leurs commandes.',
+    reengage_title_prefix: 'Clients à relancer (',
+    reengage_30d: 'Sans commande depuis 30 jours',
+    reengage_60d: 'Sans commande depuis 60 jours',
+    reengage_90d: 'Sans commande depuis 90 jours',
+    reengage_note: 'Clients ayant déjà commandé au moins une fois, mais plus depuis ce délai — de bons candidats pour un code promo ciblé.',
+    col_last_order: 'Dernière commande',
+    col_total_spent: 'Total dépensé',
+    btn_create_targeted_promo: 'Créer un code promo ciblé',
+    no_inactive_customers: 'Aucun client inactif sur cette période.',
+    all_customers_title_prefix: 'Tous les clients (',
+    col_orders_count: 'Commandes',
+    no_customer_ordered_yet: 'Aucun client n\'a encore commandé.',
+    address_book_title: 'Carnet d\'adresses',
+    address_book_subtitle: 'Tous les contacts utiles de votre équipe (avocat, comptable, transporteur…)',
+    btn_manage_roles: 'Gérer les rôles',
+    btn_new_contact: '+ Nouveau contact',
+    col_role: 'Rôle',
+    col_email: 'Email',
+    no_contacts_yet: 'Aucun contact. Commencez par créer un rôle puis ajoutez vos contacts.',
+    modal_new_role: 'Nouveau rôle',
+    label_role_name: 'Nom du rôle',
+    placeholder_role_example: 'Ex: Comptable',
+    modal_new_contact: 'Nouveau contact',
+    confirm_delete_contact: 'Supprimer ce contact ?',
+    finance_overview_title: 'Vue Globale',
+    finance_overview_subtitle_prefix: 'Santé financière complète — ',
+    net_result: 'Résultat net',
+    collected_orders_suffix: ' commande(s) encaissée(s)',
+    kpi_revenue_collected: '💵 Revenus encaissés',
+    kpi_deliveries_done: '📦 Livraisons faites',
+    kpi_cost_of_products: '🏷️ Coût des produits',
+    kpi_delivery_fees: '🚚 Frais de livraison',
+    kpi_ad_fees: '📣 Frais de pub',
+    kpi_other_expenses: '🧾 Autres dépenses',
+    accounts_title: 'Livre de Compte',
+    accounts_subtitle: 'Suivez tous vos comptes (caisse, banque, mobile money…)',
+    btn_transfer: 'Transférer',
+    btn_new_account: '+ Nouveau compte',
+    kpi_total_balance: 'Solde total',
+    btn_entry_in: '+ Entrée',
+    btn_entry_out: '- Sortie',
+    col_type: 'Type',
+    col_note: 'Note',
+    movement_in: 'Entrée',
+    movement_out: 'Sortie',
+    no_movement: 'Aucun mouvement.',
+    no_accounts_yet: 'Aucun compte. Créez-en un pour suivre entrées et sorties.',
+    modal_new_account: 'Nouveau compte',
+    label_account_name: 'Nom',
+    placeholder_account_example: 'Ex: Wave',
+    label_type: 'Type',
+    type_caisse: 'Caisse',
+    type_banque: 'Banque',
+    type_mobile_money: 'Mobile money',
+    movement_title_in: 'Entrée de caisse',
+    movement_title_out: 'Sortie de caisse',
+    label_amount: 'Montant',
+    label_note: 'Note',
+    btn_confirm: 'Valider',
+    transfer_min_two_accounts: 'Créez au moins deux comptes pour faire un transfert.',
+    modal_transfer_title: 'Transférer entre comptes',
+    label_from: 'Depuis',
+    label_to: 'Vers',
+    delivery_fees_title: 'Frais de livraison',
+    delivery_fees_subtitle: 'Les frais de livraison que vous payez (livreurs, transporteurs).',
+    btn_add_fee: '+ Ajouter des frais',
+    kpi_total_this_month: 'Total ce mois-ci',
+    kpi_total_entries_prefix: 'Total (',
+    kpi_total_entries_suffix: ' entrée(s))',
+    col_order: 'Commande',
+    col_delivery_person: 'Livreur',
+    no_delivery_fees: 'Aucun frais de livraison. Ajoutez le total que vous avez payé en livraison.',
+    modal_add_delivery_fee: 'Ajouter des frais de livraison',
+    label_linked_order_optional: 'Commande liée (optionnel — pour retrouver ce frais en cas de litige)',
+    label_delivery_person_paid_optional: 'Livreur payé (optionnel)',
+    placeholder_note_example: 'Ex: Livraisons du jour',
+    label_debit_account: 'Débiter le compte',
+    finance_detail_subtitle_has_data: 'Marge par commande livrée.',
+    finance_detail_subtitle_no_data: 'Aucune commande livrée sur cette période.',
+    finance_detail_empty_hint: 'Renseigne aussi le prix de revient de tes produits dans le catalogue pour voir la marge ici.',
+    open_products_catalog: 'Ouvrir le catalogue produits →',
+    ads_title: 'Publicités & ROAS',
+    ads_subtitle: 'Le retour sur investissement (ROAS) est calculé en croisant avec tes ventes livrées.',
+    kpi_total_spend: 'Dépense totale',
+    kpi_attributed_revenue: 'Revenu attribué (livré)',
+    kpi_global_roas: 'ROAS global',
+    by_product_title: 'Par produit',
+    btn_new_expense: '+ Nouvelle dépense',
+    col_spend: 'Dépense',
+    col_roas: 'ROAS',
+    no_expense_attributed: 'Aucune dépense attribuée à un produit.',
+    recent_expenses_title: 'Dernières dépenses',
+    col_campaign: 'Campagne',
+    col_products: 'Produits',
+    btn_copy_link: 'Copier le lien',
+    btn_roas_by_product: 'ROAS par produit',
+    no_expense_entered: 'Aucune dépense saisie pour l\'instant. Clique « Nouvelle dépense » pour commencer.',
+    modal_new_ad_expense: 'Nouvelle dépense publicitaire',
+    label_campaign_name: 'Nom de campagne',
+    label_linked_products_optional: 'Produit(s) lié(s) (optionnel — cochez-en plusieurs pour un carrousel/une promo groupée)',
+    no_products_in_catalog: 'Aucun produit dans le catalogue.',
+    label_link_to_use_in_ad: 'Lien à utiliser dans votre publicité',
+    ad_link_hint_multi_suffix: ' produits sélectionnés — le lien renvoie vers la boutique entière, le suivi se fait par campagne.',
+    ad_link_hint_single: 'Collez ce lien comme destination de votre publicité.',
+    default_expense_word: 'Dépense',
+    ad_expense_detail_suffix: ' — ROAS par produit',
+    ad_expense_detail_subtitle: 'Budget de {amount} réparti à parts égales entre les {count} produit(s) de ce groupe.',
+    col_budget_share: 'Part du budget',
+    col_delivered_revenue: 'Revenu livré',
+    products_title: 'Produits',
+    products_subtitle_suffix: ' produit(s)',
+    btn_categories: 'Catégories',
+    btn_new_product: '+ Nouveau produit',
+    low_stock_warning_prefix: '⚠️ Stock limité sur ',
+    low_stock_warning_suffix: ' produit(s) :',
+    btn_order: 'Commander',
+    label_filter_by_category: 'Filtrer par catégorie',
+    filter_all_categories_prefix: 'Toutes (',
+    col_category: 'Catégorie',
+    col_price: 'Prix',
+    col_stock: 'Stock',
+    variants_suffix: ' variantes)',
+    product_status_active: 'Actif',
+    product_status_draft: 'Brouillon',
+    btn_delete_short: 'Suppr.',
+    no_products_in_category: 'Aucun produit dans cette catégorie.',
+    modal_categories_title: 'Catégories de produits',
+    no_categories_yet: 'Aucune catégorie pour le moment.',
+    placeholder_new_category_name: 'Nom de la nouvelle catégorie',
+    confirm_delete_category: 'Supprimer cette catégorie ? Les produits qui l\'utilisent ne seront pas supprimés, juste sans catégorie.',
+    stock_out_of_stock: ' · rupture',
+    stock_limited: ' · limité',
+    modal_edit_product: 'Modifier le produit',
+    modal_new_product: 'Nouveau produit',
+    label_name: 'Nom',
+    label_description: 'Description',
+    label_sale_price: 'Prix de vente',
+    label_compare_price: 'Prix barré (optionnel)',
+    label_cost_price: 'Prix de revient (interne)',
+    label_delivery_fee_empty_hint: 'Frais de livraison (vide = frais par défaut de la boutique)',
+    label_sku: 'Référence (SKU)',
+    label_barcode: 'Code-barres (UPC, EAN)',
+    label_stock: 'Stock',
+    label_low_stock_alert: 'Alerte stock limité à partir de',
+    label_status: 'Statut',
+    label_slug: 'Slug (URL)',
+    placeholder_auto_slug: 'genere automatiquement si vide',
+    label_category_optional: 'Catégorie (optionnel)',
+    checkbox_track_stock: 'Suivre la quantité en stock',
+    checkbox_physical_product: 'Produit physique (nécessite une livraison)',
+    product_form_stock_note: 'Une commande est toujours acceptée, même si le stock est insuffisant — c\'est à vous de gérer la suite. L\'alerte ci-dessus sert juste à repérer les produits à réapprovisionner.',
+    label_photos: 'Photos',
+    label_primary_photo: 'Principale',
+    btn_set_primary: 'Définir',
+    title_choose_from_gallery: 'Choisir depuis la galerie',
+    title_take_photo: 'Prendre une photo',
+    btn_take_photo: '📷 Prendre une photo',
+    save_first_to_add_photos: 'Enregistrez une première fois pour ajouter d\'autres photos.',
+    label_options_gen: 'Options (génère les variantes automatiquement, 3 max)',
+    btn_add_option: '+ Ajouter une option',
+    btn_generate_variants: 'Générer les variantes',
+    label_related_products: 'Produits associés (upsell affiché sur la fiche produit de la vitrine)',
+    add_other_products_hint: 'Ajoutez d\'autres produits au catalogue pour pouvoir les proposer ici.',
+    err_name_required: 'Le nom est requis',
+    option_placeholder_size: 'Ex: Taille',
+    option_placeholder_color: 'Ex: Couleur',
+    option_placeholder_shoe_size: 'Ex: Pointure',
+    option_placeholder_material: 'Ex: Matière',
+    placeholder_type_value_enter: 'Tape une valeur puis Entrée',
+    err_option_values_required: 'Renseignez au moins une option avec des valeurs (ex: Taille -> S, M, L)',
+    label_variants_generated_prefix: 'Variantes générées (',
+    col_variant: 'Variante',
+    col_price_optional: 'Prix (optionnel)',
+    confirm_delete_photo: 'Supprimer cette photo ?',
+    stock_title: 'Stock',
+    stock_subtitle: 'Ajustez les quantités en stock.',
+    col_current_stock: 'Stock actuel',
+    col_adjust: 'Ajuster',
+    limited_word: 'limité',
+    btn_other_ellipsis: 'Autre…',
+    no_products: 'Aucun produit.',
+    prompt_adjust_stock: 'Ajuster le stock de combien (ex: -5 ou 10) ?',
+    suppliers_title: 'Fournisseurs',
+    btn_new_supplier: '+ Nouveau fournisseur',
+    col_notes: 'Notes',
+    no_suppliers: 'Aucun fournisseur.',
+    modal_new_supplier: 'Nouveau fournisseur',
+    confirm_delete_supplier: 'Supprimer ce fournisseur ?',
+    supplier_orders_title: 'Commandes fournisseurs',
+    btn_new_supplier_order: '+ Nouvelle commande',
+    add_supplier_first_warning_prefix: '⚠️ Ajoutez d\'abord un fournisseur (page ',
+    suppliers_link_text: 'Fournisseurs',
+    before_order_suffix: ') avant de pouvoir passer une commande.',
+    col_supplier: 'Fournisseur',
+    col_unit_cost: 'Coût unitaire',
+    btn_received: 'Reçue',
+    btn_cancel_order: 'Annuler',
+    no_supplier_orders: 'Aucune commande fournisseur.',
+    add_supplier_before_reorder: 'Ajoutez d\'abord un fournisseur avant de passer une commande de réapprovisionnement.',
+    add_supplier_before_order: 'Ajoutez d\'abord un fournisseur (page Fournisseurs) avant de passer une commande.',
+    modal_new_supplier_order: 'Nouvelle commande fournisseur',
+    reports_title: 'Rapports de ventes',
+    reports_subtitle: 'Suivez les performances de votre boutique.',
+    kpi_gross_sales: 'Ventes brutes',
+    kpi_orders: 'Commandes',
+    kpi_avg_cart2: 'Panier moyen',
+    kpi_delivered: 'Livrées',
+    breakdown_title: 'Décomposition',
+    row_gross_sales: 'Ventes brutes',
+    row_returns: 'Retours',
+    row_net_sales: 'Ventes nettes',
+    row_delivery_fee_customer: 'Frais de livraison (client)',
+    row_total: 'Total',
+    best_sellers_title: 'Meilleures ventes',
+    no_data_period: 'Aucune donnée trouvée pour cette plage de dates.',
+    utm_data_title: 'Données UTM (Meta, etc.)',
+    col_source: 'Source',
+    no_campaign_data: 'Aucune donnée de campagne. Les commandes n\'atterrissent avec une campagne que si le lien de votre publicité porte des paramètres UTM. Dans Meta, renseignez le champ "Paramètres d\'URL" de votre publicité avec :',
+    live_badge: '● EN DIRECT',
+    live_activity_title: 'Activité en direct',
+    kpi_orders_today: 'Commandes aujourd\'hui',
+    kpi_revenue_today: 'Revenus aujourd\'hui',
+    history_title: 'Historique',
+    history_subtitle: 'Les 300 dernières actions sur cette boutique — qui a fait quoi, et quand.',
+    col_time: 'Heure',
+    col_author: 'Auteur',
+    col_action: 'Action',
+    customer_storefront_word: 'Client (vitrine)',
+    no_activity_recorded: 'Aucune activité enregistrée pour l\'instant.',
+    marketing_title: 'Marketing',
+    marketing_subtitle: 'Codes promo, avis clients, signups newsletter et messages de contact.',
+    promo_codes_title_prefix: 'Codes promo (',
+    btn_new_code: '+ Nouveau code',
+    col_code: 'Code',
+    col_discount: 'Réduction',
+    col_targeting: 'Ciblage',
+    col_uses: 'Utilisations',
+    col_expires: 'Expire',
+    clients_suffix: ' client(s)',
+    all_customers_word: 'Tous les clients',
+    status_enabled: 'Actif',
+    status_disabled: 'Désactivé',
+    btn_targeting: 'Ciblage',
+    btn_disable: 'Désactiver',
+    btn_enable: 'Activer',
+    no_promo_codes: 'Aucun code promo. Créez-en un pour proposer une réduction à vos clients.',
+    product_promotions_title_prefix: 'Promotions produits (',
+    btn_new_promotion: '+ Nouvelle promotion',
+    promotion_auto_note: 'Réduction affichée automatiquement sur le prix des produits choisis — le client n\'a rien à saisir.',
+    col_period: 'Période',
+    products_count_suffix: ' produit(s)',
+    no_end_word: 'sans fin',
+    no_promotions: 'Aucune promotion produit. Créez-en une pour afficher un prix réduit directement sur des articles choisis.',
+    reviews_title_prefix: 'Avis clients (',
+    col_rating: 'Note',
+    col_comment: 'Commentaire',
+    status_published: 'Publié',
+    status_rejected: 'Rejeté',
+    status_pending: 'En attente',
+    btn_publish: 'Publier',
+    btn_reject: 'Rejeter',
+    no_reviews: 'Aucun avis pour le moment.',
+    newsletter_subs_title_prefix: 'Abonnés newsletter (',
+    col_registered_on: 'Inscrit le',
+    no_subscribers: 'Aucun abonné pour le moment.',
+    contact_messages_title_prefix: 'Messages de contact (',
+    col_message: 'Message',
+    no_messages: 'Aucun message pour le moment.',
+    modal_new_promo: 'Nouveau code promo',
+    label_code: 'Code',
+    placeholder_promo_ex: 'Ex: PROMO10',
+    label_type_generic: 'Type',
+    type_percent: 'Pourcentage (%)',
+    type_fixed_amount: 'Montant fixe',
+    label_value: 'Valeur',
+    label_max_uses_optional: 'Nombre d\'utilisations max (optionnel)',
+    label_expires_optional: 'Expire le (optionnel)',
+    label_reserve_customers_optional: 'Réserver à des clients précis (optionnel)',
+    promo_targets_hint: 'Laissez vide pour un code ouvert à tous vos clients. Sinon, seuls les numéros listés ici pourront l\'utiliser — même si quelqu\'un d\'autre l\'obtient par un tiers.',
+    err_code_value_required: 'Code et valeur requis',
+    modal_targeting_prefix: 'Ciblage — ',
+    label_allowed_customers: 'Clients autorisés à utiliser ce code (numéros de téléphone, un par ligne)',
+    promo_targets2_hint: 'Videz complètement ce champ pour rendre le code ouvert à tous vos clients.',
+    confirm_delete_promo: 'Supprimer ce code promo ?',
+    modal_edit_promotion: 'Modifier la promotion',
+    modal_new_promotion: 'Nouvelle promotion produit',
+    label_start_optional: 'Début (optionnel)',
+    label_end_optional: 'Fin (optionnel)',
+    label_concerned_products: 'Produits concernés',
+    add_products_before_promotion: 'Ajoutez des produits à votre catalogue avant de créer une promotion.',
+    err_value_required: 'La valeur est requise',
+    err_select_one_product: 'Sélectionnez au moins un produit',
+    confirm_delete_promotion: 'Supprimer cette promotion ?',
+    confirm_delete_review: 'Supprimer cet avis ?',
+    settings_title: 'Général',
+    label_public_description: 'Description publique',
+    label_logo: 'Logo',
+    label_public_store_link: 'Lien public de la boutique',
+    btn_copy: 'Copier',
+    share_note: 'Chaque bouton ouvre le réseau avec le lien déjà rempli — plus besoin de le recopier à la main. Instagram et TikTok ne permettent pas ce pré-remplissage depuis un site : le lien est copié automatiquement, il ne reste qu\'à le coller dans votre bio ou une story/vidéo.',
+    label_default_delivery_fee: 'Frais de livraison par défaut (facturé au client)',
+    checkbox_cod_enabled: 'Paiement à la livraison activé',
+    order_notifications_title: 'Notifications de commande',
+    checkbox_notify_email: 'Recevoir un email à chaque nouvelle commande',
+    label_receiving_address: 'Adresse de réception (vide = email de votre compte)',
+    checkbox_notify_whatsapp: 'Recevoir une notification WhatsApp à chaque nouvelle commande',
+    label_whatsapp_number: 'Numéro WhatsApp (format international, ex: +225 07 00 00 00 00)',
+    whatsapp_pending_note: 'En attente d\'un numéro WhatsApp Business approuvé — en attendant, le message est journalisé côté serveur pour test.',
+    checkbox_stock_alert: 'M\'alerter automatiquement quand un produit passe en stock limité (au plus 1 fois/jour)',
+    backup_title: 'Sauvegarde',
+    backup_subtitle: 'Téléchargez toutes les données de cette boutique (produits, clients, commandes, finances…) dans un seul fichier, au cas où. Les photos ne sont pas incluses (fichier trop volumineux sinon).',
+    btn_export_backup: '⬇️ Exporter une sauvegarde complète',
+    saved_word: 'Enregistré',
+    team_title: 'Équipe',
+    team_subtitle: 'Invitez des collègues à gérer la boutique avec vous. Chacun garde son propre compte.',
+    btn_invite_member: '+ Inviter un membre',
+    col_full_name: 'Nom',
+    btn_remove: 'Retirer',
+    modal_invite_member: 'Inviter un membre',
+    placeholder_colleague_email: 'collegue@exemple.com',
+    label_role: 'Rôle',
+    role_admin_desc: 'Admin — accès complet à toute la boutique',
+    role_manager_desc: 'Manager — tout sauf équipe et paramètres',
+    role_livreur_desc: 'Livreur — voit les livraisons',
+    role_closeuse_desc: 'Closeuse — commandes, clients, stock',
+    role_comptable_desc: 'Comptable — finances et analytique',
+    label_linked_delivery_person: 'Fiche livreur associée (pour ne voir que ses livraisons)',
+    none_will_link_later: '— aucune (verra ses livraisons dès qu\'un admin le liera plus tard)',
+    btn_send_invite: 'Envoyer l\'invitation',
+    dev_mode_link_prefix: 'Mode développement — lien direct : ',
+    confirm_remove_member: 'Retirer ce membre de la boutique ?',
+    role_owner: 'Propriétaire',
+    role_admin: 'Admin',
+    role_manager: 'Manager',
+    role_livreur: 'Livreur',
+    role_closeuse: 'Closeuse',
+    role_comptable: 'Comptable',
+    profile_title: 'Mon profil',
+    label_full_name: 'Nom complet',
+    label_new_password: 'Nouveau mot de passe (laisser vide pour ne pas changer)',
+    placeholder_min_6_chars: '6 caractères minimum',
+    profile_updated: 'Profil mis à jour',
+    billing_title: 'Abonnement',
+    current_plan_prefix: 'Plan actuel : ',
+    access_valid_until_prefix: ' — accès valide jusqu\'au ',
+    days_remaining_suffix: ' jour(s) restant(s))',
+    access_expired_prefix: ' — accès expiré le ',
+    blocked_access_warning: '⚠️ Votre accès aux boutiques est bloqué tant que vous ne renouvelez pas votre abonnement ci-dessous.',
+    expiring_soon_prefix: '⏳ Votre abonnement expire dans ',
+    expiring_soon_suffix: ' jour(s) — pensez à renouveler pour ne pas perdre l\'accès à vos boutiques.',
+    pending_request_prefix: 'Demande en cours pour le plan ',
+    first_month_free: '1er mois gratuit',
+    per_month: '/mois',
+    boutique_limit_suffix: ' boutique(s)',
+    btn_current_plan: 'Plan actuel',
+    btn_choose: 'Choisir',
+    confirm_subscribe: 'Passer au plan {plan} ({price}/mois) ?\n\nUne demande d\'activation sera envoyée ; votre plan actuel reste actif jusqu\'à validation du paiement par l\'équipe MYBOUTIK.',
+    affiliate_title: 'Affiliation',
+    affiliate_subtitle: 'Recommandez MYBOUTIK et gagnez 10% de chaque abonnement payé par vos filleuls.',
+    referral_link_title: 'Votre lien d\'affiliation',
+    referral_link_subtitle: 'Gagnez 10% de chaque paiement d\'abonnement de vos filleuls.',
+    kpi_link_clicks: 'Clics sur le lien',
+    kpi_signups: 'Inscriptions',
+    kpi_paying_referrals: 'Abonnés payants',
+    kpi_total_earned: 'Total gagné',
+    commissions_title: 'Mes commissions',
+    kpi_pending_validation: 'En attente de validation',
+    kpi_available_withdraw: 'Disponible au retrait',
+    kpi_already_paid: 'Déjà payé',
+    commission_validation_note: 'Une commission devient disponible après {days} jours de validation. Retrait minimum : {min}.',
+    placeholder_payout_phone: '+225 00 00 00 00 00',
+    btn_request_payout: 'Demander le retrait',
+    referrals_title: 'Mes filleuls',
+    status_paying: 'Payant',
+    status_signed_up: 'Inscrit',
+    no_referrals_yet: 'Personne pour l\'instant — partagez votre lien pour commencer à gagner.',
+    err_mobile_money_required: 'Numéro Mobile Money requis',
+    integrations_title: 'Intégrations',
+    integrations_subtitle: 'Reliez une source de commandes extérieure. Chaque ligne devient une vraie commande MYBOUTIK.',
+    gsheets_title: 'Google Sheets',
+    gsheets_subtitle: 'Publiez votre feuille en CSV (Fichier → Partager → Publier sur le web → CSV) puis collez le lien ici.',
+    label_sheet_link: 'Lien de votre Google Sheet (CSV)',
+    checkbox_enable_integration: 'Activer cette intégration',
+    btn_import_now: 'Importer maintenant',
+    expected_columns_title: 'Colonnes attendues',
+    col_column: 'Colonne',
+    col_required: 'Obligatoire',
+    col_example: 'Exemple',
+    yes_word: 'Oui',
+    no_word: 'Non',
+    multi_product_order_note: 'Une commande avec plusieurs produits ? Mettez une ligne par produit avec le même id_commande.',
+    import_result_title: 'Résultat de l\'import',
+    skipped_rows_prefix: 'Lignes ignorées :',
+    order_status_pending: 'En attente',
+    order_status_processing: 'Validée',
+    order_status_shipped: 'Expédiée',
+    order_status_delivered: 'Livrée',
+    order_status_refused: 'Refusée',
+    order_status_cancelled: 'Annulée',
+    order_status_to_assign: 'À assigner',
+    order_status_assigned: 'Assignée',
+    order_status_in_delivery: 'En livraison',
+  },
+  en: {
+    topbar_default_title: 'Dashboard',
+    btn_logout: 'Log out',
+    side_back_all_boutiques: '← All my shops',
+    side_guide: '📖 User guide',
+    no_boutique_option: 'No shop',
+    my_boutiques_title: 'My shops',
+    invalid_response: 'Invalid response',
+    server_unreachable: 'Unable to reach the server.',
+    export_impossible: 'Export failed. Try again later.',
+    nav_group_sales: 'Sales',
+    nav_group_customers: 'Customers',
+    nav_group_finance: 'Finance',
+    nav_group_catalog: 'Catalog',
+    nav_group_analytics: 'Analytics',
+    nav_group_marketing: 'Marketing',
+    nav_group_settings: 'Settings',
+    nav_home: 'Home',
+    nav_grade: 'My rank',
+    nav_orders: 'Orders',
+    nav_deliveries: 'Deliveries',
+    nav_abandoned: 'Abandoned orders',
+    nav_customers: 'Customer list',
+    nav_contacts: 'Address book',
+    nav_finance_overview: 'Overview',
+    nav_finance_accounts: 'Account ledger',
+    nav_finance_delivery_fees: 'Delivery fees',
+    nav_finance_detail: 'Detailed finance',
+    nav_finance_ads: 'Ads & ROAS',
+    nav_products: 'Products',
+    nav_stock: 'Stock',
+    nav_suppliers: 'Suppliers',
+    nav_supplier_orders: 'Supplier orders',
+    nav_reports: 'Reports',
+    nav_live: 'Live',
+    nav_history: 'History',
+    nav_marketing: 'Messages & subscribers',
+    nav_settings: 'General',
+    nav_team: 'Team',
+    nav_integrations: 'Integrations',
+    nav_profile: 'My profile',
+    nav_billing: 'Subscription',
+    nav_affiliate: 'Affiliate',
+    my_boutiques_subtitle: 'Choose the shop to manage, or launch a new one.',
+    btn_create_boutique: '+ Create a shop',
+    overview_all_boutiques: 'Overview — all shops',
+    kpi_boutiques: 'Shops',
+    kpi_orders_total: 'Orders (total)',
+    kpi_pending: 'Pending',
+    kpi_revenue_total: 'Revenue collected (total)',
+    no_boutiques_yet: 'No shop yet.',
+    btn_create_first_boutique: 'Create my first shop',
+    label_orders_word: 'orders',
+    label_pending_word: 'pending',
+    btn_manage: 'Manage →',
+    modal_create_boutique_title: 'Create a shop',
+    label_boutique_name: 'Shop name',
+    placeholder_boutique_name: 'E.g.: Rom\'s Shop',
+    btn_cancel: 'Cancel',
+    btn_create: 'Create',
+    btn_save: 'Save',
+    btn_close: 'Close',
+    btn_delete: 'Delete',
+    btn_edit: 'Edit',
+    loading: 'Loading…',
+    period_7d: 'Last 7 days',
+    period_30d: 'Last 30 days',
+    period_90d: 'Last 90 days',
+    period_all: 'Since the beginning',
+    home_title: 'Hello 👋',
+    home_subtitle_prefix: 'Here\'s how ',
+    home_subtitle_suffix: ' is doing today.',
+    kpi_sales_30d: '💰 Total sales (30d)',
+    kpi_orders_30d: '🛒 Orders (30d)',
+    kpi_delivered_30d: '📦 Delivered (30d)',
+    kpi_avg_cart: '🧾 Average cart',
+    recent_orders_title: 'Recent orders',
+    best_products_30d_title: 'Best products (last 30 days)',
+    col_product: 'Product',
+    col_qty_sold: 'Qty sold',
+    col_revenue: 'Revenue',
+    no_sales_yet: 'No sales yet.',
+    best_products_will_appear: 'Your best-selling products will appear here.',
+    activity_feed_title: 'Activity feed',
+    no_activity_yet: 'No activity yet.',
+    no_orders_yet: 'No orders yet.',
+    col_ref: 'Ref',
+    col_client: 'Customer',
+    col_total: 'Total',
+    col_status: 'Status',
+    col_date: 'Date',
+    btn_bordereau: '🖨️ Waybill',
+    orders_title: 'Orders',
+    orders_subtitle: 'Manage all your COD orders',
+    btn_new_order: '+ New order',
+    orders_search_placeholder: 'Search (ref, name, phone)…',
+    filter_all_status_orders: 'All',
+    modal_new_order_title: 'New order',
+    label_customer_name: 'Customer name',
+    label_phone: 'Phone',
+    label_address: 'Address',
+    label_product: 'Product',
+    label_qty: 'Quantity',
+    label_delivery_fee: 'Delivery fee',
+    btn_create_order: 'Create order',
+    err_add_active_product: 'Add at least one active product before creating an order.',
+    invoice_title_prefix: 'Invoice ',
+    invoice_subtitle: 'Invoice / Delivery waybill',
+    label_client_box: 'Customer',
+    label_delivery_person_box: 'Delivery person',
+    col_article: 'Item',
+    col_qty_short: 'Qty',
+    col_unit_price: 'Unit price',
+    col_amount: 'Amount',
+    row_subtotal: 'Subtotal',
+    row_delivery_fee: 'Delivery fee',
+    row_discount_prefix: 'Discount',
+    row_total_due: 'To collect',
+    invoice_footer_note: 'Cash on delivery (COD). Please verify the amount with the customer before handing over the package.',
+    finance_detail_title: 'Detailed finance',
+    kpi_revenue: 'Revenue',
+    kpi_cost: 'Cost',
+    kpi_margin: 'Margin',
+    no_grade_yet: 'No rank yet',
+    on_way_to_prefix: 'On the way to ',
+    max_grade_reached: 'Maximum rank reached!',
+    collected_since_opening_suffix: ' collected since opening.',
+    remaining_prefix: 'Still ',
+    remaining_suffix: ' to become ',
+    all_tiers_title: 'All tiers',
+    tiers_subtitle: 'Each tier is earned for good: the total never goes back down.',
+    tier_reached: 'Reached',
+    tier_in_progress: 'In progress',
+    deliveries_title: 'Deliveries',
+    deliveries_subtitle: 'Assign orders to a delivery person and track each step.',
+    btn_add_delivery_person: '+ Add a delivery person',
+    no_active_delivery_person_warning: 'No active delivery person for this shop. Add one to be able to assign orders.',
+    no_orders_in_category: 'No orders in this category.',
+    delivery_persons_title: 'Delivery persons',
+    col_name: 'Name',
+    col_vehicle: 'Vehicle',
+    status_active: 'Active',
+    status_inactive: 'Inactive',
+    no_delivery_person_yet: 'No delivery person yet.',
+    choose_ellipsis: 'Choose…',
+    modal_edit_delivery_person: 'Edit delivery person',
+    modal_add_delivery_person: 'Add a delivery person',
+    label_name_required: 'Name *',
+    label_phone_required: 'Phone *',
+    label_email_optional: 'Email (optional)',
+    label_vehicle: 'Vehicle',
+    label_plate: 'License plate',
+    label_photo_url_optional: 'Photo URL (optional)',
+    label_internal_notes: 'Internal notes',
+    placeholder_notes_availability: 'Availability, preferred areas…',
+    checkbox_active: 'Active',
+    err_name_phone_required: 'Name and phone required',
+    vehicle_moto: 'Motorcycle',
+    vehicle_voiture: 'Car',
+    vehicle_velo: 'Bicycle',
+    vehicle_a_pied: 'On foot',
+    vehicle_autre: 'Other',
+    abandoned_title: 'Abandoned orders',
+    abandoned_subtitle: 'Visitors who started an order without completing it. Call them back to recover it.',
+    capture_settings_title: 'Capture settings',
+    checkbox_capture_abandoned: 'Capture abandoned orders',
+    label_abandoned_after_minutes: 'Consider abandoned after (minutes)',
+    checkbox_auto_reminder: 'Automatically follow up with the customer (email/WhatsApp) 30 min after abandonment',
+    reminder_requires_provider_note: 'Requires an email/WhatsApp sending provider set up server-side to actually be sent (see the guide).',
+    abandoned_carts_title: 'Abandoned carts',
+    col_phone_email: 'Phone / Email',
+    col_estimated_total: 'Estimated total',
+    col_captured_at: 'Captured on',
+    btn_mark_converted: 'Mark converted',
+    no_abandoned_orders: 'No abandoned orders yet.',
+    customers_title: 'Customers',
+    customers_subtitle: 'Manage your customers, their statuses, and their orders.',
+    reengage_title_prefix: 'Customers to re-engage (',
+    reengage_30d: 'No order in 30 days',
+    reengage_60d: 'No order in 60 days',
+    reengage_90d: 'No order in 90 days',
+    reengage_note: 'Customers who have ordered at least once but not since then — good candidates for a targeted promo code.',
+    col_last_order: 'Last order',
+    col_total_spent: 'Total spent',
+    btn_create_targeted_promo: 'Create a targeted promo code',
+    no_inactive_customers: 'No inactive customers in this period.',
+    all_customers_title_prefix: 'All customers (',
+    col_orders_count: 'Orders',
+    no_customer_ordered_yet: 'No customer has ordered yet.',
+    address_book_title: 'Address book',
+    address_book_subtitle: 'All useful contacts for your team (lawyer, accountant, carrier…)',
+    btn_manage_roles: 'Manage roles',
+    btn_new_contact: '+ New contact',
+    col_role: 'Role',
+    col_email: 'Email',
+    no_contacts_yet: 'No contacts. Start by creating a role, then add your contacts.',
+    modal_new_role: 'New role',
+    label_role_name: 'Role name',
+    placeholder_role_example: 'E.g.: Accountant',
+    modal_new_contact: 'New contact',
+    confirm_delete_contact: 'Delete this contact?',
+    finance_overview_title: 'Overview',
+    finance_overview_subtitle_prefix: 'Complete financial health — ',
+    net_result: 'Net result',
+    collected_orders_suffix: ' order(s) collected',
+    kpi_revenue_collected: '💵 Revenue collected',
+    kpi_deliveries_done: '📦 Deliveries completed',
+    kpi_cost_of_products: '🏷️ Cost of products',
+    kpi_delivery_fees: '🚚 Delivery fees',
+    kpi_ad_fees: '📣 Ad spend',
+    kpi_other_expenses: '🧾 Other expenses',
+    accounts_title: 'Account ledger',
+    accounts_subtitle: 'Track all your accounts (cash, bank, mobile money…)',
+    btn_transfer: 'Transfer',
+    btn_new_account: '+ New account',
+    kpi_total_balance: 'Total balance',
+    btn_entry_in: '+ In',
+    btn_entry_out: '- Out',
+    col_type: 'Type',
+    col_note: 'Note',
+    movement_in: 'In',
+    movement_out: 'Out',
+    no_movement: 'No transactions.',
+    no_accounts_yet: 'No accounts. Create one to track money in and out.',
+    modal_new_account: 'New account',
+    label_account_name: 'Name',
+    placeholder_account_example: 'E.g.: Wave',
+    label_type: 'Type',
+    type_caisse: 'Cash',
+    type_banque: 'Bank',
+    type_mobile_money: 'Mobile money',
+    movement_title_in: 'Cash in',
+    movement_title_out: 'Cash out',
+    label_amount: 'Amount',
+    label_note: 'Note',
+    btn_confirm: 'Confirm',
+    transfer_min_two_accounts: 'Create at least two accounts to make a transfer.',
+    modal_transfer_title: 'Transfer between accounts',
+    label_from: 'From',
+    label_to: 'To',
+    delivery_fees_title: 'Delivery fees',
+    delivery_fees_subtitle: 'The delivery fees you pay (delivery persons, carriers).',
+    btn_add_fee: '+ Add fees',
+    kpi_total_this_month: 'Total this month',
+    kpi_total_entries_prefix: 'Total (',
+    kpi_total_entries_suffix: ' entries)',
+    col_order: 'Order',
+    col_delivery_person: 'Delivery person',
+    no_delivery_fees: 'No delivery fees. Add the total you paid for delivery.',
+    modal_add_delivery_fee: 'Add delivery fees',
+    label_linked_order_optional: 'Linked order (optional — to find this fee in case of dispute)',
+    label_delivery_person_paid_optional: 'Delivery person paid (optional)',
+    placeholder_note_example: 'E.g.: Today\'s deliveries',
+    label_debit_account: 'Debit account',
+    finance_detail_subtitle_has_data: 'Margin per delivered order.',
+    finance_detail_subtitle_no_data: 'No delivered orders in this period.',
+    finance_detail_empty_hint: 'Also fill in your products\' cost price in the catalog to see margin here.',
+    open_products_catalog: 'Open products catalog →',
+    ads_title: 'Ads & ROAS',
+    ads_subtitle: 'Return on ad spend (ROAS) is calculated against your delivered sales.',
+    kpi_total_spend: 'Total spend',
+    kpi_attributed_revenue: 'Attributed revenue (delivered)',
+    kpi_global_roas: 'Global ROAS',
+    by_product_title: 'By product',
+    btn_new_expense: '+ New expense',
+    col_spend: 'Spend',
+    col_roas: 'ROAS',
+    no_expense_attributed: 'No expense attributed to a product.',
+    recent_expenses_title: 'Recent expenses',
+    col_campaign: 'Campaign',
+    col_products: 'Products',
+    btn_copy_link: 'Copy link',
+    btn_roas_by_product: 'ROAS by product',
+    no_expense_entered: 'No expense entered yet. Click "New expense" to get started.',
+    modal_new_ad_expense: 'New ad expense',
+    label_campaign_name: 'Campaign name',
+    label_linked_products_optional: 'Linked product(s) (optional — check several for a carousel/bundled promo)',
+    no_products_in_catalog: 'No products in the catalog.',
+    label_link_to_use_in_ad: 'Link to use in your ad',
+    ad_link_hint_multi_suffix: ' products selected — the link points to the whole shop, tracking is done by campaign.',
+    ad_link_hint_single: 'Paste this link as your ad\'s destination.',
+    default_expense_word: 'Expense',
+    ad_expense_detail_suffix: ' — ROAS by product',
+    ad_expense_detail_subtitle: 'Budget of {amount} split evenly among the {count} product(s) in this group.',
+    col_budget_share: 'Budget share',
+    col_delivered_revenue: 'Delivered revenue',
+    products_title: 'Products',
+    products_subtitle_suffix: ' product(s)',
+    btn_categories: 'Categories',
+    btn_new_product: '+ New product',
+    low_stock_warning_prefix: '⚠️ Low stock on ',
+    low_stock_warning_suffix: ' product(s):',
+    btn_order: 'Order',
+    label_filter_by_category: 'Filter by category',
+    filter_all_categories_prefix: 'All (',
+    col_category: 'Category',
+    col_price: 'Price',
+    col_stock: 'Stock',
+    variants_suffix: ' variants)',
+    product_status_active: 'Active',
+    product_status_draft: 'Draft',
+    btn_delete_short: 'Delete',
+    no_products_in_category: 'No products in this category.',
+    modal_categories_title: 'Product categories',
+    no_categories_yet: 'No categories yet.',
+    placeholder_new_category_name: 'New category name',
+    confirm_delete_category: 'Delete this category? Products using it won\'t be deleted, just left without a category.',
+    stock_out_of_stock: ' · out of stock',
+    stock_limited: ' · limited',
+    modal_edit_product: 'Edit product',
+    modal_new_product: 'New product',
+    label_name: 'Name',
+    label_description: 'Description',
+    label_sale_price: 'Sale price',
+    label_compare_price: 'Compare-at price (optional)',
+    label_cost_price: 'Cost price (internal)',
+    label_delivery_fee_empty_hint: 'Delivery fee (empty = shop\'s default fee)',
+    label_sku: 'SKU',
+    label_barcode: 'Barcode (UPC, EAN)',
+    label_stock: 'Stock',
+    label_low_stock_alert: 'Low-stock alert from',
+    label_status: 'Status',
+    label_slug: 'Slug (URL)',
+    placeholder_auto_slug: 'auto-generated if left empty',
+    label_category_optional: 'Category (optional)',
+    checkbox_track_stock: 'Track stock quantity',
+    checkbox_physical_product: 'Physical product (requires delivery)',
+    product_form_stock_note: 'An order is always accepted, even if stock is insufficient — it\'s up to you to handle it. The alert above is just to spot products that need restocking.',
+    label_photos: 'Photos',
+    label_primary_photo: 'Primary',
+    btn_set_primary: 'Set',
+    title_choose_from_gallery: 'Choose from gallery',
+    title_take_photo: 'Take a photo',
+    btn_take_photo: '📷 Take a photo',
+    save_first_to_add_photos: 'Save once first to add more photos.',
+    label_options_gen: 'Options (auto-generates variants, 3 max)',
+    btn_add_option: '+ Add an option',
+    btn_generate_variants: 'Generate variants',
+    label_related_products: 'Related products (upsell shown on the storefront product page)',
+    add_other_products_hint: 'Add other products to the catalog to be able to suggest them here.',
+    err_name_required: 'The name is required',
+    option_placeholder_size: 'E.g.: Size',
+    option_placeholder_color: 'E.g.: Color',
+    option_placeholder_shoe_size: 'E.g.: Shoe size',
+    option_placeholder_material: 'E.g.: Material',
+    placeholder_type_value_enter: 'Type a value then Enter',
+    err_option_values_required: 'Fill in at least one option with values (e.g.: Size -> S, M, L)',
+    label_variants_generated_prefix: 'Generated variants (',
+    col_variant: 'Variant',
+    col_price_optional: 'Price (optional)',
+    confirm_delete_photo: 'Delete this photo?',
+    stock_title: 'Stock',
+    stock_subtitle: 'Adjust stock quantities.',
+    col_current_stock: 'Current stock',
+    col_adjust: 'Adjust',
+    limited_word: 'limited',
+    btn_other_ellipsis: 'Other…',
+    no_products: 'No products.',
+    prompt_adjust_stock: 'Adjust stock by how much (e.g.: -5 or 10)?',
+    suppliers_title: 'Suppliers',
+    btn_new_supplier: '+ New supplier',
+    col_notes: 'Notes',
+    no_suppliers: 'No suppliers.',
+    modal_new_supplier: 'New supplier',
+    confirm_delete_supplier: 'Delete this supplier?',
+    supplier_orders_title: 'Supplier orders',
+    btn_new_supplier_order: '+ New order',
+    add_supplier_first_warning_prefix: '⚠️ First add a supplier (page ',
+    suppliers_link_text: 'Suppliers',
+    before_order_suffix: ') before you can place an order.',
+    col_supplier: 'Supplier',
+    col_unit_cost: 'Unit cost',
+    btn_received: 'Received',
+    btn_cancel_order: 'Cancel',
+    no_supplier_orders: 'No supplier orders.',
+    add_supplier_before_reorder: 'First add a supplier before placing a restock order.',
+    add_supplier_before_order: 'First add a supplier (Suppliers page) before placing an order.',
+    modal_new_supplier_order: 'New supplier order',
+    reports_title: 'Sales reports',
+    reports_subtitle: 'Track your shop\'s performance.',
+    kpi_gross_sales: 'Gross sales',
+    kpi_orders: 'Orders',
+    kpi_avg_cart2: 'Average cart',
+    kpi_delivered: 'Delivered',
+    breakdown_title: 'Breakdown',
+    row_gross_sales: 'Gross sales',
+    row_returns: 'Returns',
+    row_net_sales: 'Net sales',
+    row_delivery_fee_customer: 'Delivery fee (customer)',
+    row_total: 'Total',
+    best_sellers_title: 'Best sellers',
+    no_data_period: 'No data found for this date range.',
+    utm_data_title: 'UTM data (Meta, etc.)',
+    col_source: 'Source',
+    no_campaign_data: 'No campaign data. Orders only carry a campaign if your ad link has UTM parameters. In Meta, fill in your ad\'s "URL parameters" field with:',
+    live_badge: '● LIVE',
+    live_activity_title: 'Live activity',
+    kpi_orders_today: 'Orders today',
+    kpi_revenue_today: 'Revenue today',
+    history_title: 'History',
+    history_subtitle: 'The last 300 actions on this shop — who did what, and when.',
+    col_time: 'Time',
+    col_author: 'Author',
+    col_action: 'Action',
+    customer_storefront_word: 'Customer (storefront)',
+    no_activity_recorded: 'No activity recorded yet.',
+    marketing_title: 'Marketing',
+    marketing_subtitle: 'Promo codes, customer reviews, newsletter signups, and contact messages.',
+    promo_codes_title_prefix: 'Promo codes (',
+    btn_new_code: '+ New code',
+    col_code: 'Code',
+    col_discount: 'Discount',
+    col_targeting: 'Targeting',
+    col_uses: 'Uses',
+    col_expires: 'Expires',
+    clients_suffix: ' customer(s)',
+    all_customers_word: 'All customers',
+    status_enabled: 'Active',
+    status_disabled: 'Disabled',
+    btn_targeting: 'Targeting',
+    btn_disable: 'Disable',
+    btn_enable: 'Activate',
+    no_promo_codes: 'No promo codes. Create one to offer your customers a discount.',
+    product_promotions_title_prefix: 'Product promotions (',
+    btn_new_promotion: '+ New promotion',
+    promotion_auto_note: 'Discount automatically shown on the price of the chosen products — the customer doesn\'t need to enter anything.',
+    col_period: 'Period',
+    products_count_suffix: ' product(s)',
+    no_end_word: 'no end',
+    no_promotions: 'No product promotions. Create one to show a reduced price directly on chosen items.',
+    reviews_title_prefix: 'Customer reviews (',
+    col_rating: 'Rating',
+    col_comment: 'Comment',
+    status_published: 'Published',
+    status_rejected: 'Rejected',
+    status_pending: 'Pending',
+    btn_publish: 'Publish',
+    btn_reject: 'Reject',
+    no_reviews: 'No reviews yet.',
+    newsletter_subs_title_prefix: 'Newsletter subscribers (',
+    col_registered_on: 'Signed up on',
+    no_subscribers: 'No subscribers yet.',
+    contact_messages_title_prefix: 'Contact messages (',
+    col_message: 'Message',
+    no_messages: 'No messages yet.',
+    modal_new_promo: 'New promo code',
+    label_code: 'Code',
+    placeholder_promo_ex: 'E.g.: PROMO10',
+    label_type_generic: 'Type',
+    type_percent: 'Percentage (%)',
+    type_fixed_amount: 'Fixed amount',
+    label_value: 'Value',
+    label_max_uses_optional: 'Maximum uses (optional)',
+    label_expires_optional: 'Expires on (optional)',
+    label_reserve_customers_optional: 'Reserve for specific customers (optional)',
+    promo_targets_hint: 'Leave empty for a code open to all your customers. Otherwise, only the numbers listed here will be able to use it — even if someone else gets hold of it.',
+    err_code_value_required: 'Code and value required',
+    modal_targeting_prefix: 'Targeting — ',
+    label_allowed_customers: 'Customers allowed to use this code (phone numbers, one per line)',
+    promo_targets2_hint: 'Clear this field completely to make the code open to all your customers.',
+    confirm_delete_promo: 'Delete this promo code?',
+    modal_edit_promotion: 'Edit promotion',
+    modal_new_promotion: 'New product promotion',
+    label_start_optional: 'Start (optional)',
+    label_end_optional: 'End (optional)',
+    label_concerned_products: 'Concerned products',
+    add_products_before_promotion: 'Add products to your catalog before creating a promotion.',
+    err_value_required: 'The value is required',
+    err_select_one_product: 'Select at least one product',
+    confirm_delete_promotion: 'Delete this promotion?',
+    confirm_delete_review: 'Delete this review?',
+    settings_title: 'General',
+    label_public_description: 'Public description',
+    label_logo: 'Logo',
+    label_public_store_link: 'Public shop link',
+    btn_copy: 'Copy',
+    share_note: 'Each button opens the network with the link already filled in — no need to copy it by hand. Instagram and TikTok don\'t allow this pre-filling from a website: the link is copied automatically, just paste it into your bio or a story/video.',
+    label_default_delivery_fee: 'Default delivery fee (charged to the customer)',
+    checkbox_cod_enabled: 'Cash on delivery enabled',
+    order_notifications_title: 'Order notifications',
+    checkbox_notify_email: 'Receive an email for every new order',
+    label_receiving_address: 'Receiving address (empty = your account email)',
+    checkbox_notify_whatsapp: 'Receive a WhatsApp notification for every new order',
+    label_whatsapp_number: 'WhatsApp number (international format, e.g.: +225 07 00 00 00 00)',
+    whatsapp_pending_note: 'Waiting on an approved WhatsApp Business number — in the meantime, the message is logged server-side for testing.',
+    checkbox_stock_alert: 'Automatically alert me when a product goes into low stock (at most once/day)',
+    backup_title: 'Backup',
+    backup_subtitle: 'Download all this shop\'s data (products, customers, orders, finances…) into a single file, just in case. Photos aren\'t included (file would be too large otherwise).',
+    btn_export_backup: '⬇️ Export a full backup',
+    saved_word: 'Saved',
+    team_title: 'Team',
+    team_subtitle: 'Invite colleagues to manage the shop with you. Everyone keeps their own account.',
+    btn_invite_member: '+ Invite a member',
+    col_full_name: 'Name',
+    btn_remove: 'Remove',
+    modal_invite_member: 'Invite a member',
+    placeholder_colleague_email: 'colleague@example.com',
+    label_role: 'Role',
+    role_admin_desc: 'Admin — full access to the whole shop',
+    role_manager_desc: 'Manager — everything except team and settings',
+    role_livreur_desc: 'Delivery person — sees deliveries',
+    role_closeuse_desc: 'Closer — orders, customers, stock',
+    role_comptable_desc: 'Accountant — finance and analytics',
+    label_linked_delivery_person: 'Linked delivery person profile (to only see their deliveries)',
+    none_will_link_later: '— none (will see their deliveries once an admin links them later)',
+    btn_send_invite: 'Send invitation',
+    dev_mode_link_prefix: 'Development mode — direct link: ',
+    confirm_remove_member: 'Remove this member from the shop?',
+    role_owner: 'Owner',
+    role_admin: 'Admin',
+    role_manager: 'Manager',
+    role_livreur: 'Delivery person',
+    role_closeuse: 'Closer',
+    role_comptable: 'Accountant',
+    profile_title: 'My profile',
+    label_full_name: 'Full name',
+    label_new_password: 'New password (leave empty to keep it unchanged)',
+    placeholder_min_6_chars: 'Minimum 6 characters',
+    profile_updated: 'Profile updated',
+    billing_title: 'Subscription',
+    current_plan_prefix: 'Current plan: ',
+    access_valid_until_prefix: ' — access valid until ',
+    days_remaining_suffix: ' day(s) remaining)',
+    access_expired_prefix: ' — access expired on ',
+    blocked_access_warning: '⚠️ Your access to your shops is blocked until you renew your subscription below.',
+    expiring_soon_prefix: '⏳ Your subscription expires in ',
+    expiring_soon_suffix: ' day(s) — remember to renew so you don\'t lose access to your shops.',
+    pending_request_prefix: 'Request pending for the ',
+    first_month_free: '1st month free',
+    per_month: '/month',
+    boutique_limit_suffix: ' shop(s)',
+    btn_current_plan: 'Current plan',
+    btn_choose: 'Choose',
+    confirm_subscribe: 'Switch to the {plan} plan ({price}/month)?\n\nAn activation request will be sent; your current plan stays active until the MYBOUTIK team verifies the payment.',
+    affiliate_title: 'Affiliate',
+    affiliate_subtitle: 'Recommend MYBOUTIK and earn 10% of every subscription paid by your referrals.',
+    referral_link_title: 'Your referral link',
+    referral_link_subtitle: 'Earn 10% of every subscription payment from your referrals.',
+    kpi_link_clicks: 'Link clicks',
+    kpi_signups: 'Signups',
+    kpi_paying_referrals: 'Paying subscribers',
+    kpi_total_earned: 'Total earned',
+    commissions_title: 'My commissions',
+    kpi_pending_validation: 'Pending validation',
+    kpi_available_withdraw: 'Available to withdraw',
+    kpi_already_paid: 'Already paid',
+    commission_validation_note: 'A commission becomes available after {days} days of validation. Minimum withdrawal: {min}.',
+    placeholder_payout_phone: '+225 00 00 00 00 00',
+    btn_request_payout: 'Request withdrawal',
+    referrals_title: 'My referrals',
+    status_paying: 'Paying',
+    status_signed_up: 'Signed up',
+    no_referrals_yet: 'No one yet — share your link to start earning.',
+    err_mobile_money_required: 'Mobile Money number required',
+    integrations_title: 'Integrations',
+    integrations_subtitle: 'Connect an external order source. Each row becomes a real MYBOUTIK order.',
+    gsheets_title: 'Google Sheets',
+    gsheets_subtitle: 'Publish your sheet as CSV (File → Share → Publish to web → CSV) then paste the link here.',
+    label_sheet_link: 'Your Google Sheet link (CSV)',
+    checkbox_enable_integration: 'Enable this integration',
+    btn_import_now: 'Import now',
+    expected_columns_title: 'Expected columns',
+    col_column: 'Column',
+    col_required: 'Required',
+    col_example: 'Example',
+    yes_word: 'Yes',
+    no_word: 'No',
+    multi_product_order_note: 'An order with multiple products? Put one row per product with the same id_commande.',
+    import_result_title: 'Import result',
+    skipped_rows_prefix: 'Skipped rows:',
+    order_status_pending: 'Pending',
+    order_status_processing: 'Confirmed',
+    order_status_shipped: 'Shipped',
+    order_status_delivered: 'Delivered',
+    order_status_refused: 'Refused',
+    order_status_cancelled: 'Cancelled',
+    order_status_to_assign: 'To assign',
+    order_status_assigned: 'Assigned',
+    order_status_in_delivery: 'Out for delivery',
+  },
 };
-function pill(status){ return '<span class="pill pill-'+status+'">'+(STATUS_LABELS[status]||status)+'</span>'; }
+
+function t(key) { return (I18N[LANG] && I18N[LANG][key]) ?? I18N.fr[key] ?? key; }
+function tf(key, vars) {
+  let s = t(key);
+  Object.keys(vars || {}).forEach(k => { s = s.split('{'+k+'}').join(vars[k]); });
+  return s;
+}
+function setLang(lang) {
+  LANG = lang === 'en' ? 'en' : 'fr';
+  localStorage.setItem('myboutik_dash_lang', LANG);
+  document.getElementById('langFr').classList.toggle('active', LANG === 'fr');
+  document.getElementById('langEn').classList.toggle('active', LANG === 'en');
+  document.getElementById('logoutBtn').textContent = t('btn_logout');
+  document.getElementById('sideBackAll').textContent = t('side_back_all_boutiques');
+  document.getElementById('sideGuideLink').textContent = t('side_guide');
+  route();
+}
+
+function STATUS_LABELS_FN() { return {
+  pending: t('order_status_pending'), processing: t('order_status_processing'), shipped: t('order_status_shipped'), delivered: t('order_status_delivered'),
+  refused: t('order_status_refused'), cancelled: t('order_status_cancelled'),
+  to_assign: t('order_status_to_assign'), assigned: t('order_status_assigned'), in_delivery: t('order_status_in_delivery'),
+}; }
+function pill(status){ return '<span class="pill pill-'+status+'">'+(STATUS_LABELS_FN()[status]||status)+'</span>'; }
 
 function openModal(html) { document.getElementById('modalBody').innerHTML = html; document.getElementById('modalOverlay').classList.add('open'); }
 function closeModal() { document.getElementById('modalOverlay').classList.remove('open'); }
@@ -242,6 +1434,11 @@ function showToast(message, type) {
 // Chargement des boutiques + routeur
 // ============================================================
 document.getElementById('userEmail').textContent = USER.email || '';
+document.getElementById('langFr').classList.toggle('active', LANG === 'fr');
+document.getElementById('langEn').classList.toggle('active', LANG === 'en');
+document.getElementById('logoutBtn').textContent = t('btn_logout');
+document.getElementById('sideBackAll').textContent = t('side_back_all_boutiques');
+document.getElementById('sideGuideLink').textContent = t('side_guide');
 
 function loadBoutiques() {
   return api('/boutiques?action=list').then(({data}) => {
@@ -249,7 +1446,7 @@ function loadBoutiques() {
     BOUTIQUES = data.data;
     const sel = document.getElementById('boutiqueSwitch');
     sel.innerHTML = BOUTIQUES.map(b => '<option value="'+b.slug+'">'+escapeHtml(b.name)+'</option>').join('')
-      || '<option value="">Aucune boutique</option>';
+      || '<option value="">'+t('no_boutique_option')+'</option>';
     return BOUTIQUES;
   });
 }
@@ -267,7 +1464,7 @@ function route() {
     } else {
       CURRENT = null;
       document.getElementById('sideNav').innerHTML = '';
-      document.getElementById('topTitle').textContent = 'Mes boutiques';
+      document.getElementById('topTitle').textContent = t('my_boutiques_title');
       renderBoutiquesList();
     }
   });
@@ -278,20 +1475,20 @@ route();
 // ============================================================
 // Sidebar
 // ============================================================
-const NAV = [
-  {group:'', items:[['home','🏠','Accueil'], ['grade','🏆','Mon grade']]},
-  {group:'Ventes', items:[['orders','🛒','Commandes'], ['orders/delivery','🚚','Livraisons'], ['orders/abandoned','📥','Commandes abandonnées']]},
-  {group:'Clients', items:[['customers','👤','Liste des clients'], ['contacts','📇','Carnet d\'adresses']]},
-  {group:'Finances', items:[['finance/overview','👁️','Vue Globale'], ['finance/accounts','📖','Livre de Compte'],
-    ['finance/delivery-fees','🚛','Frais de livraison'], ['finance/detail','⏱️','Finance Détaillée'], ['finance/ads','📣','Publicités & ROAS']]},
-  {group:'Catalogue', items:[['products','📦','Produits'], ['products/stock','📊','Stock'], ['products/suppliers','🚛','Fournisseurs'], ['products/supplier-orders','🧾','Commandes fournisseurs']]},
-  {group:'Analytique', items:[['analytics/reports','📈','Rapports'], ['analytics/live','🔴','Live'], ['analytics/history','🕒','Historique']]},
-  {group:'Marketing', items:[['marketing','✉️','Messages et abonnés']]},
-  {group:'Paramètres', items:[
-    ['settings','⚙️','Général'], ['team','🧑‍🤝‍🧑','Équipe'], ['integrations','🔌','Intégrations'],
-    ['profile','👤','Mon profil'], ['billing','💳','Abonnement'], ['affiliate','🤝','Affiliation'],
+function NAV_FN() { return [
+  {group:'', items:[['home','🏠',t('nav_home')], ['grade','🏆',t('nav_grade')]]},
+  {group:t('nav_group_sales'), items:[['orders','🛒',t('nav_orders')], ['orders/delivery','🚚',t('nav_deliveries')], ['orders/abandoned','📥',t('nav_abandoned')]]},
+  {group:t('nav_group_customers'), items:[['customers','👤',t('nav_customers')], ['contacts','📇',t('nav_contacts')]]},
+  {group:t('nav_group_finance'), items:[['finance/overview','👁️',t('nav_finance_overview')], ['finance/accounts','📖',t('nav_finance_accounts')],
+    ['finance/delivery-fees','🚛',t('nav_finance_delivery_fees')], ['finance/detail','⏱️',t('nav_finance_detail')], ['finance/ads','📣',t('nav_finance_ads')]]},
+  {group:t('nav_group_catalog'), items:[['products','📦',t('nav_products')], ['products/stock','📊',t('nav_stock')], ['products/suppliers','🚛',t('nav_suppliers')], ['products/supplier-orders','🧾',t('nav_supplier_orders')]]},
+  {group:t('nav_group_analytics'), items:[['analytics/reports','📈',t('nav_reports')], ['analytics/live','🔴',t('nav_live')], ['analytics/history','🕒',t('nav_history')]]},
+  {group:t('nav_group_marketing'), items:[['marketing','✉️',t('nav_marketing')]]},
+  {group:t('nav_group_settings'), items:[
+    ['settings','⚙️',t('nav_settings')], ['team','🧑‍🤝‍🧑',t('nav_team')], ['integrations','🔌',t('nav_integrations')],
+    ['profile','👤',t('nav_profile')], ['billing','💳',t('nav_billing')], ['affiliate','🤝',t('nav_affiliate')],
   ]},
-];
+]; }
 // Module dont depend chaque page (voir ROLE_MODULE_ACCESS cote backend,
 // meme repartition) - '*' = toujours visible, 'admin' = proprietaire/admin
 // de la boutique seulement, 'account' = toujours visible (concerne le
@@ -322,7 +1519,7 @@ function navItemVisible(role, key) {
 }
 function renderSidebar(bt, current) {
   const role = bt.my_role || 'owner';
-  document.getElementById('sideNav').innerHTML = NAV.map(g => {
+  document.getElementById('sideNav').innerHTML = NAV_FN().map(g => {
     const items = g.items.filter(([key]) => navItemVisible(role, key));
     if (!items.length) return '';
     return (g.group ? '<div class="side-group">'+g.group+'</div>' : '') +
@@ -358,20 +1555,20 @@ function renderMultiBoutiqueSummary() {
   BOUTIQUES.forEach(b => { byCurrency[b.currency] = (byCurrency[b.currency]||0) + Number(b.stats.ca_encaisse); });
   const totalsHtml = Object.entries(byCurrency).map(([cur,amt]) => fmtMoney(amt, cur)).join(' + ');
   return `<div class="card">
-    <h3>Vue d'ensemble — toutes boutiques</h3>
+    <h3>${t('overview_all_boutiques')}</h3>
     <div class="kpi-grid">
-      <div class="kpi"><div class="lbl">Boutiques</div><div class="val">${BOUTIQUES.length}</div></div>
-      <div class="kpi"><div class="lbl">Commandes (total)</div><div class="val">${totalCommandes}</div></div>
-      <div class="kpi"><div class="lbl">En attente</div><div class="val">${totalEnAttente}</div></div>
-      <div class="kpi"><div class="lbl">Revenus encaissés (total)</div><div class="val">${totalsHtml}</div></div>
+      <div class="kpi"><div class="lbl">${t('kpi_boutiques')}</div><div class="val">${BOUTIQUES.length}</div></div>
+      <div class="kpi"><div class="lbl">${t('kpi_orders_total')}</div><div class="val">${totalCommandes}</div></div>
+      <div class="kpi"><div class="lbl">${t('kpi_pending')}</div><div class="val">${totalEnAttente}</div></div>
+      <div class="kpi"><div class="lbl">${t('kpi_revenue_total')}</div><div class="val">${totalsHtml}</div></div>
     </div>
   </div>`;
 }
 function renderBoutiquesList() {
   const html = `
     <div class="row-between">
-      <div><h2 class="page-title">Mes boutiques</h2><div class="page-sub">Choisissez la boutique à gérer, ou lancez-en une nouvelle.</div></div>
-      <button class="btn btn-primary" onclick="openCreateBoutique()">+ Créer une boutique</button>
+      <div><h2 class="page-title">${t('my_boutiques_title')}</h2><div class="page-sub">${t('my_boutiques_subtitle')}</div></div>
+      <button class="btn btn-primary" onclick="openCreateBoutique()">${t('btn_create_boutique')}</button>
     </div>
     ${renderMultiBoutiqueSummary()}
     <div id="boutiquesGrid" class="kpi-grid"></div>
@@ -379,7 +1576,7 @@ function renderBoutiquesList() {
   document.getElementById('content').innerHTML = html;
   const grid = document.getElementById('boutiquesGrid');
   if (BOUTIQUES.length === 0) {
-    grid.innerHTML = '<div class="card empty" style="grid-column:1/-1"><div class="big">🏬</div>Aucune boutique pour le moment.<br><br><button class="btn btn-primary" onclick="openCreateBoutique()">Créer ma première boutique</button></div>';
+    grid.innerHTML = '<div class="card empty" style="grid-column:1/-1"><div class="big">🏬</div>'+t('no_boutiques_yet')+'<br><br><button class="btn btn-primary" onclick="openCreateBoutique()">'+t('btn_create_first_boutique')+'</button></div>';
     return;
   }
   grid.innerHTML = BOUTIQUES.map(b => `
@@ -387,23 +1584,23 @@ function renderBoutiquesList() {
       <div style="font-weight:700">${escapeHtml(b.name)}</div>
       <div class="muted">/${escapeHtml(b.slug)}</div>
       <div style="display:flex;gap:16px;font-size:13px;color:var(--gray)">
-        <div><strong style="color:var(--ink)">${b.stats.commandes}</strong> commandes</div>
-        <div><strong style="color:var(--ink)">${b.stats.en_attente}</strong> en attente</div>
+        <div><strong style="color:var(--ink)">${b.stats.commandes}</strong> ${t('label_orders_word')}</div>
+        <div><strong style="color:var(--ink)">${b.stats.en_attente}</strong> ${t('label_pending_word')}</div>
       </div>
       <div style="font-weight:700">${fmtMoney(b.stats.ca_encaisse, b.currency)}</div>
-      <a class="btn btn-primary btn-sm" style="text-align:center" href="#/${b.slug}/home">Gérer →</a>
+      <a class="btn btn-primary btn-sm" style="text-align:center" href="#/${b.slug}/home">${t('btn_manage')}</a>
     </div>
   `).join('');
 }
 
 function openCreateBoutique() {
   openModal(`
-    <h2>Créer une boutique</h2>
+    <h2>${t('modal_create_boutique_title')}</h2>
     <div id="createBoutiqueMsg"></div>
-    <div class="field"><label>Nom de la boutique</label><input id="newBoutiqueName" placeholder="Ex: Boutik de Rom"></div>
+    <div class="field"><label>${t('label_boutique_name')}</label><input id="newBoutiqueName" placeholder="${t('placeholder_boutique_name')}"></div>
     <div class="modal-actions">
-      <button class="btn btn-ghost" onclick="closeModal()">Annuler</button>
-      <button class="btn btn-primary" onclick="submitCreateBoutique()">Créer</button>
+      <button class="btn btn-ghost" onclick="closeModal()">${t('btn_cancel')}</button>
+      <button class="btn btn-primary" onclick="submitCreateBoutique()">${t('btn_create')}</button>
     </div>
   `);
 }
@@ -437,13 +1634,13 @@ function renderSection(bt, section) {
   (map[section] || renderHome)(bt);
 }
 
-const PERIOD_LABELS = {'7d':'7 derniers jours','30d':'30 derniers jours','90d':'90 derniers jours','all':'Depuis le début'};
+function PERIOD_LABELS_FN() { return {'7d':t('period_7d'),'30d':t('period_30d'),'90d':t('period_90d'),'all':t('period_all')}; }
 function periodSelectHtml(id, current) {
   return `<select id="${id}" onchange="window.__periodChange && window.__periodChange(this.value)" style="padding:8px 12px;border:1px solid var(--border);border-radius:9px;font-size:13px">
-    <option value="7d" ${current==='7d'?'selected':''}>7 derniers jours</option>
-    <option value="30d" ${current==='30d'?'selected':''}>30 derniers jours</option>
-    <option value="90d" ${current==='90d'?'selected':''}>90 derniers jours</option>
-    <option value="all" ${current==='all'?'selected':''}>Depuis le début</option>
+    <option value="7d" ${current==='7d'?'selected':''}>${t('period_7d')}</option>
+    <option value="30d" ${current==='30d'?'selected':''}>${t('period_30d')}</option>
+    <option value="90d" ${current==='90d'?'selected':''}>${t('period_90d')}</option>
+    <option value="all" ${current==='all'?'selected':''}>${t('period_all')}</option>
   </select>`;
 }
 
@@ -458,48 +1655,48 @@ function renderHome(bt) {
   ]).then(([live, report]) => {
     const L = live.data.data || {}; const R = report.data.data || {};
     document.getElementById('content').innerHTML = `
-      <h2 class="page-title">Bonjour 👋</h2>
-      <div class="page-sub">Voici comment <strong>${escapeHtml(bt.name)}</strong> se porte aujourd'hui.</div>
+      <h2 class="page-title">${t('home_title')}</h2>
+      <div class="page-sub">${t('home_subtitle_prefix')}<strong>${escapeHtml(bt.name)}</strong>${t('home_subtitle_suffix')}</div>
       <div class="kpi-grid">
-        <div class="kpi"><div class="lbl">💰 Ventes totales (30j)</div><div class="val">${fmtMoney(R.ventes_brutes, bt.currency)}</div></div>
-        <div class="kpi"><div class="lbl">🛒 Commandes (30j)</div><div class="val">${R.commandes||0}</div></div>
-        <div class="kpi"><div class="lbl">📦 Livrées (30j)</div><div class="val">${R.livrees||0}</div></div>
-        <div class="kpi"><div class="lbl">🧾 Panier moyen</div><div class="val">${fmtMoney(R.panier_moyen, bt.currency)}</div></div>
+        <div class="kpi"><div class="lbl">${t('kpi_sales_30d')}</div><div class="val">${fmtMoney(R.ventes_brutes, bt.currency)}</div></div>
+        <div class="kpi"><div class="lbl">${t('kpi_orders_30d')}</div><div class="val">${R.commandes||0}</div></div>
+        <div class="kpi"><div class="lbl">${t('kpi_delivered_30d')}</div><div class="val">${R.livrees||0}</div></div>
+        <div class="kpi"><div class="lbl">${t('kpi_avg_cart')}</div><div class="val">${fmtMoney(R.panier_moyen, bt.currency)}</div></div>
       </div>
       <div class="card">
-        <h3>Commandes récentes</h3>
+        <h3>${t('recent_orders_title')}</h3>
         ${renderOrdersTable(L.commandes_recentes||[], bt, true)}
       </div>
       <div class="card">
-        <h3>Meilleurs produits (30 derniers jours)</h3>
+        <h3>${t('best_products_30d_title')}</h3>
         ${(R.best_sellers && R.best_sellers.length) ? `
-          <table><thead><tr><th>Produit</th><th>Qté vendue</th><th>Revenu</th></tr></thead><tbody>
+          <table><thead><tr><th>${t('col_product')}</th><th>${t('col_qty_sold')}</th><th>${t('col_revenue')}</th></tr></thead><tbody>
           ${R.best_sellers.map(p => '<tr><td>'+escapeHtml(p.product_name||'—')+'</td><td>'+p.qty+'</td><td>'+fmtMoney(p.revenue, bt.currency)+'</td></tr>').join('')}
-          </tbody></table>` : '<div class="empty"><div class="big">🏆</div>Pas encore de ventes.<br>Les produits les plus vendus apparaîtront ici.</div>'}
+          </tbody></table>` : '<div class="empty"><div class="big">🏆</div>'+t('no_sales_yet')+'<br>'+t('best_products_will_appear')+'</div>'}
       </div>
       <div class="card">
-        <h3>Flux d'activité</h3>
+        <h3>${t('activity_feed_title')}</h3>
         ${(L.activite && L.activite.length) ? '<div>'+L.activite.map(a => '<div style="padding:8px 0;border-bottom:1px solid var(--border);font-size:13px"><span class="muted">'+fmtDate(a.created_at)+'</span> — '+escapeHtml(a.message)+'</div>').join('')+'</div>'
-          : '<div class="empty">Aucune activité pour l\'instant.</div>'}
+          : '<div class="empty">'+t('no_activity_yet')+'</div>'}
       </div>
     `;
   });
 }
 
 function renderOrdersTable(rows, bt, compact) {
-  if (!rows.length) return '<div class="empty"><div class="big">🛍️</div>Aucune commande pour l\'instant.</div>';
-  return `<table><thead><tr><th>Réf</th><th>Client</th><th>Total</th><th>Statut</th>${compact?'':'<th>Date</th><th></th><th></th>'}</tr></thead><tbody>
+  if (!rows.length) return '<div class="empty"><div class="big">🛍️</div>'+t('no_orders_yet')+'</div>';
+  return `<table><thead><tr><th>${t('col_ref')}</th><th>${t('col_client')}</th><th>${t('col_total')}</th><th>${t('col_status')}</th>${compact?'':'<th>'+t('col_date')+'</th><th></th><th></th>'}</tr></thead><tbody>
     ${rows.map(o => `<tr>
       <td>${escapeHtml(o.ref)}</td><td>${escapeHtml(o.customer_name)}<br><span class="muted">${escapeHtml(o.customer_phone)}</span></td>
       <td>${fmtMoney(o.total, bt.currency)}</td><td>${pill(o.status)}</td>
-      ${compact?'':'<td>'+fmtDate(o.created_at)+'</td><td>'+orderStatusSelect(o)+'</td><td><button class="btn btn-ghost btn-sm" onclick="printOrderBordereau(\''+o.id+'\')">🖨️ Bordereau</button></td>'}
+      ${compact?'':'<td>'+fmtDate(o.created_at)+'</td><td>'+orderStatusSelect(o)+'</td><td><button class="btn btn-ghost btn-sm" onclick="printOrderBordereau(\''+o.id+'\')">'+t('btn_bordereau')+'</button></td>'}
     </tr>`).join('')}
   </tbody></table>`;
 }
 function orderStatusSelect(o) {
   const opts = ['pending','processing','shipped','delivered','refused','cancelled'];
   return '<select onchange="updateOrderStatus(\''+o.id+'\',this.value)" style="padding:5px 8px;border:1px solid var(--border);border-radius:7px;font-size:12px">'
-    + opts.map(s => '<option value="'+s+'" '+(s===o.status?'selected':'')+'>'+STATUS_LABELS[s]+'</option>').join('') + '</select>';
+    + opts.map(s => '<option value="'+s+'" '+(s===o.status?'selected':'')+'>'+STATUS_LABELS_FN()[s]+'</option>').join('') + '</select>';
 }
 function updateOrderStatus(id, status) {
   post('/orders?action=update_status', {boutique_id:CURRENT.id, id, status}).then(() => route());
@@ -521,7 +1718,7 @@ function printOrderBordereau(orderId) {
       </tr>`).join('');
     const discount = Number(o.discount_amount||0);
     const win = window.open('', '_blank', 'width=700,height=750');
-    win.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Facture ${escapeHtml(o.ref)}</title>
+    win.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${t('invoice_title_prefix')}${escapeHtml(o.ref)}</title>
       <style>
         body{font-family:Arial,sans-serif;font-size:13px;color:#111;padding:28px;max-width:680px;margin:0 auto}
         h1{font-size:18px;margin:0 0 2px}
@@ -537,30 +1734,30 @@ function printOrderBordereau(orderId) {
         .label{color:#666;font-size:11px;text-transform:uppercase;letter-spacing:.03em}
       </style></head><body>
       <div class="head-row">
-        <div><h1>${escapeHtml(CURRENT.name)}</h1><div class="muted">Facture / Bordereau de livraison</div></div>
+        <div><h1>${escapeHtml(CURRENT.name)}</h1><div class="muted">${t('invoice_subtitle')}</div></div>
         <div style="text-align:right">
           <div><strong>${escapeHtml(o.ref)}</strong></div>
           <div class="muted">${fmtDate(o.created_at)}</div>
         </div>
       </div>
       <div class="box">
-        <div class="label">Client</div>
+        <div class="label">${t('label_client_box')}</div>
         <div><strong>${escapeHtml(o.customer_name)}</strong></div>
         <div>${escapeHtml(o.customer_phone)}</div>
         <div>${escapeHtml(o.customer_address||'')}</div>
       </div>
-      ${d.delivery_person_name ? `<div class="box"><div class="label">Livreur</div><div>${escapeHtml(d.delivery_person_name)}</div><div>${escapeHtml(d.delivery_person_phone||'')}</div></div>` : ''}
+      ${d.delivery_person_name ? `<div class="box"><div class="label">${t('label_delivery_person_box')}</div><div>${escapeHtml(d.delivery_person_name)}</div><div>${escapeHtml(d.delivery_person_phone||'')}</div></div>` : ''}
       <table>
-        <thead><tr><th>Article</th><th style="text-align:center">Qté</th><th class="num">Prix unt</th><th class="num">Montant</th></tr></thead>
+        <thead><tr><th>${t('col_article')}</th><th style="text-align:center">${t('col_qty_short')}</th><th class="num">${t('col_unit_price')}</th><th class="num">${t('col_amount')}</th></tr></thead>
         <tbody>${itemsHtml}</tbody>
       </table>
       <table class="totals">
-        <tr><td>Sous-total</td><td class="num">${fmtMoney(o.subtotal, CURRENT.currency)}</td></tr>
-        <tr><td>Frais de livraison</td><td class="num">${fmtMoney(o.delivery_fee_charged, CURRENT.currency)}</td></tr>
-        ${discount > 0 ? '<tr><td>Remise'+(o.promo_code?' ('+escapeHtml(o.promo_code)+')':'')+'</td><td class="num">-'+fmtMoney(discount, CURRENT.currency)+'</td></tr>' : ''}
-        <tr class="grand"><td>À encaisser</td><td class="num">${fmtMoney(o.total, CURRENT.currency)}</td></tr>
+        <tr><td>${t('row_subtotal')}</td><td class="num">${fmtMoney(o.subtotal, CURRENT.currency)}</td></tr>
+        <tr><td>${t('row_delivery_fee')}</td><td class="num">${fmtMoney(o.delivery_fee_charged, CURRENT.currency)}</td></tr>
+        ${discount > 0 ? '<tr><td>'+t('row_discount_prefix')+(o.promo_code?' ('+escapeHtml(o.promo_code)+')':'')+'</td><td class="num">-'+fmtMoney(discount, CURRENT.currency)+'</td></tr>' : ''}
+        <tr class="grand"><td>${t('row_total_due')}</td><td class="num">${fmtMoney(o.total, CURRENT.currency)}</td></tr>
       </table>
-      <div class="muted" style="margin-top:14px">Paiement à la livraison (COD). Merci de vérifier le montant avec le client avant remise du colis.</div>
+      <div class="muted" style="margin-top:14px">${t('invoice_footer_note')}</div>
       <script>window.onload = () => window.print();<\/script>
       </body></html>`);
     win.document.close();
@@ -596,14 +1793,14 @@ function printFinanceDetailPdf() {
   const F = window.__financeDetailData;
   if (!F) return;
   const kpis = `<div class="kpis">
-      <div class="kpi"><div class="lbl">Revenu</div><div class="val">${fmtMoney(F.total_revenue, CURRENT.currency)}</div></div>
-      <div class="kpi"><div class="lbl">Coût</div><div class="val">${fmtMoney(F.total_cost, CURRENT.currency)}</div></div>
-      <div class="kpi"><div class="lbl">Marge</div><div class="val">${fmtMoney(F.total_margin, CURRENT.currency)}</div></div>
+      <div class="kpi"><div class="lbl">${t('kpi_revenue')}</div><div class="val">${fmtMoney(F.total_revenue, CURRENT.currency)}</div></div>
+      <div class="kpi"><div class="lbl">${t('kpi_cost')}</div><div class="val">${fmtMoney(F.total_cost, CURRENT.currency)}</div></div>
+      <div class="kpi"><div class="lbl">${t('kpi_margin')}</div><div class="val">${fmtMoney(F.total_margin, CURRENT.currency)}</div></div>
     </div>`;
-  const table = `<table><thead><tr><th>Réf</th><th>Client</th><th>Revenu</th><th>Coût</th><th>Marge</th></tr></thead><tbody>
+  const table = `<table><thead><tr><th>${t('col_ref')}</th><th>${t('col_client')}</th><th>${t('col_revenue')}</th><th>${t('kpi_cost')}</th><th>${t('kpi_margin')}</th></tr></thead><tbody>
     ${F.rows.map(r=>'<tr><td>'+escapeHtml(r.ref)+'</td><td>'+escapeHtml(r.customer_name)+'</td><td>'+fmtMoney(r.total,CURRENT.currency)+'</td><td>'+fmtMoney(r.cost,CURRENT.currency)+'</td><td>'+fmtMoney(r.margin,CURRENT.currency)+'</td></tr>').join('')}
     </tbody></table>`;
-  openPrintReport('Finance Détaillée', PERIOD_LABELS[window.__financeDetailPeriod]||'', kpis+table);
+  openPrintReport(t('finance_detail_title'), PERIOD_LABELS_FN()[window.__financeDetailPeriod]||'', kpis+table);
 }
 
 // ============================================================
@@ -615,20 +1812,20 @@ function renderGrade(bt) {
     if (!data.success) { document.getElementById('content').innerHTML = '<div class="card">'+escapeHtml(data.message)+'</div>'; return; }
     const g = data.data;
     document.getElementById('content').innerHTML = `
-      <h2 class="page-title">${g.current_name ? g.current_name : 'Pas encore de grade'}</h2>
-      <div class="page-sub">${g.next_name ? 'En route vers '+g.next_name : 'Grade maximum atteint !'}</div>
+      <h2 class="page-title">${g.current_name ? g.current_name : t('no_grade_yet')}</h2>
+      <div class="page-sub">${g.next_name ? t('on_way_to_prefix')+g.next_name : t('max_grade_reached')}</div>
       <div class="card">
-        <div style="font-size:14px">${fmtMoney(g.total, bt.currency)} encaissés depuis l'ouverture.</div>
+        <div style="font-size:14px">${fmtMoney(g.total, bt.currency)}${t('collected_since_opening_suffix')}</div>
         <div class="progress-bar"><div class="fill" style="width:${g.progress_pct}%"></div></div>
-        ${g.next_min ? '<div class="muted">Encore <strong>'+fmtMoney(g.remaining, bt.currency)+'</strong> pour devenir '+g.next_name+'.</div>' : ''}
+        ${g.next_min ? '<div class="muted">'+t('remaining_prefix')+'<strong>'+fmtMoney(g.remaining, bt.currency)+'</strong>'+t('remaining_suffix')+g.next_name+'.</div>' : ''}
       </div>
       <div class="card">
-        <h3>Tous les paliers</h3>
-        <div class="page-sub">Chaque palier est acquis pour de bon : le cumul ne redescend jamais.</div>
+        <h3>${t('all_tiers_title')}</h3>
+        <div class="page-sub">${t('tiers_subtitle')}</div>
         <div class="grades-list">
           ${g.all.map(x => `<div class="grade-row">
             <div>${x.name}<div class="muted">${fmtMoney(x.min, bt.currency)}</div></div>
-            <div>${g.total >= x.min ? '<span class="pill pill-delivered">Atteint</span>' : (x.name===g.next_name ? '<span class="pill pill-pending">En cours</span>' : '<span class="muted">🔒</span>')}</div>
+            <div>${g.total >= x.min ? '<span class="pill pill-delivered">'+t('tier_reached')+'</span>' : (x.name===g.next_name ? '<span class="pill pill-pending">'+t('tier_in_progress')+'</span>' : '<span class="muted">🔒</span>')}</div>
           </div>`).join('')}
         </div>
       </div>
@@ -655,7 +1852,7 @@ function loadOrdersView(bt, status, q) {
         <div class="field-row" style="margin-bottom:14px">
           <input id="ordersSearch" placeholder="Rechercher (réf, nom, téléphone)…" value="${escapeHtml(q)}">
           <select id="ordersStatus" onchange="loadOrdersView(CURRENT,this.value,document.getElementById('ordersSearch').value)">
-            ${['','pending','processing','shipped','delivered','refused','cancelled'].map(s=>'<option value="'+s+'" '+(s===status?'selected':'')+'>'+(s?STATUS_LABELS[s]:'Toutes')+'</option>').join('')}
+            ${['','pending','processing','shipped','delivered','refused','cancelled'].map(s=>'<option value="'+s+'" '+(s===status?'selected':'')+'>'+(s?STATUS_LABELS_FN()[s]:t('filter_all_status_orders'))+'</option>').join('')}
           </select>
         </div>
         ${renderOrdersTable(rows, bt, false)}
@@ -718,7 +1915,7 @@ function renderDeliveries(bt) {
         <button class="btn btn-primary" onclick="openDeliveryPersonForm()">+ Ajouter un livreur</button>
       </div>
       ${P.filter(p=>p.active).length===0 ? '<div class="card" style="background:var(--amber-bg);border-color:#fde68a">Aucun livreur actif sur cette boutique. Ajoutez-en un pour pouvoir assigner les commandes.</div>' : ''}
-      <div class="tabs">${cols.map(c=>'<div class="tab" onclick="filterDeliveries(\''+c+'\')">'+STATUS_LABELS[c]+' ('+rows.filter(r=>r.status===c).length+')</div>').join('')}</div>
+      <div class="tabs">${cols.map(c=>'<div class="tab" onclick="filterDeliveries(\''+c+'\')">'+STATUS_LABELS_FN()[c]+' ('+rows.filter(r=>r.status===c).length+')</div>').join('')}</div>
       <div class="card" id="deliveriesTableWrap">${renderDeliveriesTable(rows, bt, P)}</div>
       <div class="card">
         <h3>Livreurs</h3>
@@ -726,7 +1923,7 @@ function renderDeliveries(bt) {
           ${P.map(p => `<tr>
             <td>${p.photo_url?'<img src="'+escapeHtml(p.photo_url)+'" style="width:28px;height:28px;border-radius:50%;object-fit:cover;vertical-align:middle;margin-right:8px">':''}${escapeHtml(p.name)}</td>
             <td>${escapeHtml(p.phone||'')}</td>
-            <td>${escapeHtml(VEHICLE_LABELS[p.vehicle_type]||'—')}${p.plate_number?' · '+escapeHtml(p.plate_number):''}</td>
+            <td>${escapeHtml(VEHICLE_LABELS_FN()[p.vehicle_type]||'—')}${p.plate_number?' · '+escapeHtml(p.plate_number):''}</td>
             <td>${p.active?'<span class="pill pill-delivered">Actif</span>':'<span class="pill pill-refused">Inactif</span>'}</td>
             <td><button class="btn btn-ghost btn-sm" onclick='openDeliveryPersonForm(${JSON.stringify(p).replace(/'/g,"&#39;")})'>Modifier</button></td>
           </tr>`).join('')}
@@ -755,11 +1952,11 @@ function renderDeliveriesTable(rows, bt, persons) {
 function deliveryStatusSelect(r) {
   const opts = ['to_assign','assigned','in_delivery','delivered','refused'];
   return '<select onchange="updateDeliveryStatus(\''+r.order_id+'\',this.value)" style="padding:5px 8px;border:1px solid var(--border);border-radius:7px;font-size:12px">'
-    + opts.map(s=>'<option value="'+s+'" '+(s===r.status?'selected':'')+'>'+STATUS_LABELS[s]+'</option>').join('') + '</select>';
+    + opts.map(s=>'<option value="'+s+'" '+(s===r.status?'selected':'')+'>'+STATUS_LABELS_FN()[s]+'</option>').join('') + '</select>';
 }
 function assignDelivery(orderId, personId) { if(!personId) return; post('/deliveries?action=assign', {boutique_id:CURRENT.id, order_id:orderId, delivery_person_id:personId}).then(()=>route()); }
 function updateDeliveryStatus(orderId, status) { post('/deliveries?action=update_status', {boutique_id:CURRENT.id, order_id:orderId, status}).then(()=>route()); }
-const VEHICLE_LABELS = {moto:'Moto', voiture:'Voiture', velo:'Vélo', a_pied:'À pied', autre:'Autre'};
+function VEHICLE_LABELS_FN() { return {moto:t('vehicle_moto'), voiture:t('vehicle_voiture'), velo:t('vehicle_velo'), a_pied:t('vehicle_a_pied'), autre:t('vehicle_autre')}; }
 function openDeliveryPersonForm(p) {
   p = p || {};
   openModal(`<h2>${p.id?'Modifier le livreur':'Ajouter un livreur'}</h2>
@@ -772,7 +1969,7 @@ function openDeliveryPersonForm(p) {
     <div class="field-row">
       <div class="field"><label>Véhicule</label><select id="dpVehicle">
         <option value="">—</option>
-        ${Object.entries(VEHICLE_LABELS).map(([k,l])=>'<option value="'+k+'" '+(p.vehicle_type===k?'selected':'')+'>'+l+'</option>').join('')}
+        ${Object.entries(VEHICLE_LABELS_FN()).map(([k,l])=>'<option value="'+k+'" '+(p.vehicle_type===k?'selected':'')+'>'+l+'</option>').join('')}
       </select></div>
       <div class="field"><label>Immatriculation</label><input id="dpPlate" value="${escapeHtml(p.plate_number||'')}" placeholder="DK-0429"></div>
     </div>
@@ -1682,7 +2879,7 @@ function printReportsPdf() {
     <table><thead><tr><th>Produit</th><th>Qté</th><th>Revenu</th></tr></thead><tbody>
     ${R.best_sellers.map(p=>'<tr><td>'+escapeHtml(p.product_name||'—')+'</td><td>'+p.qty+'</td><td>'+fmtMoney(p.revenue,CURRENT.currency)+'</td></tr>').join('')}
     </tbody></table>` : '';
-  openPrintReport('Rapport de ventes', PERIOD_LABELS[window.__reportsPeriod]||'', kpis+bestSellers);
+  openPrintReport('Rapport de ventes', PERIOD_LABELS_FN()[window.__reportsPeriod]||'', kpis+bestSellers);
 }
 function renderLive(bt) {
   document.getElementById('content').innerHTML = '<div class="empty">Chargement…</div>';
@@ -1996,7 +3193,7 @@ function saveSettings(targetMsgId) {
 // ============================================================
 // Équipe
 // ============================================================
-const ROLE_LABELS = {owner:'Propriétaire', admin:'Admin', manager:'Manager', livreur:'Livreur', closeuse:'Closeuse', comptable:'Comptable'};
+function ROLE_LABELS_FN() { return {owner:t('role_owner'), admin:t('role_admin'), manager:t('role_manager'), livreur:t('role_livreur'), closeuse:t('role_closeuse'), comptable:t('role_comptable')}; }
 function renderTeam(bt) {
   document.getElementById('content').innerHTML = '<div class="empty">Chargement…</div>';
   api('/team?action=list&boutique_id='+bt.id).then(({data}) => {
@@ -2006,7 +3203,7 @@ function renderTeam(bt) {
       <div class="row-between"><div><h2 class="page-title">Équipe</h2><div class="page-sub">Invitez des collègues à gérer la boutique avec vous. Chacun garde son propre compte.</div></div>
         <button class="btn btn-primary" onclick="openInviteForm()">+ Inviter un membre</button></div>
       <div class="card"><table><thead><tr><th>Nom</th><th>Email</th><th>Rôle</th><th>Statut</th><th></th></tr></thead><tbody>
-        ${rows.map(m=>`<tr><td>${escapeHtml(m.full_name||'—')}</td><td>${escapeHtml(m.email)}</td><td>${ROLE_LABELS[m.role]||m.role}</td>
+        ${rows.map(m=>`<tr><td>${escapeHtml(m.full_name||'—')}</td><td>${escapeHtml(m.email)}</td><td>${ROLE_LABELS_FN()[m.role]||m.role}</td>
           <td>${m.status==='active'?'<span class="pill pill-delivered">Actif</span>':'<span class="pill pill-pending">En attente</span>'}</td>
           <td>${m.id?'<button class="btn btn-ghost btn-sm" onclick="removeTeamMember(\''+m.id+'\')">Retirer</button>':''}</td></tr>`).join('')}
       </tbody></table></div>
