@@ -314,6 +314,9 @@ const I18N = {
     col_status: 'Statut',
     col_date: 'Date',
     btn_bordereau: '🖨️ Bordereau',
+    btn_print_selected: '🖨️ Imprimer les bordereaux sélectionnés',
+    err_select_at_least_one_order: 'Sélectionnez au moins une commande',
+    bulk_bordereau_title: 'Bordereaux de livraison',
     orders_title: 'Commandes',
     orders_subtitle: 'Gérer toutes vos commandes COD',
     btn_new_order: '+ Nouvelle commande',
@@ -905,6 +908,9 @@ const I18N = {
     col_status: 'Status',
     col_date: 'Date',
     btn_bordereau: '🖨️ Waybill',
+    btn_print_selected: '🖨️ Print selected waybills',
+    err_select_at_least_one_order: 'Select at least one order',
+    bulk_bordereau_title: 'Delivery waybills',
     orders_title: 'Orders',
     orders_subtitle: 'Manage all your COD orders',
     btn_new_order: '+ New order',
@@ -1707,13 +1713,17 @@ function renderHome(bt) {
 
 function renderOrdersTable(rows, bt, compact) {
   if (!rows.length) return '<div class="empty"><div class="big">🛍️</div>'+t('no_orders_yet')+'</div>';
-  return `<table><thead><tr><th>${t('col_ref')}</th><th>${t('col_client')}</th><th>${t('col_total')}</th><th>${t('col_status')}</th>${compact?'':'<th>'+t('col_date')+'</th><th></th><th></th>'}</tr></thead><tbody>
+  return `<table><thead><tr>${compact?'':'<th><input type="checkbox" id="ordersSelectAll" onchange="toggleAllOrderChecks(this)"></th>'}<th>${t('col_ref')}</th><th>${t('col_client')}</th><th>${t('col_total')}</th><th>${t('col_status')}</th>${compact?'':'<th>'+t('col_date')+'</th><th></th><th></th>'}</tr></thead><tbody>
     ${rows.map(o => `<tr>
+      ${compact?'':'<td><input type="checkbox" class="order-check" value="'+o.id+'"></td>'}
       <td>${escapeHtml(o.ref)}</td><td>${escapeHtml(o.customer_name)}<br><span class="muted">${escapeHtml(o.customer_phone)}</span></td>
       <td>${fmtMoney(o.total, bt.currency)}</td><td>${pill(o.status)}</td>
       ${compact?'':'<td>'+fmtDate(o.created_at)+'</td><td>'+orderStatusSelect(o)+'</td><td><button class="btn btn-ghost btn-sm" onclick="printOrderBordereau(\''+o.id+'\')">'+t('btn_bordereau')+'</button></td>'}
     </tr>`).join('')}
   </tbody></table>`;
+}
+function toggleAllOrderChecks(master) {
+  document.querySelectorAll('.order-check').forEach(el => { el.checked = master.checked; });
 }
 function orderStatusSelect(o) {
   const opts = ['pending','processing','shipped','delivered','refused','cancelled'];
@@ -1727,62 +1737,85 @@ function updateOrderStatus(id, status) {
 // Bordereau imprimable a remettre au livreur : recu dans une fenetre a part
 // (pas dans le tableau de bord lui-meme) pour que window.print() n'imprime
 // que ce contenu, pas toute la barre laterale/le reste de la page.
+// bordereauBodyHtml() construit le contenu d'UNE commande - reutilise a la
+// fois par l'impression individuelle (printOrderBordereau) et groupee
+// (printSelectedBordereaux), chaque commande formant sa propre page a
+// l'impression (voir .page/page-break-after dans openBordereauWindow).
+function bordereauBodyHtml(o) {
+  const d = o.delivery || {};
+  const itemsHtml = (o.items||[]).map(it => `<tr>
+      <td>${escapeHtml(it.product_name)}</td>
+      <td style="text-align:center">${it.qty}</td>
+      <td class="num">${fmtMoney(it.unit_price, CURRENT.currency)}</td>
+      <td class="num">${fmtMoney(it.unit_price*it.qty, CURRENT.currency)}</td>
+    </tr>`).join('');
+  const discount = Number(o.discount_amount||0);
+  return `
+    <div class="head-row">
+      <div><h1>${escapeHtml(CURRENT.name)}</h1><div class="muted">${t('invoice_subtitle')}</div></div>
+      <div style="text-align:right">
+        <div><strong>${escapeHtml(o.ref)}</strong></div>
+        <div class="muted">${fmtDate(o.created_at)}</div>
+      </div>
+    </div>
+    <div class="box">
+      <div class="label">${t('label_client_box')}</div>
+      <div><strong>${escapeHtml(o.customer_name)}</strong></div>
+      <div>${escapeHtml(o.customer_phone)}</div>
+      <div>${escapeHtml(o.customer_address||'')}</div>
+    </div>
+    ${d.delivery_person_name ? `<div class="box"><div class="label">${t('label_delivery_person_box')}</div><div>${escapeHtml(d.delivery_person_name)}</div><div>${escapeHtml(d.delivery_person_phone||'')}</div></div>` : ''}
+    <table>
+      <thead><tr><th>${t('col_article')}</th><th style="text-align:center">${t('col_qty_short')}</th><th class="num">${t('col_unit_price')}</th><th class="num">${t('col_amount')}</th></tr></thead>
+      <tbody>${itemsHtml}</tbody>
+    </table>
+    <table class="totals">
+      <tr><td>${t('row_subtotal')}</td><td class="num">${fmtMoney(o.subtotal, CURRENT.currency)}</td></tr>
+      <tr><td>${t('row_delivery_fee')}</td><td class="num">${fmtMoney(o.delivery_fee_charged, CURRENT.currency)}</td></tr>
+      ${discount > 0 ? '<tr><td>'+t('row_discount_prefix')+(o.promo_code?' ('+escapeHtml(o.promo_code)+')':'')+'</td><td class="num">-'+fmtMoney(discount, CURRENT.currency)+'</td></tr>' : ''}
+      <tr class="grand"><td>${t('row_total_due')}</td><td class="num">${fmtMoney(o.total, CURRENT.currency)}</td></tr>
+    </table>
+    <div class="muted" style="margin-top:14px">${t('invoice_footer_note')}</div>
+  `;
+}
+function openBordereauWindow(orders, title) {
+  const win = window.open('', '_blank', 'width=700,height=750');
+  const pagesHtml = orders.map(o => `<div class="page">${bordereauBodyHtml(o)}</div>`).join('');
+  win.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${title}</title>
+    <style>
+      body{font-family:Arial,sans-serif;font-size:13px;color:#111;margin:0}
+      .page{padding:28px;max-width:680px;margin:0 auto;page-break-after:always}
+      .page:last-child{page-break-after:auto}
+      h1{font-size:18px;margin:0 0 2px}
+      .muted{color:#666;font-size:12px}
+      .head-row{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px}
+      table{width:100%;border-collapse:collapse;margin:10px 0}
+      th{padding:5px 8px;border-bottom:2px solid #333;font-size:11px;text-align:left;text-transform:uppercase;color:#555;white-space:nowrap}
+      td{padding:6px 8px;border-bottom:1px solid #eee;font-size:13px;text-align:left}
+      td.num, th.num{text-align:right;white-space:nowrap}
+      .totals td{border-bottom:none;padding:3px 8px}
+      .totals .grand td{border-top:2px solid #333;font-size:16px;font-weight:bold;padding-top:8px}
+      .box{border:1px solid #ccc;border-radius:8px;padding:10px;margin:10px 0}
+      .label{color:#666;font-size:11px;text-transform:uppercase;letter-spacing:.03em}
+    </style></head><body>
+    ${pagesHtml}
+    <script>window.onload = () => window.print();<\/script>
+    </body></html>`);
+  win.document.close();
+}
 function printOrderBordereau(orderId) {
   api('/orders?action=get&boutique_id='+CURRENT.id+'&id='+orderId).then(({data}) => {
     if (!data.success) { showToast(data.message, 'error'); return; }
-    const o = data.data;
-    const d = o.delivery || {};
-    const itemsHtml = (o.items||[]).map(it => `<tr>
-        <td>${escapeHtml(it.product_name)}</td>
-        <td style="text-align:center">${it.qty}</td>
-        <td class="num">${fmtMoney(it.unit_price, CURRENT.currency)}</td>
-        <td class="num">${fmtMoney(it.unit_price*it.qty, CURRENT.currency)}</td>
-      </tr>`).join('');
-    const discount = Number(o.discount_amount||0);
-    const win = window.open('', '_blank', 'width=700,height=750');
-    win.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${t('invoice_title_prefix')}${escapeHtml(o.ref)}</title>
-      <style>
-        body{font-family:Arial,sans-serif;font-size:13px;color:#111;padding:28px;max-width:680px;margin:0 auto}
-        h1{font-size:18px;margin:0 0 2px}
-        .muted{color:#666;font-size:12px}
-        .head-row{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px}
-        table{width:100%;border-collapse:collapse;margin:10px 0}
-        th{padding:5px 8px;border-bottom:2px solid #333;font-size:11px;text-align:left;text-transform:uppercase;color:#555;white-space:nowrap}
-        td{padding:6px 8px;border-bottom:1px solid #eee;font-size:13px;text-align:left}
-        td.num, th.num{text-align:right;white-space:nowrap}
-        .totals td{border-bottom:none;padding:3px 8px}
-        .totals .grand td{border-top:2px solid #333;font-size:16px;font-weight:bold;padding-top:8px}
-        .box{border:1px solid #ccc;border-radius:8px;padding:10px;margin:10px 0}
-        .label{color:#666;font-size:11px;text-transform:uppercase;letter-spacing:.03em}
-      </style></head><body>
-      <div class="head-row">
-        <div><h1>${escapeHtml(CURRENT.name)}</h1><div class="muted">${t('invoice_subtitle')}</div></div>
-        <div style="text-align:right">
-          <div><strong>${escapeHtml(o.ref)}</strong></div>
-          <div class="muted">${fmtDate(o.created_at)}</div>
-        </div>
-      </div>
-      <div class="box">
-        <div class="label">${t('label_client_box')}</div>
-        <div><strong>${escapeHtml(o.customer_name)}</strong></div>
-        <div>${escapeHtml(o.customer_phone)}</div>
-        <div>${escapeHtml(o.customer_address||'')}</div>
-      </div>
-      ${d.delivery_person_name ? `<div class="box"><div class="label">${t('label_delivery_person_box')}</div><div>${escapeHtml(d.delivery_person_name)}</div><div>${escapeHtml(d.delivery_person_phone||'')}</div></div>` : ''}
-      <table>
-        <thead><tr><th>${t('col_article')}</th><th style="text-align:center">${t('col_qty_short')}</th><th class="num">${t('col_unit_price')}</th><th class="num">${t('col_amount')}</th></tr></thead>
-        <tbody>${itemsHtml}</tbody>
-      </table>
-      <table class="totals">
-        <tr><td>${t('row_subtotal')}</td><td class="num">${fmtMoney(o.subtotal, CURRENT.currency)}</td></tr>
-        <tr><td>${t('row_delivery_fee')}</td><td class="num">${fmtMoney(o.delivery_fee_charged, CURRENT.currency)}</td></tr>
-        ${discount > 0 ? '<tr><td>'+t('row_discount_prefix')+(o.promo_code?' ('+escapeHtml(o.promo_code)+')':'')+'</td><td class="num">-'+fmtMoney(discount, CURRENT.currency)+'</td></tr>' : ''}
-        <tr class="grand"><td>${t('row_total_due')}</td><td class="num">${fmtMoney(o.total, CURRENT.currency)}</td></tr>
-      </table>
-      <div class="muted" style="margin-top:14px">${t('invoice_footer_note')}</div>
-      <script>window.onload = () => window.print();<\/script>
-      </body></html>`);
-    win.document.close();
+    openBordereauWindow([data.data], t('invoice_title_prefix')+escapeHtml(data.data.ref));
+  });
+}
+function printSelectedBordereaux() {
+  const ids = Array.from(document.querySelectorAll('.order-check:checked')).map(el => el.value);
+  if (!ids.length) { showToast(t('err_select_at_least_one_order'), 'error'); return; }
+  Promise.all(ids.map(id => api('/orders?action=get&boutique_id='+CURRENT.id+'&id='+id))).then(results => {
+    const orders = results.filter(r => r.data.success).map(r => r.data.data);
+    if (!orders.length) { showToast(t('server_unreachable'), 'error'); return; }
+    openBordereauWindow(orders, t('bulk_bordereau_title'));
   });
 }
 // Ouvre un rapport mis en forme dans un nouvel onglet et lance
@@ -1868,7 +1901,10 @@ function loadOrdersView(bt, status, q) {
     document.getElementById('content').innerHTML = `
       <div class="row-between">
         <div><h2 class="page-title">${t('orders_title')}</h2><div class="page-sub">${t('orders_subtitle')}</div></div>
-        <button class="btn btn-primary" onclick="openNewOrder()">${t('btn_new_order')}</button>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn btn-ghost" onclick="printSelectedBordereaux()">${t('btn_print_selected')}</button>
+          <button class="btn btn-primary" onclick="openNewOrder()">${t('btn_new_order')}</button>
+        </div>
       </div>
       <div class="card">
         <div class="field-row" style="margin-bottom:14px">
