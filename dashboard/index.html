@@ -1845,12 +1845,12 @@ function loadOrdersView(bt, status, q) {
     const rows = data.data || [];
     document.getElementById('content').innerHTML = `
       <div class="row-between">
-        <div><h2 class="page-title">Commandes</h2><div class="page-sub">Gérer toutes vos commandes COD</div></div>
-        <button class="btn btn-primary" onclick="openNewOrder()">+ Nouvelle commande</button>
+        <div><h2 class="page-title">${t('orders_title')}</h2><div class="page-sub">${t('orders_subtitle')}</div></div>
+        <button class="btn btn-primary" onclick="openNewOrder()">${t('btn_new_order')}</button>
       </div>
       <div class="card">
         <div class="field-row" style="margin-bottom:14px">
-          <input id="ordersSearch" placeholder="Rechercher (réf, nom, téléphone)…" value="${escapeHtml(q)}">
+          <input id="ordersSearch" placeholder="${t('orders_search_placeholder')}" value="${escapeHtml(q)}">
           <select id="ordersStatus" onchange="loadOrdersView(CURRENT,this.value,document.getElementById('ordersSearch').value)">
             ${['','pending','processing','shipped','delivered','refused','cancelled'].map(s=>'<option value="'+s+'" '+(s===status?'selected':'')+'>'+(s?STATUS_LABELS_FN()[s]:t('filter_all_status_orders'))+'</option>').join('')}
           </select>
@@ -1865,28 +1865,28 @@ function openNewOrder() {
   api('/products?action=list&boutique_id='+CURRENT.id).then(({data}) => {
     const products = (data.data||[]).filter(p=>p.status==='active');
     openModal(`
-      <h2>Nouvelle commande</h2>
+      <h2>${t('modal_new_order_title')}</h2>
       <div id="newOrderMsg"></div>
-      <div class="field"><label>Nom du client</label><input id="ordCustName"></div>
-      <div class="field"><label>Téléphone</label><input id="ordCustPhone"></div>
-      <div class="field"><label>Adresse</label><input id="ordCustAddress"></div>
-      <div class="field"><label>Produit</label>
+      <div class="field"><label>${t('label_customer_name')}</label><input id="ordCustName"></div>
+      <div class="field"><label>${t('label_phone')}</label><input id="ordCustPhone"></div>
+      <div class="field"><label>${t('label_address')}</label><input id="ordCustAddress"></div>
+      <div class="field"><label>${t('label_product')}</label>
         <select id="ordProduct">${products.map(p=>'<option value="'+p.id+'" data-price="'+p.price+'">'+escapeHtml(p.name)+' — '+fmtMoney(p.price,CURRENT.currency)+'</option>').join('')}</select>
       </div>
       <div class="field-row">
-        <div class="field"><label>Quantité</label><input id="ordQty" type="number" min="1" value="1"></div>
-        <div class="field"><label>Frais de livraison</label><input id="ordDeliveryFee" type="number" min="0" value="${CURRENT.default_delivery_fee||0}"></div>
+        <div class="field"><label>${t('label_qty')}</label><input id="ordQty" type="number" min="1" value="1"></div>
+        <div class="field"><label>${t('label_delivery_fee')}</label><input id="ordDeliveryFee" type="number" min="0" value="${CURRENT.default_delivery_fee||0}"></div>
       </div>
       <div class="modal-actions">
-        <button class="btn btn-ghost" onclick="closeModal()">Annuler</button>
-        <button class="btn btn-primary" onclick="submitNewOrder()">Créer la commande</button>
+        <button class="btn btn-ghost" onclick="closeModal()">${t('btn_cancel')}</button>
+        <button class="btn btn-primary" onclick="submitNewOrder()">${t('btn_create_order')}</button>
       </div>
     `);
   });
 }
 function submitNewOrder() {
   const sel = document.getElementById('ordProduct');
-  if (!sel.value) { document.getElementById('newOrderMsg').innerHTML = '<div class="msg error">Ajoutez au moins un produit actif avant de créer une commande.</div>'; return; }
+  if (!sel.value) { document.getElementById('newOrderMsg').innerHTML = '<div class="msg error">'+t('err_add_active_product')+'</div>'; return; }
   const payload = {
     boutique_id: CURRENT.id,
     customer_name: document.getElementById('ordCustName').value.trim(),
@@ -1911,23 +1911,23 @@ function renderDeliveries(bt) {
     const cols = ['to_assign','assigned','in_delivery','delivered','refused'];
     document.getElementById('content').innerHTML = `
       <div class="row-between">
-        <div><h2 class="page-title">Livraisons</h2><div class="page-sub">Assignez les commandes à un livreur et suivez chaque étape.</div></div>
-        <button class="btn btn-primary" onclick="openDeliveryPersonForm()">+ Ajouter un livreur</button>
+        <div><h2 class="page-title">${t('deliveries_title')}</h2><div class="page-sub">${t('deliveries_subtitle')}</div></div>
+        <button class="btn btn-primary" onclick="openDeliveryPersonForm()">${t('btn_add_delivery_person')}</button>
       </div>
-      ${P.filter(p=>p.active).length===0 ? '<div class="card" style="background:var(--amber-bg);border-color:#fde68a">Aucun livreur actif sur cette boutique. Ajoutez-en un pour pouvoir assigner les commandes.</div>' : ''}
+      ${P.filter(p=>p.active).length===0 ? '<div class="card" style="background:var(--amber-bg);border-color:#fde68a">'+t('no_active_delivery_person_warning')+'</div>' : ''}
       <div class="tabs">${cols.map(c=>'<div class="tab" onclick="filterDeliveries(\''+c+'\')">'+STATUS_LABELS_FN()[c]+' ('+rows.filter(r=>r.status===c).length+')</div>').join('')}</div>
       <div class="card" id="deliveriesTableWrap">${renderDeliveriesTable(rows, bt, P)}</div>
       <div class="card">
-        <h3>Livreurs</h3>
-        ${P.length ? `<table><thead><tr><th>Nom</th><th>Téléphone</th><th>Véhicule</th><th>Statut</th><th></th></tr></thead><tbody>
+        <h3>${t('delivery_persons_title')}</h3>
+        ${P.length ? `<table><thead><tr><th>${t('col_name')}</th><th>${t('label_phone')}</th><th>${t('col_vehicle')}</th><th>${t('col_status')}</th><th></th></tr></thead><tbody>
           ${P.map(p => `<tr>
             <td>${p.photo_url?'<img src="'+escapeHtml(p.photo_url)+'" style="width:28px;height:28px;border-radius:50%;object-fit:cover;vertical-align:middle;margin-right:8px">':''}${escapeHtml(p.name)}</td>
             <td>${escapeHtml(p.phone||'')}</td>
             <td>${escapeHtml(VEHICLE_LABELS_FN()[p.vehicle_type]||'—')}${p.plate_number?' · '+escapeHtml(p.plate_number):''}</td>
-            <td>${p.active?'<span class="pill pill-delivered">Actif</span>':'<span class="pill pill-refused">Inactif</span>'}</td>
-            <td><button class="btn btn-ghost btn-sm" onclick='openDeliveryPersonForm(${JSON.stringify(p).replace(/'/g,"&#39;")})'>Modifier</button></td>
+            <td>${p.active?'<span class="pill pill-delivered">'+t('status_active')+'</span>':'<span class="pill pill-refused">'+t('status_inactive')+'</span>'}</td>
+            <td><button class="btn btn-ghost btn-sm" onclick='openDeliveryPersonForm(${JSON.stringify(p).replace(/'/g,"&#39;")})'>${t('btn_edit')}</button></td>
           </tr>`).join('')}
-          </tbody></table>` : '<div class="empty">Aucun livreur pour le moment.</div>'}
+          </tbody></table>` : '<div class="empty">'+t('no_delivery_person_yet')+'</div>'}
       </div>
     `;
     window.__deliveriesAll = rows; window.__deliveryPersons = P;
@@ -1938,13 +1938,13 @@ function filterDeliveries(status) {
   document.getElementById('deliveriesTableWrap').innerHTML = renderDeliveriesTable(rows, CURRENT, window.__deliveryPersons);
 }
 function renderDeliveriesTable(rows, bt, persons) {
-  if (!rows.length) return '<div class="empty"><div class="big">📦</div>Aucune commande dans cette catégorie.</div>';
+  if (!rows.length) return '<div class="empty"><div class="big">📦</div>'+t('no_orders_in_category')+'</div>';
   const activePersons = persons.filter(p=>p.active);
-  return `<table><thead><tr><th>Réf</th><th>Client</th><th>Statut</th><th>Livreur</th><th></th></tr></thead><tbody>
+  return `<table><thead><tr><th>${t('col_ref')}</th><th>${t('col_client')}</th><th>${t('col_status')}</th><th>${t('col_delivery_person')}</th><th></th></tr></thead><tbody>
     ${rows.map(r => `<tr>
       <td>${escapeHtml(r.ref)}</td><td>${escapeHtml(r.customer_name)}<br><span class="muted">${escapeHtml(r.customer_address||'')}</span></td>
       <td>${pill(r.status)}</td>
-      <td>${r.status==='to_assign' ? '<select onchange="assignDelivery(\''+r.order_id+'\',this.value)"><option value="">Choisir…</option>'+activePersons.map(p=>'<option value="'+p.id+'">'+escapeHtml(p.name)+'</option>').join('')+'</select>' : escapeHtml(r.delivery_person_name||'—')}</td>
+      <td>${r.status==='to_assign' ? '<select onchange="assignDelivery(\''+r.order_id+'\',this.value)"><option value="">'+t('choose_ellipsis')+'</option>'+activePersons.map(p=>'<option value="'+p.id+'">'+escapeHtml(p.name)+'</option>').join('')+'</select>' : escapeHtml(r.delivery_person_name||'—')}</td>
       <td>${deliveryStatusSelect(r)}</td>
     </tr>`).join('')}
   </tbody></table>`;
@@ -1959,30 +1959,30 @@ function updateDeliveryStatus(orderId, status) { post('/deliveries?action=update
 function VEHICLE_LABELS_FN() { return {moto:t('vehicle_moto'), voiture:t('vehicle_voiture'), velo:t('vehicle_velo'), a_pied:t('vehicle_a_pied'), autre:t('vehicle_autre')}; }
 function openDeliveryPersonForm(p) {
   p = p || {};
-  openModal(`<h2>${p.id?'Modifier le livreur':'Ajouter un livreur'}</h2>
+  openModal(`<h2>${p.id?t('modal_edit_delivery_person'):t('modal_add_delivery_person')}</h2>
     <div id="dpMsg"></div>
     <div class="field-row">
-      <div class="field"><label>Nom *</label><input id="dpName" value="${escapeHtml(p.name||'')}" placeholder="Mamadou Diallo"></div>
-      <div class="field"><label>Téléphone *</label><input id="dpPhone" value="${escapeHtml(p.phone||'')}" placeholder="+221 77 123 45 67"></div>
+      <div class="field"><label>${t('label_name_required')}</label><input id="dpName" value="${escapeHtml(p.name||'')}" placeholder="Mamadou Diallo"></div>
+      <div class="field"><label>${t('label_phone_required')}</label><input id="dpPhone" value="${escapeHtml(p.phone||'')}" placeholder="+221 77 123 45 67"></div>
     </div>
-    <div class="field"><label>Email (optionnel)</label><input id="dpEmail" value="${escapeHtml(p.email||'')}" placeholder="livreur@example.com"></div>
+    <div class="field"><label>${t('label_email_optional')}</label><input id="dpEmail" value="${escapeHtml(p.email||'')}" placeholder="livreur@example.com"></div>
     <div class="field-row">
-      <div class="field"><label>Véhicule</label><select id="dpVehicle">
+      <div class="field"><label>${t('label_vehicle')}</label><select id="dpVehicle">
         <option value="">—</option>
         ${Object.entries(VEHICLE_LABELS_FN()).map(([k,l])=>'<option value="'+k+'" '+(p.vehicle_type===k?'selected':'')+'>'+l+'</option>').join('')}
       </select></div>
-      <div class="field"><label>Immatriculation</label><input id="dpPlate" value="${escapeHtml(p.plate_number||'')}" placeholder="DK-0429"></div>
+      <div class="field"><label>${t('label_plate')}</label><input id="dpPlate" value="${escapeHtml(p.plate_number||'')}" placeholder="DK-0429"></div>
     </div>
-    <div class="field"><label>URL photo (optionnel)</label><input id="dpPhoto" value="${escapeHtml(p.photo_url||'')}" placeholder="https://.../photo.jpg"></div>
-    <div class="field"><label>Notes internes</label><textarea id="dpNotes" rows="2" placeholder="Disponibilités, zones préférées…">${escapeHtml(p.notes||'')}</textarea></div>
-    ${p.id ? '<label style="display:flex;align-items:center;gap:8px;margin-bottom:14px"><input type="checkbox" id="dpActive" '+(p.active?'checked':'')+'> Actif</label>' : ''}
-    <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal()">Annuler</button>
-    <button class="btn btn-primary" onclick="submitDeliveryPersonForm('${p.id||''}')">${p.id?'Enregistrer':'Ajouter'}</button></div>`);
+    <div class="field"><label>${t('label_photo_url_optional')}</label><input id="dpPhoto" value="${escapeHtml(p.photo_url||'')}" placeholder="https://.../photo.jpg"></div>
+    <div class="field"><label>${t('label_internal_notes')}</label><textarea id="dpNotes" rows="2" placeholder="${t('placeholder_notes_availability')}">${escapeHtml(p.notes||'')}</textarea></div>
+    ${p.id ? '<label style="display:flex;align-items:center;gap:8px;margin-bottom:14px"><input type="checkbox" id="dpActive" '+(p.active?'checked':'')+'> '+t('checkbox_active')+'</label>' : ''}
+    <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal()">${t('btn_cancel')}</button>
+    <button class="btn btn-primary" onclick="submitDeliveryPersonForm('${p.id||''}')">${p.id?t('btn_save'):t('btn_add')}</button></div>`);
 }
 function submitDeliveryPersonForm(id) {
   const name = document.getElementById('dpName').value.trim();
   const phone = document.getElementById('dpPhone').value.trim();
-  if (!name || !phone) { document.getElementById('dpMsg').innerHTML = '<div class="msg error">Nom et téléphone requis</div>'; return; }
+  if (!name || !phone) { document.getElementById('dpMsg').innerHTML = '<div class="msg error">'+t('err_name_phone_required')+'</div>'; return; }
   const payload = {
     boutique_id: CURRENT.id, name, phone,
     email: document.getElementById('dpEmail').value.trim(),
@@ -2008,24 +2008,24 @@ function renderAbandoned(bt) {
     .then(([list, settings]) => {
       const rows = list.data.data || []; const S = settings.data.data || {};
       document.getElementById('content').innerHTML = `
-        <h2 class="page-title">Commandes abandonnées</h2>
-        <div class="page-sub">Les visiteurs qui ont commencé une commande sans la valider. Rappelez-les pour la récupérer.</div>
+        <h2 class="page-title">${t('abandoned_title')}</h2>
+        <div class="page-sub">${t('abandoned_subtitle')}</div>
         <div class="card">
-          <h3>Réglages de capture</h3>
-          <label style="display:flex;align-items:center;gap:8px;margin-bottom:10px"><input type="checkbox" id="capEnabled" ${S.capture_enabled?'checked':''}> Capturer les commandes abandonnées</label>
+          <h3>${t('capture_settings_title')}</h3>
+          <label style="display:flex;align-items:center;gap:8px;margin-bottom:10px"><input type="checkbox" id="capEnabled" ${S.capture_enabled?'checked':''}> ${t('checkbox_capture_abandoned')}</label>
           <div class="field-row">
-            <div class="field"><label>Considérer comme abandonné après (minutes)</label><input type="number" id="capTimeout" value="${S.timeout_minutes||15}"></div>
+            <div class="field"><label>${t('label_abandoned_after_minutes')}</label><input type="number" id="capTimeout" value="${S.timeout_minutes||15}"></div>
           </div>
-          <label style="display:flex;align-items:center;gap:8px;margin-bottom:10px"><input type="checkbox" id="capCustomerReminder" ${S.customer_reminder_enabled?'checked':''}> Relancer automatiquement le client (email/WhatsApp) 30 min après l'abandon</label>
-          <div class="muted" style="margin:-4px 0 10px;font-size:12px">Nécessite qu'un fournisseur d'envoi email/WhatsApp soit branché côté serveur pour être réellement envoyé (voir le guide).</div>
-          <button class="btn btn-primary btn-sm" onclick="saveAbandonedSettings()">Enregistrer</button>
+          <label style="display:flex;align-items:center;gap:8px;margin-bottom:10px"><input type="checkbox" id="capCustomerReminder" ${S.customer_reminder_enabled?'checked':''}> ${t('checkbox_auto_reminder')}</label>
+          <div class="muted" style="margin:-4px 0 10px;font-size:12px">${t('reminder_requires_provider_note')}</div>
+          <button class="btn btn-primary btn-sm" onclick="saveAbandonedSettings()">${t('btn_save')}</button>
         </div>
         <div class="card">
-          <h3>Paniers abandonnés</h3>
-          ${rows.length ? `<table><thead><tr><th>Téléphone / Email</th><th>Total estimé</th><th>Capturé le</th><th></th></tr></thead><tbody>
+          <h3>${t('abandoned_carts_title')}</h3>
+          ${rows.length ? `<table><thead><tr><th>${t('col_phone_email')}</th><th>${t('col_estimated_total')}</th><th>${t('col_captured_at')}</th><th></th></tr></thead><tbody>
             ${rows.map(r=>`<tr><td>${escapeHtml(r.phone||r.email||'—')}</td><td>${fmtMoney(r.total, bt.currency)}</td><td>${fmtDate(r.captured_at)}</td>
-              <td><button class="btn btn-ghost btn-sm" onclick="markAbandonedConverted('${r.id}')">Marquer converti</button></td></tr>`).join('')}
-            </tbody></table>` : '<div class="empty"><div class="big">📭</div>Aucune commande abandonnée pour le moment.</div>'}
+              <td><button class="btn btn-ghost btn-sm" onclick="markAbandonedConverted('${r.id}')">${t('btn_mark_converted')}</button></td></tr>`).join('')}
+            </tbody></table>` : '<div class="empty"><div class="big">📭</div>'+t('no_abandoned_orders')+'</div>'}
         </div>
       `;
     });
@@ -2048,26 +2048,26 @@ function renderCustomers(bt, inactiveDays) {
     const rows = listRes.data.data || [];
     const inactive = inactiveRes.data.data || [];
     document.getElementById('content').innerHTML = `
-      <h2 class="page-title">Clients</h2><div class="page-sub">Gérez vos clients, leurs statuts et leurs commandes.</div>
+      <h2 class="page-title">${t('customers_title')}</h2><div class="page-sub">${t('customers_subtitle')}</div>
       <div class="card">
-        <div class="row-between"><h3>Clients à relancer (${inactive.length})</h3>
+        <div class="row-between"><h3>${t('reengage_title_prefix')}${inactive.length})</h3>
           <select onchange="renderCustomers(CURRENT, Number(this.value))" style="padding:8px 12px;border:1px solid var(--border);border-radius:9px;font-size:13px">
-            <option value="30" ${inactiveDays===30?'selected':''}>Sans commande depuis 30 jours</option>
-            <option value="60" ${inactiveDays===60?'selected':''}>Sans commande depuis 60 jours</option>
-            <option value="90" ${inactiveDays===90?'selected':''}>Sans commande depuis 90 jours</option>
+            <option value="30" ${inactiveDays===30?'selected':''}>${t('reengage_30d')}</option>
+            <option value="60" ${inactiveDays===60?'selected':''}>${t('reengage_60d')}</option>
+            <option value="90" ${inactiveDays===90?'selected':''}>${t('reengage_90d')}</option>
           </select>
         </div>
-        <div class="muted" style="font-size:12px;margin:-4px 0 10px">Clients ayant déjà commandé au moins une fois, mais plus depuis ce délai — de bons candidats pour un code promo ciblé.</div>
-        ${inactive.length ? `<table><thead><tr><th>Nom</th><th>Téléphone</th><th>Dernière commande</th><th>Total dépensé</th><th></th></tr></thead><tbody>
+        <div class="muted" style="font-size:12px;margin:-4px 0 10px">${t('reengage_note')}</div>
+        ${inactive.length ? `<table><thead><tr><th>${t('col_name')}</th><th>${t('label_phone')}</th><th>${t('col_last_order')}</th><th>${t('col_total_spent')}</th><th></th></tr></thead><tbody>
           ${inactive.map(c=>`<tr><td>${escapeHtml(c.name||'—')}</td><td>${escapeHtml(c.phone||'—')}</td><td>${fmtDate(c.last_order_at)}</td><td>${fmtMoney(c.total_spent, bt.currency)}</td>
-            <td><button class="btn btn-primary btn-sm" onclick="openPromoForm('${escapeHtml(c.phone||'')}')">Créer un code promo ciblé</button></td></tr>`).join('')}
-          </tbody></table>` : '<div class="empty">Aucun client inactif sur cette période.</div>'}
+            <td><button class="btn btn-primary btn-sm" onclick="openPromoForm('${escapeHtml(c.phone||'')}')">${t('btn_create_targeted_promo')}</button></td></tr>`).join('')}
+          </tbody></table>` : '<div class="empty">'+t('no_inactive_customers')+'</div>'}
       </div>
       <div class="card">
-        <h3>Tous les clients (${rows.length})</h3>
-        ${rows.length ? `<table><thead><tr><th>Nom</th><th>Téléphone</th><th>Commandes</th><th>Dernière commande</th><th>Total dépensé</th></tr></thead><tbody>
+        <h3>${t('all_customers_title_prefix')}${rows.length})</h3>
+        ${rows.length ? `<table><thead><tr><th>${t('col_name')}</th><th>${t('label_phone')}</th><th>${t('col_orders_count')}</th><th>${t('col_last_order')}</th><th>${t('col_total_spent')}</th></tr></thead><tbody>
           ${rows.map(c=>`<tr><td>${escapeHtml(c.name||'—')}</td><td>${escapeHtml(c.phone||'—')}</td><td>${c.orders_count}</td><td>${c.last_order_at?fmtDate(c.last_order_at):'—'}</td><td>${fmtMoney(c.total_spent, bt.currency)}</td></tr>`).join('')}
-          </tbody></table>` : '<div class="empty"><div class="big">👤</div>Aucun client n\'a encore commandé.</div>'}
+          </tbody></table>` : '<div class="empty"><div class="big">👤</div>'+t('no_customer_ordered_yet')+'</div>'}
       </div>
     `;
   });
@@ -2078,39 +2078,39 @@ function renderContacts(bt) {
     const R = roles.data.data || []; const rows = list.data.data || [];
     document.getElementById('content').innerHTML = `
       <div class="row-between">
-        <div><h2 class="page-title">Carnet d'adresses</h2><div class="page-sub">Tous les contacts utiles de votre équipe (avocat, comptable, transporteur…)</div></div>
-        <div style="display:flex;gap:8px"><button class="btn btn-ghost" onclick="openAddRole()">Gérer les rôles</button><button class="btn btn-primary" onclick="openAddContact(${JSON.stringify(R).replace(/"/g,'&quot;')})">+ Nouveau contact</button></div>
+        <div><h2 class="page-title">${t('address_book_title')}</h2><div class="page-sub">${t('address_book_subtitle')}</div></div>
+        <div style="display:flex;gap:8px"><button class="btn btn-ghost" onclick="openAddRole()">${t('btn_manage_roles')}</button><button class="btn btn-primary" onclick="openAddContact(${JSON.stringify(R).replace(/"/g,'&quot;')})">${t('btn_new_contact')}</button></div>
       </div>
       <div class="card">
-        ${rows.length ? `<table><thead><tr><th>Nom</th><th>Rôle</th><th>Téléphone</th><th>Email</th><th></th></tr></thead><tbody>
+        ${rows.length ? `<table><thead><tr><th>${t('col_name')}</th><th>${t('col_role')}</th><th>${t('label_phone')}</th><th>${t('col_email')}</th><th></th></tr></thead><tbody>
           ${rows.map(c=>`<tr><td>${escapeHtml(c.name)}</td><td>${escapeHtml(c.role_name||'—')}</td><td>${escapeHtml(c.phone||'')}</td><td>${escapeHtml(c.email||'')}</td>
-            <td><button class="btn btn-ghost btn-sm" onclick="deleteContact('${c.id}')">Supprimer</button></td></tr>`).join('')}
-          </tbody></table>` : '<div class="empty"><div class="big">📇</div>Aucun contact. Commencez par créer un rôle puis ajoutez vos contacts.</div>'}
+            <td><button class="btn btn-ghost btn-sm" onclick="deleteContact('${c.id}')">${t('btn_delete')}</button></td></tr>`).join('')}
+          </tbody></table>` : '<div class="empty"><div class="big">📇</div>'+t('no_contacts_yet')+'</div>'}
       </div>
     `;
   });
 }
 function openAddRole() {
-  openModal(`<h2>Nouveau rôle</h2><div class="field"><label>Nom du rôle</label><input id="roleName" placeholder="Ex: Comptable"></div>
-    <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal()">Annuler</button><button class="btn btn-primary" onclick="submitAddRole()">Créer</button></div>`);
+  openModal(`<h2>${t('modal_new_role')}</h2><div class="field"><label>${t('label_role_name')}</label><input id="roleName" placeholder="${t('placeholder_role_example')}"></div>
+    <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal()">${t('btn_cancel')}</button><button class="btn btn-primary" onclick="submitAddRole()">${t('btn_create')}</button></div>`);
 }
 function submitAddRole() {
   const name = document.getElementById('roleName').value.trim(); if(!name) return;
   post('/contacts?action=role_create', {boutique_id:CURRENT.id, name}).then(()=>{closeModal(); route();});
 }
 function openAddContact(roles) {
-  openModal(`<h2>Nouveau contact</h2>
-    <div class="field"><label>Nom</label><input id="ctName"></div>
-    <div class="field"><label>Rôle</label><select id="ctRole"><option value="">—</option>${roles.map(r=>'<option value="'+r.id+'">'+escapeHtml(r.name)+'</option>').join('')}</select></div>
-    <div class="field-row"><div class="field"><label>Téléphone</label><input id="ctPhone"></div><div class="field"><label>Email</label><input id="ctEmail"></div></div>
-    <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal()">Annuler</button><button class="btn btn-primary" onclick="submitAddContact()">Ajouter</button></div>`);
+  openModal(`<h2>${t('modal_new_contact')}</h2>
+    <div class="field"><label>${t('col_name')}</label><input id="ctName"></div>
+    <div class="field"><label>${t('col_role')}</label><select id="ctRole"><option value="">—</option>${roles.map(r=>'<option value="'+r.id+'">'+escapeHtml(r.name)+'</option>').join('')}</select></div>
+    <div class="field-row"><div class="field"><label>${t('label_phone')}</label><input id="ctPhone"></div><div class="field"><label>${t('col_email')}</label><input id="ctEmail"></div></div>
+    <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal()">${t('btn_cancel')}</button><button class="btn btn-primary" onclick="submitAddContact()">${t('btn_add')}</button></div>`);
 }
 function submitAddContact() {
   const name = document.getElementById('ctName').value.trim(); if(!name) return;
   post('/contacts?action=create', {boutique_id:CURRENT.id, name, role_id:document.getElementById('ctRole').value||null,
     phone:document.getElementById('ctPhone').value.trim(), email:document.getElementById('ctEmail').value.trim()}).then(()=>{closeModal(); route();});
 }
-function deleteContact(id) { if(!confirm('Supprimer ce contact ?')) return; post('/contacts?action=delete', {boutique_id:CURRENT.id, id}).then(()=>route()); }
+function deleteContact(id) { if(!confirm(t('confirm_delete_contact'))) return; post('/contacts?action=delete', {boutique_id:CURRENT.id, id}).then(()=>route()); }
 
 // ============================================================
 // Finances
@@ -2122,18 +2122,18 @@ function renderFinanceOverview(bt, period) {
     if (!data.success) { document.getElementById('content').innerHTML = '<div class="card">'+escapeHtml(data.message)+'</div>'; return; }
     const F = data.data;
     document.getElementById('content').innerHTML = `
-      <div class="row-between"><div><h2 class="page-title">Vue Globale</h2><div class="page-sub">Santé financière complète — ${escapeHtml(bt.name)}.</div></div>${periodSelectHtml('finPeriod', period)}</div>
+      <div class="row-between"><div><h2 class="page-title">${t('finance_overview_title')}</h2><div class="page-sub">${t('finance_overview_subtitle_prefix')}${escapeHtml(bt.name)}.</div></div>${periodSelectHtml('finPeriod', period)}</div>
       <div class="card" style="background:${F.resultat_net>=0?'var(--green-bg)':'var(--red-bg)'}">
-        <div class="lbl">Résultat net</div><div style="font-size:30px;font-weight:800">${fmtMoney(F.resultat_net, bt.currency)}</div>
-        <div class="muted">${F.nb_commande_encaissee} commande(s) encaissée(s)</div>
+        <div class="lbl">${t('net_result')}</div><div style="font-size:30px;font-weight:800">${fmtMoney(F.resultat_net, bt.currency)}</div>
+        <div class="muted">${F.nb_commande_encaissee}${t('collected_orders_suffix')}</div>
       </div>
       <div class="kpi-grid">
-        <div class="kpi"><div class="lbl">💵 Revenus encaissés</div><div class="val">${fmtMoney(F.revenus_encaisses, bt.currency)}</div></div>
-        <div class="kpi"><div class="lbl">📦 Livraisons faites</div><div class="val">${F.livraisons_faites}</div></div>
-        <div class="kpi"><div class="lbl">🏷️ Coût des produits</div><div class="val">${fmtMoney(F.cout_produits, bt.currency)}</div></div>
-        <div class="kpi"><div class="lbl">🚚 Frais de livraison</div><div class="val">${fmtMoney(F.frais_livraison, bt.currency)}</div></div>
-        <div class="kpi"><div class="lbl">📣 Frais de pub</div><div class="val">${fmtMoney(F.frais_pub, bt.currency)}</div></div>
-        <div class="kpi"><div class="lbl">🧾 Autres dépenses</div><div class="val">${fmtMoney(F.autres_depenses, bt.currency)}</div></div>
+        <div class="kpi"><div class="lbl">${t('kpi_revenue_collected')}</div><div class="val">${fmtMoney(F.revenus_encaisses, bt.currency)}</div></div>
+        <div class="kpi"><div class="lbl">${t('kpi_deliveries_done')}</div><div class="val">${F.livraisons_faites}</div></div>
+        <div class="kpi"><div class="lbl">${t('kpi_cost_of_products')}</div><div class="val">${fmtMoney(F.cout_produits, bt.currency)}</div></div>
+        <div class="kpi"><div class="lbl">${t('kpi_delivery_fees')}</div><div class="val">${fmtMoney(F.frais_livraison, bt.currency)}</div></div>
+        <div class="kpi"><div class="lbl">${t('kpi_ad_fees')}</div><div class="val">${fmtMoney(F.frais_pub, bt.currency)}</div></div>
+        <div class="kpi"><div class="lbl">${t('kpi_other_expenses')}</div><div class="val">${fmtMoney(F.autres_depenses, bt.currency)}</div></div>
       </div>
     `;
     window.__periodChange = p => renderFinanceOverview(bt, p);
