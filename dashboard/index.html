@@ -394,7 +394,7 @@ const I18N = {
     label_abandoned_after_minutes: 'Considérer comme abandonné après (minutes)',
     checkbox_auto_reminder: 'Relancer automatiquement le client par email 30 min après l\'abandon',
     abandoned_carts_title: 'Paniers abandonnés',
-    col_phone_email: 'Téléphone / Email',
+    col_phone: 'Téléphone',
     col_estimated_total: 'Total estimé',
     col_captured_at: 'Capturé le',
     btn_mark_converted: 'Marquer converti',
@@ -984,7 +984,7 @@ const I18N = {
     label_abandoned_after_minutes: 'Consider abandoned after (minutes)',
     checkbox_auto_reminder: 'Automatically follow up with the customer by email 30 min after abandonment',
     abandoned_carts_title: 'Abandoned carts',
-    col_phone_email: 'Phone / Email',
+    col_phone: 'Phone',
     col_estimated_total: 'Estimated total',
     col_captured_at: 'Captured on',
     btn_mark_converted: 'Mark converted',
@@ -2071,8 +2071,8 @@ function renderAbandoned(bt) {
         </div>
         <div class="card">
           <h3>${t('abandoned_carts_title')}</h3>
-          ${rows.length ? `<table><thead><tr><th>${t('col_phone_email')}</th><th>${t('col_estimated_total')}</th><th>${t('col_captured_at')}</th><th></th></tr></thead><tbody>
-            ${rows.map(r=>`<tr><td>${escapeHtml(r.phone||'—')}${r.email?'<br><span class="muted">'+escapeHtml(r.email)+'</span>':''}</td><td>${fmtMoney(r.total, bt.currency)}</td><td>${fmtDate(r.captured_at)}</td>
+          ${rows.length ? `<table><thead><tr><th>${t('col_phone')}</th><th>${t('col_email')}</th><th>${t('col_estimated_total')}</th><th>${t('col_captured_at')}</th><th></th></tr></thead><tbody>
+            ${rows.map(r=>`<tr><td>${escapeHtml(r.phone||'—')}</td><td>${escapeHtml(r.email||'—')}</td><td>${fmtMoney(r.total, bt.currency)}</td><td>${fmtDate(r.captured_at)}</td>
               <td><button class="btn btn-ghost btn-sm" onclick="markAbandonedConverted('${r.id}')">${t('btn_mark_converted')}</button></td></tr>`).join('')}
             </tbody></table>` : '<div class="empty"><div class="big">📭</div>'+t('no_abandoned_orders')+'</div>'}
         </div>
