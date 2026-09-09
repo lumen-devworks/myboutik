@@ -573,6 +573,7 @@ const I18N = {
     col_variant: 'Variante',
     col_price_optional: 'Prix (optionnel)',
     confirm_delete_photo: 'Supprimer cette photo ?',
+    confirm_delete_product: 'Supprimer ce produit ?',
     stock_title: 'Stock',
     stock_subtitle: 'Ajustez les quantités en stock.',
     col_current_stock: 'Stock actuel',
@@ -1153,6 +1154,7 @@ const I18N = {
     col_variant: 'Variant',
     col_price_optional: 'Price (optional)',
     confirm_delete_photo: 'Delete this photo?',
+    confirm_delete_product: 'Delete this product?',
     stock_title: 'Stock',
     stock_subtitle: 'Adjust stock quantities.',
     col_current_stock: 'Current stock',
@@ -2395,43 +2397,43 @@ function renderProducts(bt, categoryFilter) {
     const rows = categoryFilter ? allRows.filter(p => p.category_id === categoryFilter) : allRows;
     const lowStock = allRows.filter(p => p.track_inventory && Number(p.stock_qty) <= Number(p.low_stock_threshold ?? 5));
     document.getElementById('content').innerHTML = `
-      <div class="row-between"><div><h2 class="page-title">Produits</h2><div class="page-sub">${allRows.length} produit(s)</div></div>
+      <div class="row-between"><div><h2 class="page-title">${t('products_title')}</h2><div class="page-sub">${allRows.length}${t('products_subtitle_suffix')}</div></div>
         <div style="display:flex;gap:8px">
-          <button class="btn btn-ghost" onclick="openCategoriesManager()">Catégories</button>
-          <button class="btn btn-primary" onclick="openProductForm()">+ Nouveau produit</button>
+          <button class="btn btn-ghost" onclick="openCategoriesManager()">${t('btn_categories')}</button>
+          <button class="btn btn-primary" onclick="openProductForm()">${t('btn_new_product')}</button>
         </div></div>
-      ${lowStock.length ? '<div class="card" style="background:var(--amber-bg);border-color:#fde68a">⚠️ Stock limité sur '+lowStock.length+' produit(s) :<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px">'+
-        lowStock.map(p=>'<span>'+escapeHtml(p.name)+' <button class="btn btn-ghost btn-sm" onclick="goReorder(\''+p.id+'\')">Commander</button></span>').join('')+'</div></div>' : ''}
-      ${categories.length ? `<div class="field" style="max-width:260px"><label>Filtrer par catégorie</label>
+      ${lowStock.length ? '<div class="card" style="background:var(--amber-bg);border-color:#fde68a">'+t('low_stock_warning_prefix')+lowStock.length+t('low_stock_warning_suffix')+'<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px">'+
+        lowStock.map(p=>'<span>'+escapeHtml(p.name)+' <button class="btn btn-ghost btn-sm" onclick="goReorder(\''+p.id+'\')">'+t('btn_order')+'</button></span>').join('')+'</div></div>' : ''}
+      ${categories.length ? `<div class="field" style="max-width:260px"><label>${t('label_filter_by_category')}</label>
         <select onchange="renderProducts(CURRENT, this.value)">
-          <option value="">Toutes (${allRows.length})</option>
+          <option value="">${t('filter_all_categories_prefix')}${allRows.length})</option>
           ${categories.map(c=>'<option value="'+c.id+'" '+(c.id===categoryFilter?'selected':'')+'>'+escapeHtml(c.name)+' ('+c.product_count+')</option>').join('')}
         </select></div>` : ''}
-      <div class="card">${rows.length ? `<table><thead><tr><th>Produit</th><th>Catégorie</th><th>Prix</th><th>Stock</th><th>Statut</th><th></th></tr></thead><tbody>
-        ${rows.map(p=>`<tr><td>${escapeHtml(p.name)}${p.variants.length?' <span class="muted">('+p.variants.length+' variantes)</span>':''}</td>
+      <div class="card">${rows.length ? `<table><thead><tr><th>${t('col_product')}</th><th>${t('col_category')}</th><th>${t('col_price')}</th><th>${t('col_stock')}</th><th>${t('col_status')}</th><th></th></tr></thead><tbody>
+        ${rows.map(p=>`<tr><td>${escapeHtml(p.name)}${p.variants.length?' <span class="muted">('+p.variants.length+t('variants_suffix')+'</span>':''}</td>
           <td>${escapeHtml(p.category_name||'—')}</td>
           <td>${fmtMoney(p.price, bt.currency)}${p.compare_at_price && Number(p.compare_at_price) > Number(p.price) ? ' <span class="muted" style="text-decoration:line-through">'+fmtMoney(p.compare_at_price, bt.currency)+'</span>' : ''}</td>
           <td>${stockBadge(p)}</td>
-          <td>${p.status==='active'?'<span class="pill pill-delivered">Actif</span>':'<span class="pill pill-to_assign">Brouillon</span>'}</td>
-          <td><button class="btn btn-ghost btn-sm" onclick="openProductForm('${p.id}')">Modifier</button>
-              <button class="btn btn-danger btn-sm" onclick="deleteProduct('${p.id}')">Suppr.</button></td></tr>`).join('')}
-        </tbody></table>` : '<div class="empty"><div class="big">📦</div>Aucun produit dans cette catégorie.</div>'}</div>
+          <td>${p.status==='active'?'<span class="pill pill-delivered">'+t('product_status_active')+'</span>':'<span class="pill pill-to_assign">'+t('product_status_draft')+'</span>'}</td>
+          <td><button class="btn btn-ghost btn-sm" onclick="openProductForm('${p.id}')">${t('btn_edit')}</button>
+              <button class="btn btn-danger btn-sm" onclick="deleteProduct('${p.id}')">${t('btn_delete_short')}</button></td></tr>`).join('')}
+        </tbody></table>` : '<div class="empty"><div class="big">📦</div>'+t('no_products_in_category')+'</div>'}</div>
     `;
   });
 }
 function openCategoriesManager() {
   const categories = window.__productCategories || [];
-  openModal(`<h2>Catégories de produits</h2>
+  openModal(`<h2>${t('modal_categories_title')}</h2>
     <div id="catMsg"></div>
     ${categories.length ? categories.map(c => `<div class="field-row" style="align-items:center;margin-bottom:8px">
-        <div style="flex:1">${escapeHtml(c.name)} <span class="muted">(${c.product_count} produit(s))</span></div>
-        <button class="btn btn-ghost btn-sm" onclick="deleteCategory('${c.id}')">Supprimer</button>
-      </div>`).join('') : '<div class="empty">Aucune catégorie pour le moment.</div>'}
+        <div style="flex:1">${escapeHtml(c.name)} <span class="muted">(${c.product_count}${t('products_count_suffix')})</span></div>
+        <button class="btn btn-ghost btn-sm" onclick="deleteCategory('${c.id}')">${t('btn_delete')}</button>
+      </div>`).join('') : '<div class="empty">'+t('no_categories_yet')+'</div>'}
     <div class="field-row" style="margin-top:10px">
-      <input id="newCategoryName" placeholder="Nom de la nouvelle catégorie">
-      <button class="btn btn-primary" onclick="submitNewCategory()">Ajouter</button>
+      <input id="newCategoryName" placeholder="${t('placeholder_new_category_name')}">
+      <button class="btn btn-primary" onclick="submitNewCategory()">${t('btn_add')}</button>
     </div>
-    <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal()">Fermer</button></div>`);
+    <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal()">${t('btn_close')}</button></div>`);
 }
 function submitNewCategory() {
   const name = document.getElementById('newCategoryName').value.trim();
@@ -2442,16 +2444,16 @@ function submitNewCategory() {
   });
 }
 function deleteCategory(id) {
-  if (!confirm('Supprimer cette catégorie ? Les produits qui l\'utilisent ne seront pas supprimés, juste sans catégorie.')) return;
+  if (!confirm(t('confirm_delete_category'))) return;
   post('/products?action=category_delete', {boutique_id:CURRENT.id, id}).then(()=>{ closeModal(); renderProducts(CURRENT); });
 }
 function stockBadge(p) {
   if (!p.track_inventory) return '<span class="muted">—</span>';
   const qty = Number(p.stock_qty);
   const threshold = Number(p.low_stock_threshold ?? 5);
-  const orderBtn = ' <button class="btn btn-ghost btn-sm" onclick="goReorder(\''+p.id+'\')">Commander</button>';
-  if (qty <= 0) return '<span class="pill pill-refused">'+qty+' · rupture</span>'+orderBtn;
-  if (qty <= threshold) return '<span class="pill pill-pending">'+qty+' · limité</span>'+orderBtn;
+  const orderBtn = ' <button class="btn btn-ghost btn-sm" onclick="goReorder(\''+p.id+'\')">'+t('btn_order')+'</button>';
+  if (qty <= 0) return '<span class="pill pill-refused">'+qty+t('stock_out_of_stock')+'</span>'+orderBtn;
+  if (qty <= threshold) return '<span class="pill pill-pending">'+qty+t('stock_limited')+'</span>'+orderBtn;
   return qty;
 }
 // Envoie directement vers Commandes fournisseurs avec le formulaire de
@@ -2482,79 +2484,79 @@ function renderProductFormModal(p, allProducts, categories) {
   try { relatedIds = p.related_product_ids ? JSON.parse(p.related_product_ids) : []; } catch(e) {}
   const pickableProducts = allProducts.filter(x => x.id !== p.id);
   const images = p.images || [];
-  openModal(`<h2>${p.id?'Modifier le produit':'Nouveau produit'}</h2>
+  openModal(`<h2>${p.id?t('modal_edit_product'):t('modal_new_product')}</h2>
     <div id="prodMsg"></div>
-    <div class="field"><label>Nom</label><input id="prodName" value="${escapeHtml(p.name||'')}"></div>
-    <div class="field"><label>Description</label><textarea id="prodDesc" rows="2">${escapeHtml(p.description||'')}</textarea></div>
+    <div class="field"><label>${t('label_name')}</label><input id="prodName" value="${escapeHtml(p.name||'')}"></div>
+    <div class="field"><label>${t('label_description')}</label><textarea id="prodDesc" rows="2">${escapeHtml(p.description||'')}</textarea></div>
     <div class="field-row">
-      <div class="field"><label>Prix de vente</label><input id="prodPrice" type="number" min="0" value="${p.price||''}"></div>
-      <div class="field"><label>Prix barré (optionnel)</label><input id="prodCompareAt" type="number" min="0" value="${p.compare_at_price??''}"></div>
+      <div class="field"><label>${t('label_sale_price')}</label><input id="prodPrice" type="number" min="0" value="${p.price||''}"></div>
+      <div class="field"><label>${t('label_compare_price')}</label><input id="prodCompareAt" type="number" min="0" value="${p.compare_at_price??''}"></div>
     </div>
     <div class="field-row">
-      <div class="field"><label>Prix de revient (interne)</label><input id="prodCost" type="number" min="0" value="${p.cost_price??''}"></div>
-      <div class="field"><label>Frais de livraison (vide = frais par défaut de la boutique)</label><input id="prodDeliveryFee" type="number" min="0" value="${p.delivery_fee??''}"></div>
+      <div class="field"><label>${t('label_cost_price')}</label><input id="prodCost" type="number" min="0" value="${p.cost_price??''}"></div>
+      <div class="field"><label>${t('label_delivery_fee_empty_hint')}</label><input id="prodDeliveryFee" type="number" min="0" value="${p.delivery_fee??''}"></div>
     </div>
     <div class="field-row">
-      <div class="field"><label>Référence (SKU)</label><input id="prodSku" value="${escapeHtml(p.sku||'')}"></div>
-      <div class="field"><label>Code-barres (UPC, EAN)</label><input id="prodBarcode" value="${escapeHtml(p.barcode||'')}"></div>
+      <div class="field"><label>${t('label_sku')}</label><input id="prodSku" value="${escapeHtml(p.sku||'')}"></div>
+      <div class="field"><label>${t('label_barcode')}</label><input id="prodBarcode" value="${escapeHtml(p.barcode||'')}"></div>
     </div>
     <div class="field-row">
-      <div class="field"><label>Stock</label><input id="prodStock" type="number" min="0" value="${p.stock_qty||0}"></div>
-      <div class="field"><label>Alerte stock limité à partir de</label><input id="prodLowStock" type="number" min="0" value="${p.low_stock_threshold??5}"></div>
+      <div class="field"><label>${t('label_stock')}</label><input id="prodStock" type="number" min="0" value="${p.stock_qty||0}"></div>
+      <div class="field"><label>${t('label_low_stock_alert')}</label><input id="prodLowStock" type="number" min="0" value="${p.low_stock_threshold??5}"></div>
     </div>
     <div class="field-row">
-      <div class="field"><label>Statut</label><select id="prodStatus"><option value="draft" ${p.status==='draft'?'selected':''}>Brouillon</option><option value="active" ${p.status==='active'?'selected':''}>Actif</option></select></div>
-      <div class="field"><label>Slug (URL)</label><input id="prodSlug" value="${escapeHtml(p.slug||'')}" placeholder="genere automatiquement si vide"></div>
+      <div class="field"><label>${t('label_status')}</label><select id="prodStatus"><option value="draft" ${p.status==='draft'?'selected':''}>${t('product_status_draft')}</option><option value="active" ${p.status==='active'?'selected':''}>${t('product_status_active')}</option></select></div>
+      <div class="field"><label>${t('label_slug')}</label><input id="prodSlug" value="${escapeHtml(p.slug||'')}" placeholder="${t('placeholder_auto_slug')}"></div>
     </div>
     <div class="field-row">
-      <div class="field"><label>Catégorie (optionnel)</label><select id="prodCategory">
+      <div class="field"><label>${t('label_category_optional')}</label><select id="prodCategory">
         <option value="">—</option>
         ${categories.map(c=>'<option value="'+c.id+'" '+(c.id===p.category_id?'selected':'')+'>'+escapeHtml(c.name)+'</option>').join('')}
       </select></div>
     </div>
-    <label style="display:flex;align-items:center;gap:8px;margin-bottom:10px"><input type="checkbox" id="prodTrackInv" ${p.track_inventory!=0?'checked':''}> Suivre la quantité en stock</label>
-    <label style="display:flex;align-items:center;gap:8px;margin-bottom:14px"><input type="checkbox" id="prodPhysical" ${p.is_physical!=0?'checked':''}> Produit physique (nécessite une livraison)</label>
-    <div class="muted" style="margin:-6px 0 14px;font-size:12px">Une commande est toujours acceptée, même si le stock est insuffisant — c'est à vous de gérer la suite. L'alerte ci-dessus sert juste à repérer les produits à réapprovisionner.</div>
+    <label style="display:flex;align-items:center;gap:8px;margin-bottom:10px"><input type="checkbox" id="prodTrackInv" ${p.track_inventory!=0?'checked':''}> ${t('checkbox_track_stock')}</label>
+    <label style="display:flex;align-items:center;gap:8px;margin-bottom:14px"><input type="checkbox" id="prodPhysical" ${p.is_physical!=0?'checked':''}> ${t('checkbox_physical_product')}</label>
+    <div class="muted" style="margin:-6px 0 14px;font-size:12px">${t('product_form_stock_note')}</div>
     <div class="field">
-      <label>Photos${p.id?' ('+images.length+'/12)':''}</label>
+      <label>${t('label_photos')}${p.id?' ('+images.length+'/12)':''}</label>
       ${p.id ? `
       <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px">
         ${images.map(img => `
           <div style="position:relative">
             <img src="${img.data}" style="width:72px;height:72px;object-fit:cover;border-radius:8px;border:2px solid ${img.is_primary?'var(--blue)':'var(--border)'}">
             ${img.is_primary
-              ? '<span style="position:absolute;bottom:2px;left:2px;background:var(--blue);color:#fff;font-size:9px;padding:1px 4px;border-radius:4px">Principale</span>'
-              : '<button type="button" onclick="setPrimaryProductImage(\''+img.id+'\')" style="position:absolute;bottom:2px;left:2px;background:#fff;border:1px solid var(--border);font-size:9px;padding:1px 4px;border-radius:4px;cursor:pointer">Définir</button>'}
+              ? '<span style="position:absolute;bottom:2px;left:2px;background:var(--blue);color:#fff;font-size:9px;padding:1px 4px;border-radius:4px">'+t('label_primary_photo')+'</span>'
+              : '<button type="button" onclick="setPrimaryProductImage(\''+img.id+'\')" style="position:absolute;bottom:2px;left:2px;background:#fff;border:1px solid var(--border);font-size:9px;padding:1px 4px;border-radius:4px;cursor:pointer">'+t('btn_set_primary')+'</button>'}
             <button type="button" onclick="deleteProductImage('${img.id}')" style="position:absolute;top:-6px;right:-6px;width:18px;height:18px;border-radius:50%;background:var(--red);color:#fff;border:none;font-size:11px;cursor:pointer;line-height:1">✕</button>
           </div>`).join('')}
         ${images.length < 12 ? `
-          <label title="Choisir depuis la galerie" style="width:72px;height:72px;border:2px dashed var(--border);border-radius:8px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--gray);font-size:24px">+<input type="file" accept="image/*" multiple style="display:none" onchange="addProductImage(this)"></label>
-          <label title="Prendre une photo" style="width:72px;height:72px;border:2px dashed var(--border);border-radius:8px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--gray);font-size:24px">📷<input type="file" accept="image/*" capture="environment" style="display:none" onchange="addProductImage(this)"></label>
+          <label title="${t('title_choose_from_gallery')}" style="width:72px;height:72px;border:2px dashed var(--border);border-radius:8px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--gray);font-size:24px">+<input type="file" accept="image/*" multiple style="display:none" onchange="addProductImage(this)"></label>
+          <label title="${t('title_take_photo')}" style="width:72px;height:72px;border:2px dashed var(--border);border-radius:8px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--gray);font-size:24px">📷<input type="file" accept="image/*" capture="environment" style="display:none" onchange="addProductImage(this)"></label>
         ` : ''}
       </div>` : `
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         <input type="file" accept="image/*" multiple onchange="handleNewProductImageFile(this)">
-        <label class="btn btn-ghost btn-sm" style="cursor:pointer">📷 Prendre une photo<input type="file" accept="image/*" capture="environment" style="display:none" onchange="handleNewProductImageFile(this)"></label>
+        <label class="btn btn-ghost btn-sm" style="cursor:pointer">${t('btn_take_photo')}<input type="file" accept="image/*" capture="environment" style="display:none" onchange="handleNewProductImageFile(this)"></label>
       </div>
-      <div class="muted" style="margin-top:6px">Enregistrez une première fois pour ajouter d'autres photos.</div>
+      <div class="muted" style="margin-top:6px">${t('save_first_to_add_photos')}</div>
       <input type="hidden" id="prodImage" value="">`}
     </div>
     <div class="field">
-      <label>Options (génère les variantes automatiquement, 3 max)</label>
+      <label>${t('label_options_gen')}</label>
       <div id="optionRows"></div>
-      <button type="button" class="btn btn-ghost btn-sm" id="addOptionBtn" onclick="addOptionRow()">+ Ajouter une option</button>
-      <button type="button" class="btn btn-primary btn-sm" style="margin-left:8px" onclick="generateVariants()">Générer les variantes</button>
+      <button type="button" class="btn btn-ghost btn-sm" id="addOptionBtn" onclick="addOptionRow()">${t('btn_add_option')}</button>
+      <button type="button" class="btn btn-primary btn-sm" style="margin-left:8px" onclick="generateVariants()">${t('btn_generate_variants')}</button>
       <div id="variantsTableWrap" style="margin-top:12px"></div>
     </div>
     <div class="field">
-      <label>Produits associés (upsell affiché sur la fiche produit de la vitrine)</label>
+      <label>${t('label_related_products')}</label>
       ${pickableProducts.length ? `<div style="max-height:150px;overflow-y:auto;border:1px solid var(--border);border-radius:9px;padding:8px">
         ${pickableProducts.map(rp => `<label style="display:flex;align-items:center;gap:8px;padding:3px 0">
           <input type="checkbox" class="relatedProductCheck" style="width:auto;flex-shrink:0" value="${rp.id}" ${relatedIds.includes(rp.id)?'checked':''}> <span>${escapeHtml(rp.name)}</span>
         </label>`).join('')}
-      </div>` : '<div class="muted">Ajoutez d\'autres produits au catalogue pour pouvoir les proposer ici.</div>'}
+      </div>` : '<div class="muted">'+t('add_other_products_hint')+'</div>'}
     </div>
-    <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal()">Annuler</button><button class="btn btn-primary" onclick="submitProductForm('${p.id||''}')">Enregistrer</button></div>`);
+    <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal()">${t('btn_cancel')}</button><button class="btn btn-primary" onclick="submitProductForm('${p.id||''}')">${t('btn_save')}</button></div>`);
   window.__optionRows = [];
   try { const parsed = p.options_json ? JSON.parse(p.options_json) : []; if (Array.isArray(parsed)) window.__optionRows = parsed; } catch(e) {}
   if (!window.__optionRows.length) window.__optionRows = [{name:'', values:[]}];
@@ -2562,12 +2564,12 @@ function renderProductFormModal(p, allProducts, categories) {
   renderOptionRows();
   renderVariantsTable();
 }
-const OPTION_NAME_PLACEHOLDERS = ['Ex: Taille', 'Ex: Couleur', 'Ex: Pointure'];
+function OPTION_NAME_PLACEHOLDERS_FN() { return [t('option_placeholder_size'), t('option_placeholder_color'), t('option_placeholder_shoe_size')]; }
 function renderOptionRows() {
   const rows = window.__optionRows;
   document.getElementById('optionRows').innerHTML = rows.map((r,i) => `
     <div class="field-row" style="margin-bottom:8px;align-items:start">
-      <input placeholder="${OPTION_NAME_PLACEHOLDERS[i] || 'Ex: Matière'}" value="${escapeHtml(r.name)}" oninput="window.__optionRows[${i}].name=this.value">
+      <input placeholder="${OPTION_NAME_PLACEHOLDERS_FN()[i] || t('option_placeholder_material')}" value="${escapeHtml(r.name)}" oninput="window.__optionRows[${i}].name=this.value">
       <div style="display:flex;flex-wrap:wrap;gap:6px;border:1px solid var(--border);border-radius:9px;padding:6px;min-height:20px">
         ${(r.values||[]).map((v,vi)=>`<span style="background:var(--bg);border-radius:6px;padding:3px 8px;font-size:13px;display:inline-flex;align-items:center;gap:5px">${escapeHtml(v)}<button type="button" onclick="removeOptionTag(${i},${vi})" style="border:none;background:none;cursor:pointer;color:var(--gray);font-size:12px;line-height:1;padding:0">✕</button></span>`).join('')}
         <input type="text" data-option-row="${i}" placeholder="Tape une valeur puis Entrée" style="border:none;outline:none;flex:1;min-width:120px;font-size:13px" onkeydown="handleOptionTagInput(event,${i})">
@@ -2617,7 +2619,7 @@ function focusOptionRowInput(rowIndex) {
 // leur stock au lieu d'etre reinitialisees a chaque regeneration.
 function generateVariants() {
   const groups = window.__optionRows.filter(r => r.name.trim() && r.values && r.values.length);
-  if (!groups.length) { showToast('Renseignez au moins une option avec des valeurs (ex: Taille -> S, M, L)', 'error'); return; }
+  if (!groups.length) { showToast(t('err_option_values_required'), 'error'); return; }
   const combos = groups.reduce((acc, g) => {
     const next = [];
     acc.forEach(comboArr => g.values.forEach(v => next.push([...comboArr, v])));
@@ -2634,8 +2636,8 @@ function generateVariants() {
 function renderVariantsTable() {
   const rows = window.__productVariants;
   document.getElementById('variantsTableWrap').innerHTML = rows.length ? `
-    <label>Variantes générées (${rows.length})</label>
-    <table><thead><tr><th>Variante</th><th>Prix (optionnel)</th><th>Stock</th><th></th></tr></thead><tbody>
+    <label>${t('label_variants_generated_prefix')}${rows.length})</label>
+    <table><thead><tr><th>${t('col_variant')}</th><th>${t('col_price_optional')}</th><th>${t('col_stock')}</th><th></th></tr></thead><tbody>
     ${rows.map((v,i)=>`<tr>
       <td>${escapeHtml(v.name)}</td>
       <td><input type="number" min="0" value="${v.price??''}" style="width:90px" oninput="window.__productVariants[${i}].price=this.value"></td>
@@ -2691,7 +2693,7 @@ function addProductImage(input) {
   chain.then(() => openProductForm(productId));
 }
 function deleteProductImage(imgId) {
-  if (!confirm('Supprimer cette photo ?')) return;
+  if (!confirm(t('confirm_delete_photo'))) return;
   post('/products?action=image_delete', {boutique_id:CURRENT.id, id:imgId}).then(() => openProductForm(window.__editingProductId));
 }
 function setPrimaryProductImage(imgId) {
@@ -2726,7 +2728,7 @@ function submitProductForm(id) {
     closeModal(); route();
   });
 }
-function deleteProduct(id) { if(!confirm('Supprimer ce produit ?')) return; post('/products?action=delete', {boutique_id:CURRENT.id, id}).then(()=>route()); }
+function deleteProduct(id) { if(!confirm(t('confirm_delete_product'))) return; post('/products?action=delete', {boutique_id:CURRENT.id, id}).then(()=>route()); }
 
 function renderStock(bt) {
   document.getElementById('content').innerHTML = '<div class="empty">Chargement…</div>';
