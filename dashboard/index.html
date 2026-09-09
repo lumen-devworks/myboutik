@@ -2145,51 +2145,51 @@ function renderFinanceAccounts(bt) {
     const rows = data.data || [];
     const total = rows.reduce((s,a)=>s+Number(a.balance),0);
     document.getElementById('content').innerHTML = `
-      <div class="row-between"><div><h2 class="page-title">Livre de Compte</h2><div class="page-sub">Suivez tous vos comptes (caisse, banque, mobile money…)</div></div>
-        <div style="display:flex;gap:8px"><button class="btn btn-ghost" onclick="openTransferAccount(${JSON.stringify(rows).replace(/"/g,'&quot;')})">Transférer</button><button class="btn btn-primary" onclick="openAddAccount()">+ Nouveau compte</button></div></div>
-      <div class="kpi-grid"><div class="kpi"><div class="lbl">Solde total</div><div class="val">${fmtMoney(total, bt.currency)}</div></div></div>
+      <div class="row-between"><div><h2 class="page-title">${t('accounts_title')}</h2><div class="page-sub">${t('accounts_subtitle')}</div></div>
+        <div style="display:flex;gap:8px"><button class="btn btn-ghost" onclick="openTransferAccount(${JSON.stringify(rows).replace(/"/g,'&quot;')})">${t('btn_transfer')}</button><button class="btn btn-primary" onclick="openAddAccount()">${t('btn_new_account')}</button></div></div>
+      <div class="kpi-grid"><div class="kpi"><div class="lbl">${t('kpi_total_balance')}</div><div class="val">${fmtMoney(total, bt.currency)}</div></div></div>
       ${rows.length ? rows.map(a => `
         <div class="card">
           <div class="row-between" style="margin-bottom:6px"><h3>${escapeHtml(a.name)} <span class="muted">(${a.type})</span></h3>
             <div style="display:flex;gap:6px;align-items:center">
               <strong>${fmtMoney(a.balance, bt.currency)}</strong>
-              <button class="btn btn-ghost btn-sm" onclick="openAccountMovement('${a.id}','in')">+ Entrée</button>
-              <button class="btn btn-ghost btn-sm" onclick="openAccountMovement('${a.id}','out')">- Sortie</button>
+              <button class="btn btn-ghost btn-sm" onclick="openAccountMovement('${a.id}','in')">${t('btn_entry_in')}</button>
+              <button class="btn btn-ghost btn-sm" onclick="openAccountMovement('${a.id}','out')">${t('btn_entry_out')}</button>
             </div>
           </div>
-          ${a.history.length ? '<table><thead><tr><th>Date</th><th>Type</th><th>Montant</th><th>Note</th></tr></thead><tbody>'+
-            a.history.map(h=>'<tr><td>'+fmtDate(h.created_at)+'</td><td>'+(h.type==='in'?'Entrée':'Sortie')+'</td><td>'+fmtMoney(h.amount, bt.currency)+'</td><td>'+escapeHtml(h.note||'')+'</td></tr>').join('')+'</tbody></table>'
-            : '<div class="muted">Aucun mouvement.</div>'}
-        </div>`).join('') : '<div class="card empty"><div class="big">📖</div>Aucun compte. Créez-en un pour suivre entrées et sorties.</div>'}
+          ${a.history.length ? '<table><thead><tr><th>'+t('col_date')+'</th><th>'+t('col_type')+'</th><th>'+t('label_amount')+'</th><th>'+t('col_note')+'</th></tr></thead><tbody>'+
+            a.history.map(h=>'<tr><td>'+fmtDate(h.created_at)+'</td><td>'+(h.type==='in'?t('movement_in'):t('movement_out'))+'</td><td>'+fmtMoney(h.amount, bt.currency)+'</td><td>'+escapeHtml(h.note||'')+'</td></tr>').join('')+'</tbody></table>'
+            : '<div class="muted">'+t('no_movement')+'</div>'}
+        </div>`).join('') : '<div class="card empty"><div class="big">📖</div>'+t('no_accounts_yet')+'</div>'}
     `;
   });
 }
 function openAddAccount() {
-  openModal(`<h2>Nouveau compte</h2><div class="field"><label>Nom</label><input id="accName" placeholder="Ex: Wave"></div>
-    <div class="field"><label>Type</label><select id="accType"><option value="caisse">Caisse</option><option value="banque">Banque</option><option value="mobile_money">Mobile money</option></select></div>
-    <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal()">Annuler</button><button class="btn btn-primary" onclick="submitAddAccount()">Créer</button></div>`);
+  openModal(`<h2>${t('modal_new_account')}</h2><div class="field"><label>${t('label_account_name')}</label><input id="accName" placeholder="${t('placeholder_account_example')}"></div>
+    <div class="field"><label>${t('label_type')}</label><select id="accType"><option value="caisse">${t('type_caisse')}</option><option value="banque">${t('type_banque')}</option><option value="mobile_money">${t('type_mobile_money')}</option></select></div>
+    <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal()">${t('btn_cancel')}</button><button class="btn btn-primary" onclick="submitAddAccount()">${t('btn_create')}</button></div>`);
 }
 function submitAddAccount() {
   const name = document.getElementById('accName').value.trim(); if(!name) return;
   post('/finance?action=account_create', {boutique_id:CURRENT.id, name, type:document.getElementById('accType').value}).then(()=>{closeModal(); route();});
 }
 function openAccountMovement(accountId, type) {
-  openModal(`<h2>${type==='in'?'Entrée':'Sortie'} de caisse</h2>
-    <div class="field"><label>Montant</label><input id="movAmount" type="number" min="1"></div>
-    <div class="field"><label>Note</label><input id="movNote"></div>
-    <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal()">Annuler</button><button class="btn btn-primary" onclick="submitAccountMovement('${accountId}','${type}')">Valider</button></div>`);
+  openModal(`<h2>${type==='in'?t('movement_title_in'):t('movement_title_out')}</h2>
+    <div class="field"><label>${t('label_amount')}</label><input id="movAmount" type="number" min="1"></div>
+    <div class="field"><label>${t('label_note')}</label><input id="movNote"></div>
+    <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal()">${t('btn_cancel')}</button><button class="btn btn-primary" onclick="submitAccountMovement('${accountId}','${type}')">${t('btn_confirm')}</button></div>`);
 }
 function submitAccountMovement(accountId, type) {
   const amount = Number(document.getElementById('movAmount').value||0); if (amount<=0) return;
   post('/finance?action=account_transaction', {boutique_id:CURRENT.id, account_id:accountId, type, amount, note:document.getElementById('movNote').value.trim()}).then(()=>{closeModal(); route();});
 }
 function openTransferAccount(rows) {
-  if (rows.length<2) { showToast('Créez au moins deux comptes pour faire un transfert.', 'error'); return; }
-  openModal(`<h2>Transférer entre comptes</h2>
-    <div class="field"><label>Depuis</label><select id="trFrom">${rows.map(a=>'<option value="'+a.id+'">'+escapeHtml(a.name)+'</option>').join('')}</select></div>
-    <div class="field"><label>Vers</label><select id="trTo">${rows.map(a=>'<option value="'+a.id+'">'+escapeHtml(a.name)+'</option>').join('')}</select></div>
-    <div class="field"><label>Montant</label><input id="trAmount" type="number" min="1"></div>
-    <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal()">Annuler</button><button class="btn btn-primary" onclick="submitTransfer()">Transférer</button></div>`);
+  if (rows.length<2) { showToast(t('transfer_min_two_accounts'), 'error'); return; }
+  openModal(`<h2>${t('modal_transfer_title')}</h2>
+    <div class="field"><label>${t('label_from')}</label><select id="trFrom">${rows.map(a=>'<option value="'+a.id+'">'+escapeHtml(a.name)+'</option>').join('')}</select></div>
+    <div class="field"><label>${t('label_to')}</label><select id="trTo">${rows.map(a=>'<option value="'+a.id+'">'+escapeHtml(a.name)+'</option>').join('')}</select></div>
+    <div class="field"><label>${t('label_amount')}</label><input id="trAmount" type="number" min="1"></div>
+    <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal()">${t('btn_cancel')}</button><button class="btn btn-primary" onclick="submitTransfer()">${t('btn_transfer')}</button></div>`);
 }
 function submitTransfer() {
   const amount = Number(document.getElementById('trAmount').value||0); if (amount<=0) return;
@@ -2203,13 +2203,13 @@ function renderFinanceDeliveryFees(bt, period) {
   api('/finance?action=delivery_fees&boutique_id='+bt.id+'&period='+period).then(({data}) => {
     const F = data.data;
     document.getElementById('content').innerHTML = `
-      <div class="row-between"><div><h2 class="page-title">Frais de livraison</h2><div class="page-sub">Les frais de livraison que vous payez (livreurs, transporteurs).</div></div>
-        <button class="btn btn-primary" onclick="openAddDeliveryFee()">+ Ajouter des frais</button></div>
-      <div class="kpi-grid"><div class="kpi"><div class="lbl">Total ce mois-ci</div><div class="val">${fmtMoney(F.total_month, bt.currency)}</div></div>
-        <div class="kpi"><div class="lbl">Total (${F.count} entrée${F.count>1?'s':''})</div><div class="val">${fmtMoney(F.total_all, bt.currency)}</div></div></div>
-      <div class="card">${F.rows.length ? '<table><thead><tr><th>Date</th><th>Montant</th><th>Commande</th><th>Livreur</th><th>Note</th></tr></thead><tbody>'+
+      <div class="row-between"><div><h2 class="page-title">${t('delivery_fees_title')}</h2><div class="page-sub">${t('delivery_fees_subtitle')}</div></div>
+        <button class="btn btn-primary" onclick="openAddDeliveryFee()">${t('btn_add_fee')}</button></div>
+      <div class="kpi-grid"><div class="kpi"><div class="lbl">${t('kpi_total_this_month')}</div><div class="val">${fmtMoney(F.total_month, bt.currency)}</div></div>
+        <div class="kpi"><div class="lbl">${t('kpi_total_entries_prefix')}${F.count}${t('kpi_total_entries_suffix')}</div><div class="val">${fmtMoney(F.total_all, bt.currency)}</div></div></div>
+      <div class="card">${F.rows.length ? '<table><thead><tr><th>'+t('col_date')+'</th><th>'+t('label_amount')+'</th><th>'+t('col_order')+'</th><th>'+t('col_delivery_person')+'</th><th>'+t('col_note')+'</th></tr></thead><tbody>'+
         F.rows.map(r=>'<tr><td>'+fmtDate(r.created_at)+'</td><td>'+fmtMoney(r.amount, bt.currency)+'</td><td>'+escapeHtml(r.order_ref||'—')+'</td><td>'+escapeHtml(r.delivery_person_name||'—')+'</td><td>'+escapeHtml(r.note||'')+'</td></tr>').join('')+'</tbody></table>'
-        : '<div class="empty"><div class="big">🚛</div>Aucun frais de livraison. Ajoutez le total que vous avez payé en livraison.</div>'}</div>
+        : '<div class="empty"><div class="big">🚛</div>'+t('no_delivery_fees')+'</div>'}</div>
     `;
   });
 }
@@ -2222,17 +2222,17 @@ function openAddDeliveryFee() {
     const accounts = accRes.data.data || [];
     const orders = (ordRes.data.data || []).slice(0, 50);
     const persons = dpRes.data.data || [];
-    openModal(`<h2>Ajouter des frais de livraison</h2>
-      <div class="field"><label>Montant</label><input id="dfAmount" type="number" min="1"></div>
-      <div class="field"><label>Commande liée (optionnel — pour retrouver ce frais en cas de litige)</label>
+    openModal(`<h2>${t('modal_add_delivery_fee')}</h2>
+      <div class="field"><label>${t('label_amount')}</label><input id="dfAmount" type="number" min="1"></div>
+      <div class="field"><label>${t('label_linked_order_optional')}</label>
         <select id="dfOrder"><option value="">—</option>${orders.map(o=>'<option value="'+o.id+'">'+escapeHtml(o.ref)+' — '+escapeHtml(o.customer_name)+'</option>').join('')}</select>
       </div>
-      <div class="field"><label>Livreur payé (optionnel)</label>
+      <div class="field"><label>${t('label_delivery_person_paid_optional')}</label>
         <select id="dfDeliveryPerson"><option value="">—</option>${persons.map(p=>'<option value="'+p.id+'">'+escapeHtml(p.name)+'</option>').join('')}</select>
       </div>
-      <div class="field"><label>Note</label><input id="dfNote" placeholder="Ex: Livraisons du jour"></div>
-      <div class="field"><label>Débiter le compte</label><select id="dfAccount"><option value="">—</option>${accounts.map(a=>'<option value="'+a.id+'">'+escapeHtml(a.name)+'</option>').join('')}</select></div>
-      <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal()">Annuler</button><button class="btn btn-primary" onclick="submitAddDeliveryFee()">Enregistrer</button></div>`);
+      <div class="field"><label>${t('label_note')}</label><input id="dfNote" placeholder="${t('placeholder_note_example')}"></div>
+      <div class="field"><label>${t('label_debit_account')}</label><select id="dfAccount"><option value="">—</option>${accounts.map(a=>'<option value="'+a.id+'">'+escapeHtml(a.name)+'</option>').join('')}</select></div>
+      <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal()">${t('btn_cancel')}</button><button class="btn btn-primary" onclick="submitAddDeliveryFee()">${t('btn_save')}</button></div>`);
   });
 }
 function submitAddDeliveryFee() {
@@ -2256,18 +2256,18 @@ function renderFinanceDetail(bt, period) {
         <button class="btn btn-ghost btn-sm" onclick="downloadCsv('/finance?action=export_excel&boutique_id=${bt.id}&period=${period}','finance-${bt.slug}.xls')">⬇️ Excel</button>
         <button class="btn btn-ghost btn-sm" onclick="printFinanceDetailPdf()">🖨️ PDF</button>` : '';
     document.getElementById('content').innerHTML = `
-      <div class="row-between"><div><h2 class="page-title">Finance Détaillée</h2><div class="page-sub">${F.rows.length?('Marge par commande livrée.'):'Aucune commande livrée sur cette période.'}</div></div>
+      <div class="row-between"><div><h2 class="page-title">${t('finance_detail_title')}</h2><div class="page-sub">${F.rows.length?(t('finance_detail_subtitle_has_data')):t('finance_detail_subtitle_no_data')}</div></div>
         <div style="display:flex;gap:8px;align-items:center">${finExportBtns}${periodSelectHtml('finDetailPeriod', period)}</div></div>
       ${F.rows.length ? `
       <div class="kpi-grid">
-        <div class="kpi"><div class="lbl">Revenu</div><div class="val">${fmtMoney(F.total_revenue, bt.currency)}</div></div>
-        <div class="kpi"><div class="lbl">Coût</div><div class="val">${fmtMoney(F.total_cost, bt.currency)}</div></div>
-        <div class="kpi"><div class="lbl">Marge</div><div class="val">${fmtMoney(F.total_margin, bt.currency)}</div></div>
+        <div class="kpi"><div class="lbl">${t('kpi_revenue')}</div><div class="val">${fmtMoney(F.total_revenue, bt.currency)}</div></div>
+        <div class="kpi"><div class="lbl">${t('kpi_cost')}</div><div class="val">${fmtMoney(F.total_cost, bt.currency)}</div></div>
+        <div class="kpi"><div class="lbl">${t('kpi_margin')}</div><div class="val">${fmtMoney(F.total_margin, bt.currency)}</div></div>
       </div>
-      <div class="card"><table><thead><tr><th>Réf</th><th>Client</th><th>Revenu</th><th>Coût</th><th>Marge</th></tr></thead><tbody>
+      <div class="card"><table><thead><tr><th>${t('col_ref')}</th><th>${t('col_client')}</th><th>${t('col_revenue')}</th><th>${t('kpi_cost')}</th><th>${t('kpi_margin')}</th></tr></thead><tbody>
         ${F.rows.map(r=>'<tr><td>'+escapeHtml(r.ref)+'</td><td>'+escapeHtml(r.customer_name)+'</td><td>'+fmtMoney(r.total,bt.currency)+'</td><td>'+fmtMoney(r.cost,bt.currency)+'</td><td>'+fmtMoney(r.margin,bt.currency)+'</td></tr>').join('')}
       </tbody></table></div>`
-      : '<div class="card"><div style="text-align:center;padding:20px">Renseigne aussi le prix de revient de tes produits dans le catalogue pour voir la marge ici.<br><a href="#/'+bt.slug+'/products" style="color:var(--blue);font-weight:600">Ouvrir le catalogue produits →</a></div></div>'}
+      : '<div class="card"><div style="text-align:center;padding:20px">'+t('finance_detail_empty_hint')+'<br><a href="#/'+bt.slug+'/products" style="color:var(--blue);font-weight:600">'+t('open_products_catalog')+'</a></div></div>'}
     `;
     window.__periodChange = p => renderFinanceDetail(bt, p);
   });
@@ -2279,26 +2279,26 @@ function renderFinanceAds(bt, period) {
     if (!data.success) { document.getElementById('content').innerHTML = '<div class="card">'+escapeHtml(data.message)+'</div>'; return; }
     const F = data.data;
     document.getElementById('content').innerHTML = `
-      <div class="row-between"><div><h2 class="page-title">Publicités & ROAS</h2><div class="page-sub">Le retour sur investissement (ROAS) est calculé en croisant avec tes ventes livrées.</div></div>${periodSelectHtml('finAdsPeriod', period)}</div>
+      <div class="row-between"><div><h2 class="page-title">${t('ads_title')}</h2><div class="page-sub">${t('ads_subtitle')}</div></div>${periodSelectHtml('finAdsPeriod', period)}</div>
       <div class="kpi-grid">
-        <div class="kpi"><div class="lbl">Dépense totale</div><div class="val">${fmtMoney(F.depense_totale, bt.currency)}</div></div>
-        <div class="kpi"><div class="lbl">Revenu attribué (livré)</div><div class="val">${fmtMoney(F.revenu_attribue, bt.currency)}</div></div>
-        <div class="kpi"><div class="lbl">ROAS global</div><div class="val">${F.roas_global!==null?F.roas_global+'x':'—'}</div></div>
+        <div class="kpi"><div class="lbl">${t('kpi_total_spend')}</div><div class="val">${fmtMoney(F.depense_totale, bt.currency)}</div></div>
+        <div class="kpi"><div class="lbl">${t('kpi_attributed_revenue')}</div><div class="val">${fmtMoney(F.revenu_attribue, bt.currency)}</div></div>
+        <div class="kpi"><div class="lbl">${t('kpi_global_roas')}</div><div class="val">${F.roas_global!==null?F.roas_global+'x':'—'}</div></div>
       </div>
-      <div class="row-between"><h3>Par produit</h3><button class="btn btn-primary btn-sm" onclick="openAddAdExpense()">+ Nouvelle dépense</button></div>
-      <div class="card">${F.by_product.length ? '<table><thead><tr><th>Produit</th><th>Dépense</th><th>Revenu</th><th>ROAS</th></tr></thead><tbody>'+
+      <div class="row-between"><h3>${t('by_product_title')}</h3><button class="btn btn-primary btn-sm" onclick="openAddAdExpense()">${t('btn_new_expense')}</button></div>
+      <div class="card">${F.by_product.length ? '<table><thead><tr><th>'+t('col_product')+'</th><th>'+t('col_spend')+'</th><th>'+t('col_revenue')+'</th><th>'+t('col_roas')+'</th></tr></thead><tbody>'+
         F.by_product.map(p=>'<tr><td>'+escapeHtml(p.product_name||'—')+'</td><td>'+fmtMoney(p.spend,bt.currency)+'</td><td>'+fmtMoney(p.revenue,bt.currency)+'</td><td>'+(p.roas!==null?p.roas+'x':'—')+'</td></tr>').join('')+'</tbody></table>'
-        : '<div class="empty">Aucune dépense attribuée à un produit.</div>'}</div>
-      <h3 style="margin-bottom:10px">Dernières dépenses</h3>
-      <div class="card">${F.recent.length ? '<table><thead><tr><th>Date</th><th>Campagne</th><th>Produits</th><th>Montant</th><th></th></tr></thead><tbody>'+
+        : '<div class="empty">'+t('no_expense_attributed')+'</div>'}</div>
+      <h3 style="margin-bottom:10px">${t('recent_expenses_title')}</h3>
+      <div class="card">${F.recent.length ? '<table><thead><tr><th>'+t('col_date')+'</th><th>'+t('col_campaign')+'</th><th>'+t('col_products')+'</th><th>'+t('label_amount')+'</th><th></th></tr></thead><tbody>'+
         F.recent.map(r=>'<tr><td>'+fmtDate(r.created_at)+'</td><td>'+escapeHtml(r.campaign_name||'—')+'</td>'+
-          '<td>'+(r.product_count>0?r.product_count+' produit'+(r.product_count>1?'s':''):'—')+'</td>'+
+          '<td>'+(r.product_count>0?r.product_count+t('products_count_suffix'):'—')+'</td>'+
           '<td>'+fmtMoney(r.amount,bt.currency)+'</td>'+
           '<td>'+
-            (r.campaign_name?'<button class="btn btn-ghost btn-sm" data-campaign="'+escapeHtml(r.campaign_name)+'" data-product-slug="'+escapeHtml(r.product_slug||'')+'" onclick="copyGeneratedAdLink(this.dataset.campaign,this.dataset.productSlug)">Copier le lien</button> ':'')+
-            (r.product_count>0?'<button class="btn btn-ghost btn-sm" onclick="openAdExpenseDetail(\''+r.id+'\')">ROAS par produit</button>':'')+
+            (r.campaign_name?'<button class="btn btn-ghost btn-sm" data-campaign="'+escapeHtml(r.campaign_name)+'" data-product-slug="'+escapeHtml(r.product_slug||'')+'" onclick="copyGeneratedAdLink(this.dataset.campaign,this.dataset.productSlug)">'+t('btn_copy_link')+'</button> ':'')+
+            (r.product_count>0?'<button class="btn btn-ghost btn-sm" onclick="openAdExpenseDetail(\''+r.id+'\')">'+t('btn_roas_by_product')+'</button>':'')+
           '</td></tr>').join('')+'</tbody></table>'
-        : '<div class="empty">Aucune dépense saisie pour l\'instant. Clique « Nouvelle dépense » pour commencer.</div>'}</div>
+        : '<div class="empty">'+t('no_expense_entered')+'</div>'}</div>
     `;
     window.__periodChange = p => renderFinanceAds(bt, p);
   });
@@ -2306,22 +2306,22 @@ function renderFinanceAds(bt, period) {
 function openAddAdExpense() {
   api('/products?action=list&boutique_id='+CURRENT.id).then(({data}) => {
     const products = data.data || [];
-    openModal(`<h2>Nouvelle dépense publicitaire</h2>
-      <div class="field"><label>Nom de campagne</label><input id="adCampaign" oninput="updateAdCampaignLink()"></div>
-      <div class="field"><label>Produit(s) lié(s) (optionnel — cochez-en plusieurs pour un carrousel/une promo groupée)</label>
+    openModal(`<h2>${t('modal_new_ad_expense')}</h2>
+      <div class="field"><label>${t('label_campaign_name')}</label><input id="adCampaign" oninput="updateAdCampaignLink()"></div>
+      <div class="field"><label>${t('label_linked_products_optional')}</label>
         <div style="max-height:160px;overflow-y:auto;border:1px solid var(--border);border-radius:9px;padding:8px">
           ${products.length ? products.map(p=>`<label style="display:flex;align-items:center;gap:8px;padding:4px 0;font-size:13px">
             <input type="checkbox" class="adProductCheck" style="width:auto;flex-shrink:0" value="${p.id}" data-slug="${escapeHtml(p.slug||'')}" onchange="updateAdCampaignLink()"> <span>${escapeHtml(p.name)}</span>
-          </label>`).join('') : '<div class="muted">Aucun produit dans le catalogue.</div>'}
+          </label>`).join('') : '<div class="muted">'+t('no_products_in_catalog')+'</div>'}
         </div>
       </div>
-      <div class="field"><label>Montant</label><input id="adAmount" type="number" min="1"></div>
+      <div class="field"><label>${t('label_amount')}</label><input id="adAmount" type="number" min="1"></div>
       <div class="field" id="adLinkField" style="display:none">
-        <label>Lien à utiliser dans votre publicité</label>
-        <div class="field-row"><input id="adLinkInput" readonly><button type="button" class="btn btn-ghost" onclick="copyInput('adLinkInput')">Copier</button></div>
+        <label>${t('label_link_to_use_in_ad')}</label>
+        <div class="field-row"><input id="adLinkInput" readonly><button type="button" class="btn btn-ghost" onclick="copyInput('adLinkInput')">${t('btn_copy')}</button></div>
         <div class="muted" style="margin-top:6px" id="adLinkHint"></div>
       </div>
-      <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal()">Annuler</button><button class="btn btn-primary" onclick="submitAddAdExpense()">Enregistrer</button></div>`);
+      <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal()">${t('btn_cancel')}</button><button class="btn btn-primary" onclick="submitAddAdExpense()">${t('btn_save')}</button></div>`);
   });
 }
 // Le nom de campagne dans le lien doit rester EXACTEMENT tel que tape (pas
@@ -2349,8 +2349,8 @@ function updateAdCampaignLink() {
   const field = document.getElementById('adLinkField');
   const hint = document.getElementById('adLinkHint');
   if (hint) hint.textContent = checked.length > 1
-    ? checked.length+' produits sélectionnés — le lien renvoie vers la boutique entière, le suivi se fait par campagne.'
-    : 'Collez ce lien comme destination de votre publicité.';
+    ? checked.length+t('ad_link_hint_multi_suffix')
+    : t('ad_link_hint_single');
   field.style.display = link ? 'block' : 'none';
   if (link) document.getElementById('adLinkInput').value = link;
 }
@@ -2369,13 +2369,13 @@ function openAdExpenseDetail(id) {
   api('/finance?action=ad_expense_detail&boutique_id='+CURRENT.id+'&id='+id+'&period='+period).then(({data}) => {
     if (!data.success) { showToast(data.message, 'error'); return; }
     const D = data.data;
-    openModal(`<h2>${escapeHtml(D.campaign_name||'Dépense')} — ROAS par produit</h2>
-      <div class="page-sub">Budget de ${fmtMoney(D.total_amount, CURRENT.currency)} réparti à parts égales entre les ${D.products.length} produit(s) de ce groupe.</div>
-      <table><thead><tr><th>Produit</th><th>Part du budget</th><th>Revenu livré</th><th>ROAS</th></tr></thead><tbody>
+    openModal(`<h2>${escapeHtml(D.campaign_name||t('default_expense_word'))}${t('ad_expense_detail_suffix')}</h2>
+      <div class="page-sub">${tf('ad_expense_detail_subtitle', {amount: fmtMoney(D.total_amount, CURRENT.currency), count: D.products.length})}</div>
+      <table><thead><tr><th>${t('col_product')}</th><th>${t('col_budget_share')}</th><th>${t('col_delivered_revenue')}</th><th>${t('col_roas')}</th></tr></thead><tbody>
         ${D.products.map(p=>`<tr><td>${escapeHtml(p.product_name)}</td><td>${fmtMoney(p.spend_share, CURRENT.currency)}</td>
           <td>${fmtMoney(p.revenue, CURRENT.currency)}</td><td>${p.roas!==null?p.roas+'x':'—'}</td></tr>`).join('')}
       </tbody></table>
-      <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal()">Fermer</button></div>`);
+      <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal()">${t('btn_close')}</button></div>`);
   });
 }
 
