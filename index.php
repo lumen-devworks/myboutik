@@ -83,7 +83,7 @@ if (in_array($requestOrigin, $ALLOWED_ORIGINS, true)) {
 }
 header("Vary: Origin");
 header("Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS");
-header("Access-Control-Allow-Headers: Content-Type, Authorization");
+header("Access-Control-Allow-Headers: Content-Type, Authorization, X-Lang");
 header("Content-Type: application/json; charset=utf-8");
 header("X-Content-Type-Options: nosniff");
 header("X-Frame-Options: DENY");
@@ -93,17 +93,184 @@ header("Permissions-Policy: geolocation=(), camera=(), microphone=()");
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { http_response_code(204); exit; }
 
 // ============================================================
+// TRADUCTION DES MESSAGES SERVEUR (FR par defaut, EN a la demande)
+// ============================================================
+// Le frontend envoie l'entete X-Lang: en quand l'utilisateur a choisi
+// l'anglais (voir Access-Control-Allow-Headers ci-dessus). t() traduit les
+// messages STATIQUES via une correspondance exacte francais->anglais.
+// Les quelques messages construits dynamiquement (ex: erreurs SQL brutes,
+// limites avec un nombre insere en cours de phrase) ne peuvent pas etre
+// traduits par une simple table de correspondance puisque le texte final
+// varie a chaque appel - ils restent en francais meme en mode EN.
+function current_lang() {
+    $l = strtolower($_SERVER['HTTP_X_LANG'] ?? '');
+    return $l === 'en' ? 'en' : 'fr';
+}
+function t($msg) {
+    if (current_lang() !== 'en') return $msg;
+    return EN_DICT[$msg] ?? $msg;
+}
+const EN_DICT = [
+    '12 images maximum par produit' => '12 images maximum per product',
+    'Action inconnue' => 'Unknown action',
+    'Action non autorisee pour votre role' => 'Action not allowed for your role',
+    'Action reservee au proprietaire ou a un administrateur de la boutique' => 'Action reserved for the shop owner or an administrator',
+    'Adresse email invalide' => 'Invalid email address',
+    'Ajoutez au moins un produit' => 'Add at least one product',
+    'Aucun lien de feuille configure' => 'No sheet link configured',
+    'Aucune commande trouvee avec ces informations' => 'No order found with this information',
+    'Aucune information a capturer' => 'No information to capture',
+    'Avis introuvable' => 'Review not found',
+    'Avis mis a jour' => 'Review updated',
+    'Avis supprime' => 'Review deleted',
+    'Boutique creee' => 'Shop created',
+    'Boutique introuvable' => 'Shop not found',
+    'Boutique mise a jour' => 'Shop updated',
+    'Categorie creee' => 'Category created',
+    'Categorie introuvable' => 'Category not found',
+    'Categorie mise a jour' => 'Category updated',
+    'Categorie supprimee' => 'Category deleted',
+    'Ce code existe deja pour cette boutique' => 'This code already exists for this shop',
+    'Ce membre est deja invite sur cette boutique' => 'This member is already invited to this shop',
+    'Cette invitation est destinee a une autre adresse email' => 'This invitation is for a different email address',
+    'Cette livraison ne vous est pas assignee' => 'This delivery is not assigned to you',
+    'Choisissez deux comptes differents' => 'Choose two different accounts',
+    'Client introuvable' => 'Customer not found',
+    'Code promo cree' => 'Promo code created',
+    'Code promo introuvable' => 'Promo code not found',
+    'Code promo invalide, expire, ou reserve a un autre client' => 'Promo code invalid, expired, or reserved for another customer',
+    'Code promo mis a jour' => 'Promo code updated',
+    'Code promo supprime' => 'Promo code deleted',
+    'Commande assignee' => 'Order assigned',
+    'Commande creee' => 'Order created',
+    'Commande enregistree' => 'Order recorded',
+    'Commande fournisseur creee' => 'Supplier order created',
+    'Commande fournisseur introuvable' => 'Supplier order not found',
+    'Commande introuvable' => 'Order not found',
+    'Compte cree' => 'Account created',
+    'Compte cree. Verifiez votre email pour activer votre compte.' => 'Account created. Check your email to activate your account.',
+    'Compte introuvable' => 'Account not found',
+    'Compte suspendu ou bloque' => 'Account suspended or blocked',
+    'Connecte' => 'Logged in',
+    'Contact ajoute' => 'Contact added',
+    'Contact introuvable' => 'Contact not found',
+    'Contact mis a jour' => 'Contact updated',
+    'Contact supprime' => 'Contact deleted',
+    'Demande de retrait envoyee. Vous serez paye(e) apres verification.' => 'Withdrawal request sent. You will be paid after verification.',
+    'Demande deja en attente de verification' => 'Request already pending verification',
+    'Demande enregistree. Envoyez le montant via Orange Money, Wave ou Djomo au +225 07 78 79 83 19 (MYBOUTIK) - votre plan sera active des verification du paiement par l\'equipe MYBOUTIK (generalement sous 24h).' => 'Request recorded. Send the amount via Orange Money, Wave or Djomo to +225 07 78 79 83 19 (MYBOUTIK) - your plan will be activated once the MYBOUTIK team verifies the payment (usually within 24h).',
+    'Demande introuvable' => 'Request not found',
+    'Demande rejetee' => 'Request rejected',
+    'Depense enregistree' => 'Expense recorded',
+    'Depense introuvable' => 'Expense not found',
+    'Depense publicitaire enregistree' => 'Ad expense recorded',
+    'Email ou mot de passe incorrect' => 'Incorrect email or password',
+    'Email verifie. Vous pouvez vous connecter.' => 'Email verified. You can now log in.',
+    'Fournisseur ajoute' => 'Supplier added',
+    'Fournisseur introuvable' => 'Supplier not found',
+    'Fournisseur mis a jour' => 'Supplier updated',
+    'Fournisseur supprime' => 'Supplier deleted',
+    'Frais enregistre' => 'Fee recorded',
+    'Image ajoutee' => 'Image added',
+    'Image introuvable' => 'Image not found',
+    'Image manquante' => 'Missing image',
+    'Image principale mise a jour' => 'Main image updated',
+    'Image supprimee' => 'Image deleted',
+    'Impossible de recuperer la feuille (verifiez que le lien est bien publie en CSV et accessible publiquement)' => 'Unable to retrieve the sheet (check that the link is published as CSV and publicly accessible)',
+    'Inscription confirmee' => 'Subscription confirmed',
+    'Installation terminee ! Toutes les tables ont ete creees.' => 'Installation complete! All tables have been created.',
+    'Introuvable' => 'Not found',
+    'Invitation acceptee' => 'Invitation accepted',
+    'Invitation envoyee' => 'Invitation sent',
+    'Invitation invalide ou deja utilisee' => 'Invalid or already used invitation',
+    'L\'abonnement de cette boutique a expire. Le proprietaire doit se reabonner (menu Abonnement) pour continuer a l\'utiliser.' => 'This shop\'s subscription has expired. The owner must renew (Subscription menu) to keep using it.',
+    'La feuille est vide (juste l\'entete ou aucune ligne)' => 'The sheet is empty (only the header or no rows)',
+    'La valeur doit etre superieure a 0' => 'The value must be greater than 0',
+    'Le code est requis' => 'The code is required',
+    'Le message ne peut pas etre vide' => 'The message cannot be empty',
+    'Le mot de passe doit contenir au moins 6 caracteres' => 'The password must be at least 6 characters',
+    'Le nom de la boutique est requis' => 'The shop name is required',
+    'Le nom de la categorie est requis' => 'The category name is required',
+    'Le nom du compte est requis' => 'The account name is required',
+    'Le nom du contact est requis' => 'The contact name is required',
+    'Le nom du fournisseur est requis' => 'The supplier name is required',
+    'Le nom du livreur est requis' => 'The delivery person\'s name is required',
+    'Le nom du produit est requis' => 'The product name is required',
+    'Le nom du role est requis' => 'The role name is required',
+    'Le nouveau mot de passe doit contenir au moins 6 caracteres' => 'The new password must be at least 6 characters',
+    'Le paiement a la livraison n\'est pas active pour cette boutique' => 'Cash on delivery is not enabled for this shop',
+    'Le panier est vide' => 'The cart is empty',
+    'Libelle et montant requis' => 'Label and amount required',
+    'Lien de verification invalide ou deja utilise' => 'Invalid or already used verification link',
+    'Livreur ajoute' => 'Delivery person added',
+    'Livreur desactive' => 'Delivery person deactivated',
+    'Livreur introuvable' => 'Delivery person not found',
+    'Livreur mis a jour' => 'Delivery person updated',
+    'Marque comme lu' => 'Marked as read',
+    'Membre retire' => 'Member removed',
+    'Merci pour votre avis ! Il sera visible apres validation par la boutique.' => 'Thank you for your review! It will be visible after approval by the shop.',
+    'Message envoye' => 'Message sent',
+    'Mis a jour' => 'Updated',
+    'Module inconnu' => 'Unknown module',
+    'Montant invalide' => 'Invalid amount',
+    'Mot de passe incorrect' => 'Incorrect password',
+    'Mouvement enregistre' => 'Transaction recorded',
+    'Nom et telephone du client requis' => 'Customer name and phone required',
+    'Nom et telephone requis' => 'Name and phone required',
+    'Non autorise' => 'Not authorized',
+    'Note invalide (1 a 5)' => 'Invalid rating (1 to 5)',
+    'Numero Mobile Money requis' => 'Mobile Money number required',
+    'Numero de commande et telephone requis' => 'Order number and phone required',
+    'Panneau admin non configure (variable ADMIN_PASSWORD absente)' => 'Admin panel not configured (ADMIN_PASSWORD variable missing)',
+    'Parametres enregistres' => 'Settings saved',
+    'Plan active' => 'Plan activated',
+    'Plan invalide' => 'Invalid plan',
+    'Produit cree' => 'Product created',
+    'Produit introuvable' => 'Product not found',
+    'Produit mis a jour' => 'Product updated',
+    'Produit supprime' => 'Product deleted',
+    'Profil mis a jour' => 'Profile updated',
+    'Promotion creee' => 'Promotion created',
+    'Promotion introuvable' => 'Promotion not found',
+    'Promotion mise a jour' => 'Promotion updated',
+    'Promotion supprimee' => 'Promotion deleted',
+    'Reglages enregistres' => 'Settings saved',
+    'Retrait introuvable' => 'Withdrawal not found',
+    'Retrait marque paye' => 'Withdrawal marked as paid',
+    'Role cree' => 'Role created',
+    'Role invalide' => 'Invalid role',
+    'Selectionnez au moins un produit' => 'Select at least one product',
+    'Si un compte existe avec cet email, un nouveau lien vient d\'etre envoye.' => 'If an account exists with this email, a new link has just been sent.',
+    'Statut invalide' => 'Invalid status',
+    'Statut mis a jour' => 'Status updated',
+    'Stock ajuste' => 'Stock adjusted',
+    'Token invalide ou expire' => 'Invalid or expired token',
+    'Token manquant' => 'Missing token',
+    'Transfert effectue' => 'Transfer completed',
+    'Transfert impossible' => 'Transfer not possible',
+    'Trop de requetes depuis cette adresse. Reessayez dans quelques instants.' => 'Too many requests from this address. Please try again shortly.',
+    'Type invalide' => 'Invalid type',
+    'Un compte existe deja avec cet email' => 'An account already exists with this email',
+    'Un pourcentage ne peut pas depasser 100' => 'A percentage cannot exceed 100',
+    'Veuillez verifier votre email avant de vous connecter' => 'Please verify your email before logging in',
+    'Votre nom est requis' => 'Your name is required',
+    'Votre role n\'a pas acces a cette section' => 'Your role does not have access to this section',
+    'boutique_id manquant' => 'boutique_id missing',
+    'OK' => 'OK',
+];
+
+// ============================================================
 // HELPERS GENERIQUES
 // ============================================================
 
 function ok($data = null, $msg = 'OK', $code = 200) {
     http_response_code($code);
-    echo json_encode(['success'=>true,'message'=>$msg,'data'=>$data], JSON_UNESCAPED_UNICODE);
+    echo json_encode(['success'=>true,'message'=>t($msg),'data'=>$data], JSON_UNESCAPED_UNICODE);
     exit;
 }
 function fail($msg, $code = 400) {
     http_response_code($code);
-    echo json_encode(['success'=>false,'message'=>$msg], JSON_UNESCAPED_UNICODE);
+    echo json_encode(['success'=>false,'message'=>t($msg)], JSON_UNESCAPED_UNICODE);
     exit;
 }
 function log_and_fail($e, $userMsg, $code = 500) {
