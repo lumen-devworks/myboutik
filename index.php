@@ -116,6 +116,8 @@ const EN_DICT = [
     'Action non autorisee pour votre role' => 'Action not allowed for your role',
     'Action reservee au proprietaire ou a un administrateur de la boutique' => 'Action reserved for the shop owner or an administrator',
     'Adresse email invalide' => 'Invalid email address',
+    'Avis envoye. Merci pour votre retour !' => 'Feedback sent. Thank you for your input!',
+    'Marque comme repondu' => 'Marked as replied',
     'Ajoutez au moins un produit' => 'Add at least one product',
     'Aucun lien de feuille configure' => 'No sheet link configured',
     'Aucune commande trouvee avec ces informations' => 'No order found with this information',
@@ -617,6 +619,7 @@ try {
         case 'marketing': route_marketing($action); break;
         case 'team':      route_team($action); break;
         case 'billing':   route_billing($action); break;
+        case 'feedback':  route_feedback($action); break;
         case 'admin':     route_admin($action); break;
         case 'integrations': route_integrations($action); break;
         case 'cron':      route_cron($action); break;
@@ -710,6 +713,20 @@ function route_install() {
     )",
     "CREATE INDEX IF NOT EXISTS idx_subreq_user ON subscription_requests(user_id)",
     "CREATE INDEX IF NOT EXISTS idx_subreq_status ON subscription_requests(status)",
+    // Avis des proprietaires de boutique sur la plateforme MYBOUTIK elle-meme
+    // (pas les avis produits/boutique laisses par les clients - voir
+    // product_reviews plus bas). L'admin repond par email (bouton
+    // "Repondre" cote panneau admin, voir admin.html) - replied_at sert
+    // juste a cocher que c'est traite, aucun envoi automatique n'est fait.
+    "CREATE TABLE IF NOT EXISTS platform_feedback (
+        id VARCHAR(36) PRIMARY KEY,
+        user_id VARCHAR(36) NOT NULL,
+        rating SMALLINT NOT NULL,
+        message TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        replied_at TIMESTAMP
+    )",
+    "CREATE INDEX IF NOT EXISTS idx_platform_feedback_created ON platform_feedback(created_at DESC)",
     "CREATE TABLE IF NOT EXISTS boutiques (
         id VARCHAR(36) PRIMARY KEY,
         owner_user_id VARCHAR(36) NOT NULL,
@@ -3540,6 +3557,28 @@ function billing_affiliate_request_payout($pl) {
 }
 
 // ============================================================
+// AVIS DES PROPRIETAIRES SUR MYBOUTIK — envoyes depuis le tableau de bord
+// marchand (page Profil), lus et traites depuis le panneau admin (bouton
+// "Repondre" -> mailto:, voir admin.html).
+// ============================================================
+function route_feedback($action) {
+    $pl = owner_auth();
+    switch ($action) {
+        case 'submit': feedback_submit($pl); break;
+        default: fail('Action inconnue', 404);
+    }
+}
+function feedback_submit($pl) {
+    $b = body();
+    $rating = (int)($b['rating'] ?? 0);
+    $message = trim($b['message'] ?? '');
+    if ($rating < 1 || $rating > 5) fail('Note invalide (1 a 5)');
+    if ($message === '') fail('Le message ne peut pas etre vide');
+    q("INSERT INTO platform_feedback (id,user_id,rating,message) VALUES (?,?,?,?)", [uid(), $pl['sub'], $rating, $message]);
+    ok(null, 'Avis envoye. Merci pour votre retour !', 201);
+}
+
+// ============================================================
 // ADMIN — panneau reserve a l'operateur de MYBOUTIK (mot de passe distinct
 // des comptes marchands), pour valider les demandes d'abonnement. Pas de
 // JWT ici : le mot de passe est verifie a chaque appel, comme le panel
@@ -3559,6 +3598,8 @@ function route_admin($action) {
         case 'clients_list':          admin_clients_list(); break;
         case 'subscription_history':  admin_subscription_history(); break;
         case 'revenue_by_month':      admin_revenue_by_month(); break;
+        case 'feedback_list':         admin_feedback_list(); break;
+        case 'feedback_mark_replied': admin_feedback_mark_replied(); break;
         default: fail('Action inconnue', 404);
     }
 }
@@ -3614,6 +3655,19 @@ function admin_revenue_by_month() {
     $result = [];
     foreach ($byMonth as $month => $amount) $result[] = ['month' => $month, 'revenue' => $amount];
     ok($result);
+}
+
+function admin_feedback_list() {
+    ok(q("SELECT pf.*, u.email, u.full_name FROM platform_feedback pf
+          JOIN users u ON u.id = pf.user_id
+          ORDER BY pf.replied_at IS NOT NULL ASC, pf.created_at DESC LIMIT 300")->fetchAll());
+}
+function admin_feedback_mark_replied() {
+    $b = body();
+    $id = $b['id'] ?? '';
+    if (!$id) fail('Introuvable', 404);
+    q("UPDATE platform_feedback SET replied_at=NOW() WHERE id=?", [$id]);
+    ok(null, 'Marque comme repondu');
 }
 
 function admin_subscription_approve() {

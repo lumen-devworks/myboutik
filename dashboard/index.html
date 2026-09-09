@@ -742,6 +742,15 @@ const I18N = {
     label_new_password: 'Nouveau mot de passe (laisser vide pour ne pas changer)',
     placeholder_min_6_chars: '6 caractères minimum',
     profile_updated: 'Profil mis à jour',
+    feedback_title: 'Donner mon avis sur MYBOUTIK',
+    feedback_intro: 'Une suggestion, un problème, un mot gentil ? Dites-le-nous — nous répondons directement à votre adresse email.',
+    feedback_rating_label: 'Votre note',
+    feedback_message_label: 'Votre message',
+    feedback_message_placeholder: 'Écrivez votre avis ici…',
+    feedback_submit_btn: 'Envoyer mon avis',
+    feedback_rating_required: 'Choisissez une note (1 à 5 étoiles)',
+    rating_5: '★★★★★ Excellent', rating_4: '★★★★☆ Très bien', rating_3: '★★★☆☆ Correct',
+    rating_2: '★★☆☆☆ Moyen', rating_1: '★☆☆☆☆ Décevant',
     billing_title: 'Abonnement',
     current_plan_prefix: 'Plan actuel : ',
     access_valid_until_prefix: ' — accès valide jusqu\'au ',
@@ -1324,6 +1333,15 @@ const I18N = {
     label_new_password: 'New password (leave empty to keep it unchanged)',
     placeholder_min_6_chars: 'Minimum 6 characters',
     profile_updated: 'Profile updated',
+    feedback_title: 'Give feedback on MYBOUTIK',
+    feedback_intro: 'A suggestion, an issue, a kind word? Let us know — we reply directly to your email address.',
+    feedback_rating_label: 'Your rating',
+    feedback_message_label: 'Your message',
+    feedback_message_placeholder: 'Write your feedback here…',
+    feedback_submit_btn: 'Send my feedback',
+    feedback_rating_required: 'Choose a rating (1 to 5 stars)',
+    rating_5: '★★★★★ Excellent', rating_4: '★★★★☆ Very good', rating_3: '★★★☆☆ Okay',
+    rating_2: '★★☆☆☆ Below average', rating_1: '★☆☆☆☆ Disappointing',
     billing_title: 'Subscription',
     current_plan_prefix: 'Current plan: ',
     access_valid_until_prefix: ' — access valid until ',
@@ -3276,7 +3294,27 @@ function renderProfile() {
         </div>
         <button class="btn btn-primary" onclick="saveProfile()">${t('btn_save')}</button>
       </div>
+      <div class="card">
+        <h3 style="margin:0 0 4px">${t('feedback_title')}</h3>
+        <p class="muted" style="margin-bottom:14px">${t('feedback_intro')}</p>
+        <div id="feedbackMsg"></div>
+        <div class="field"><label>${t('feedback_rating_label')}</label><select id="fbRating">
+          <option value="5">${t('rating_5')}</option><option value="4">${t('rating_4')}</option>
+          <option value="3">${t('rating_3')}</option><option value="2">${t('rating_2')}</option><option value="1">${t('rating_1')}</option>
+        </select></div>
+        <div class="field"><label>${t('feedback_message_label')}</label><textarea id="fbMessage" rows="4" placeholder="${t('feedback_message_placeholder')}"></textarea></div>
+        <button class="btn btn-primary" onclick="submitFeedback()">${t('feedback_submit_btn')}</button>
+      </div>
     `;
+  });
+}
+function submitFeedback() {
+  const rating = Number(document.getElementById('fbRating').value);
+  const message = document.getElementById('fbMessage').value.trim();
+  if (!message) { document.getElementById('feedbackMsg').innerHTML = '<div class="msg error">'+t('feedback_message_label')+'</div>'; return; }
+  post('/feedback?action=submit', {rating, message}).then(({data}) => {
+    document.getElementById('feedbackMsg').innerHTML = '<div class="msg '+(data.success?'success':'error')+'">'+data.message+'</div>';
+    if (data.success) document.getElementById('fbMessage').value = '';
   });
 }
 function saveProfile() {

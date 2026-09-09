@@ -117,6 +117,10 @@
       <div id="payoutsBody"></div>
     </div>
     <div class="card">
+      <h3 id="h3Feedback">Avis des marchands sur MYBOUTIK</h3>
+      <div class="table-wrap" id="feedbackBody"></div>
+    </div>
+    <div class="card">
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:14px;margin-bottom:12px">
         <h3 style="margin:0" id="h3Revenue">Revenus par mois</h3>
         <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
@@ -229,6 +233,14 @@ const I18N = {
     export_header_boutiques_count: 'Nb. boutiques', export_header_boutiques_names: 'Noms des boutiques',
     export_header_total_paid_fcfa: 'Total payé (FCFA)', export_member_suffix: ' (membre)',
     export_header_revenue_fcfa: 'Revenu (FCFA)', export_total_prefix: 'Total ',
+    h3_feedback: 'Avis des marchands sur MYBOUTIK',
+    no_feedback: 'Aucun avis pour le moment.',
+    col_rating: 'Note', col_message: 'Message',
+    pill_replied: 'Répondu', pill_awaiting_reply: 'En attente',
+    btn_reply: '✉️ Répondre',
+    feedback_mail_subject: 'Réponse à votre avis MYBOUTIK',
+    feedback_mail_intro: 'Avis de {name} ({email}) du {date} — Note : {stars} ({rating}/5)',
+    feedback_mail_reply_marker: '--- Votre réponse ci-dessous ---',
   },
   en: {
     subtitle: 'Admin panel — Platform management',
@@ -283,6 +295,14 @@ const I18N = {
     export_header_boutiques_count: 'No. of shops', export_header_boutiques_names: 'Shop names',
     export_header_total_paid_fcfa: 'Total paid (FCFA)', export_member_suffix: ' (member)',
     export_header_revenue_fcfa: 'Revenue (FCFA)', export_total_prefix: 'Total ',
+    h3_feedback: 'Merchant feedback on MYBOUTIK',
+    no_feedback: 'No feedback yet.',
+    col_rating: 'Rating', col_message: 'Message',
+    pill_replied: 'Replied', pill_awaiting_reply: 'Awaiting reply',
+    btn_reply: '✉️ Reply',
+    feedback_mail_subject: 'Reply to your MYBOUTIK feedback',
+    feedback_mail_intro: 'Feedback from {name} ({email}) on {date} — Rating: {stars} ({rating}/5)',
+    feedback_mail_reply_marker: '--- Your reply below ---',
   },
 };
 function t(key) { return (I18N[LANG] && I18N[LANG][key]) ?? I18N.fr[key] ?? key; }
@@ -299,7 +319,7 @@ function setLang(lang) {
   applyStaticTranslations();
   if (document.getElementById('dataCards').style.display !== 'none') {
     renderStats(CLIENTS); renderClients(); renderHistoryFiltered();
-    renderSubs(SUBS_ROWS); renderPayouts(PAYOUTS_ROWS);
+    renderSubs(SUBS_ROWS); renderPayouts(PAYOUTS_ROWS); renderFeedback(FEEDBACK_ROWS);
     if (CURRENT_REVENUE_YEAR) renderRevenue();
   }
 }
@@ -310,6 +330,7 @@ function applyStaticTranslations() {
   document.getElementById('loginBtn').textContent = t('login_btn');
   document.getElementById('h3Subs').textContent = t('h3_subs');
   document.getElementById('h3Payouts').textContent = t('h3_payouts');
+  document.getElementById('h3Feedback').textContent = t('h3_feedback');
   document.getElementById('h3Revenue').textContent = t('h3_revenue');
   document.getElementById('revenueTotalLabel').textContent = t('total_year_label');
   document.getElementById('btnRevExcel').textContent = t('export_excel_short');
@@ -353,6 +374,7 @@ function showToast(message, type) {
 let CLIENTS = [];
 let SUBS_ROWS = [];
 let PAYOUTS_ROWS = [];
+let FEEDBACK_ROWS = [];
 let REVENUE_BY_MONTH = []; // [{month:'2026-09', revenue: 12000}, ...]
 const MONTH_NAMES_FR = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
 const MONTH_NAMES_EN = ['January','February','March','April','May','June','July','August','September','October','November','December'];
@@ -477,6 +499,10 @@ function loadAll() {
     call('revenue_by_month').then(d5 => {
       if (!d5.success) { document.getElementById('revenueBody').innerHTML = '<p style="color:#b91c1c">'+d5.message+'</p>'; return; }
       REVENUE_BY_MONTH = d5.data || []; setupRevenueYears();
+    });
+    call('feedback_list').then(d6 => {
+      if (!d6.success) { document.getElementById('feedbackBody').innerHTML = '<p style="color:#b91c1c">'+d6.message+'</p>'; return; }
+      FEEDBACK_ROWS = d6.data || []; renderFeedback(FEEDBACK_ROWS);
     });
   }).catch(() => { document.getElementById('loginMsg').innerHTML = '<div class="msg">'+t('server_unreachable')+'</div>'; });
 }
@@ -695,6 +721,38 @@ function markPayoutPaid(id, email, amount) {
   call('payout_mark_paid', {id}).then(data => {
     showToast(data.message || (data.success ? t('toast_payout_marked') : t('toast_error')), data.success ? 'success' : 'error');
     loadAll();
+  });
+}
+// Le bouton "Repondre" ouvre directement le client mail par defaut (mailto:)
+// avec l'avis du marchand cite en haut et un marqueur pour la reponse en
+// dessous - pas d'envoi depuis notre serveur, c'est la boite mail de
+// l'admin qui gere reellement l'envoi. On marque l'avis "repondu" des le
+// clic (avant meme l'envoi reel), comme un "j'ai ouvert le brouillon".
+function renderFeedback(rows) {
+  document.getElementById('feedbackBody').innerHTML = rows.length ? `<table><thead><tr><th>${t('col_email')}</th><th>${t('col_rating')}</th><th>${t('col_message')}</th><th>${t('col_date')}</th><th>${t('col_status')}</th><th></th></tr></thead><tbody>
+    ${rows.map(r => {
+      const stars = '★'.repeat(r.rating) + '☆'.repeat(5 - r.rating);
+      const date = fmtDate(r.created_at);
+      const subject = t('feedback_mail_subject');
+      const body = tf('feedback_mail_intro', {name: r.full_name || r.email, email: r.email, date, stars, rating: r.rating})
+        + '\n\n"' + r.message + '"\n\n' + t('feedback_mail_reply_marker') + '\n\n';
+      const mailto = 'mailto:' + encodeURIComponent(r.email) + '?subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(body);
+      return `<tr>
+        <td>${r.email}</td>
+        <td style="color:#f59e0b;white-space:nowrap">${stars}</td>
+        <td style="max-width:280px">${escapeAttr(r.message)}</td>
+        <td>${date}</td>
+        <td>${r.replied_at ? '<span class="pill pill-ok">'+t('pill_replied')+'</span>' : '<span class="pill pill-warn">'+t('pill_awaiting_reply')+'</span>'}</td>
+        <td><a href="${mailto}" onclick="markFeedbackReplied('${r.id}')" style="display:inline-block;padding:10px 17px;border-radius:10px;border:1.5px solid var(--border);color:var(--ink);text-decoration:none;font-size:13.5px;font-weight:700;white-space:nowrap">${t('btn_reply')}</a></td>
+      </tr>`;
+    }).join('')}
+    </tbody></table>` : '<p style="color:var(--gray)">'+t('no_feedback')+'</p>';
+}
+function markFeedbackReplied(id) {
+  call('feedback_mark_replied', {id}).then(() => {
+    const row = FEEDBACK_ROWS.find(r => r.id === id);
+    if (row) row.replied_at = new Date().toISOString();
+    renderFeedback(FEEDBACK_ROWS);
   });
 }
 document.getElementById('langFr').classList.toggle('active', LANG === 'fr');
