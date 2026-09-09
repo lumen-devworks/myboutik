@@ -87,69 +87,74 @@
   .copy-btn:hover{color:var(--blue);box-shadow:none;transform:none;background:none}
   .badge-late{background:#fde8ea;color:var(--red);font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;margin-left:8px;white-space:nowrap}
   .filters-row select{width:auto;margin:0}
+  .lang-switch{grid-column:3;justify-self:end;display:flex;gap:4px;background:var(--bg);border:1px solid var(--border);border-radius:999px;padding:3px}
+  .lang-switch button{background:none;color:var(--gray);box-shadow:none;padding:6px 12px;font-size:12px;border-radius:999px}
+  .lang-switch button:hover{box-shadow:none;transform:none;background:none;color:var(--ink)}
+  .lang-switch button.active{background:var(--blue);color:#fff}
 </style>
 </head>
 <body>
 <div class="wrap">
   <div class="topbar">
     <div class="mark">MB</div>
-    <div class="titles"><h1>MYBOUTIK</h1><div class="sub">Panneau admin — Gestion de la plateforme</div></div>
+    <div class="titles"><h1>MYBOUTIK</h1><div class="sub" id="subtitleText">Panneau admin — Gestion de la plateforme</div></div>
+    <div class="lang-switch"><button type="button" id="langFr" class="active" onclick="setLang('fr')">FR</button><button type="button" id="langEn" onclick="setLang('en')">EN</button></div>
   </div>
   <div class="card" id="loginCard">
     <div id="loginMsg"></div>
     <div class="password-wrap"><input type="password" id="adminPassword" placeholder="Mot de passe admin (ADMIN_PASSWORD)">
       <button type="button" class="pw-toggle" onclick="togglePasswordVisibility('adminPassword', this)">🙈</button></div>
-    <button onclick="loadAll()">Se connecter</button>
+    <button id="loginBtn" onclick="loadAll()">Se connecter</button>
   </div>
   <div id="dataCards" style="display:none">
     <div class="stats-grid" id="statsGrid"></div>
     <div class="card">
-      <h3>Demandes d'abonnement en attente</h3>
+      <h3 id="h3Subs">Demandes d'abonnement en attente</h3>
       <div id="subsBody"></div>
     </div>
     <div class="card">
-      <h3>Retraits d'affiliation en attente</h3>
+      <h3 id="h3Payouts">Retraits d'affiliation en attente</h3>
       <div id="payoutsBody"></div>
     </div>
     <div class="card">
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:14px;margin-bottom:12px">
-        <h3 style="margin:0">Revenus par mois</h3>
+        <h3 style="margin:0" id="h3Revenue">Revenus par mois</h3>
         <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
           <select id="revenueYear" onchange="renderRevenue()" style="width:auto;margin:0"></select>
-          <div><span style="color:var(--gray);font-size:13px">Total de l'année : </span><strong id="revenueYearTotal" style="font-size:18px"></strong></div>
-          <button class="ghost" onclick="exportRevenueExcel()">⬇️ Excel</button>
-          <button class="ghost" onclick="exportRevenuePdf()">⬇️ PDF</button>
+          <div><span style="color:var(--gray);font-size:13px" id="revenueTotalLabel">Total de l'année : </span><strong id="revenueYearTotal" style="font-size:18px"></strong></div>
+          <button class="ghost" id="btnRevExcel" onclick="exportRevenueExcel()">⬇️ Excel</button>
+          <button class="ghost" id="btnRevPdf" onclick="exportRevenuePdf()">⬇️ PDF</button>
         </div>
       </div>
-      <div class="chart-legend"><span><span class="dot" style="background:#2f5be0"></span>Revenu mensuel</span><span><span class="diamond" style="background:#f59e0b"></span>Revenu cumulé <span style="font-weight:400">(échelle propre à chaque courbe)</span></span></div>
+      <div class="chart-legend"><span><span class="dot" style="background:#2f5be0"></span><span id="legendMonthly">Revenu mensuel</span></span><span><span class="diamond" style="background:#f59e0b"></span><span id="legendCumu">Revenu cumulé</span> <span style="font-weight:400" id="legendScaleNote">(échelle propre à chaque courbe)</span></span></div>
       <div id="revenueChart" style="margin-bottom:16px"></div>
       <div class="table-wrap" id="revenueBody"></div>
     </div>
     <div class="card">
-      <h3>Tous les clients</h3>
+      <h3 id="h3Clients">Tous les clients</h3>
       <div class="filters-row" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px">
         <input id="clientSearch" placeholder="Rechercher par email…" style="max-width:220px;margin:0;flex:1 1 180px" oninput="renderClients()">
         <select id="clientFilterPlan" onchange="renderClients()">
-          <option value="">Tous les plans</option>
+          <option value="" id="optAllPlans">Tous les plans</option>
           <option value="starter">Starter</option>
           <option value="pro">Pro</option>
           <option value="premium">Premium</option>
         </select>
         <select id="clientFilterStatus" onchange="renderClients()">
-          <option value="">Tous les statuts</option>
-          <option value="ok">Actif</option>
-          <option value="warn">Expire bientôt</option>
-          <option value="bad">Expiré</option>
+          <option value="" id="optAllStatus">Tous les statuts</option>
+          <option value="ok" id="optStatusOk">Actif</option>
+          <option value="warn" id="optStatusWarn">Expire bientôt</option>
+          <option value="bad" id="optStatusBad">Expiré</option>
         </select>
         <div style="display:flex;gap:8px;flex-shrink:0">
-          <button class="ghost" onclick="exportClientsExcel()">⬇️ Exporter Excel</button>
-          <button class="ghost" onclick="exportClientsPdf()">⬇️ Exporter PDF</button>
+          <button class="ghost" id="btnClientsExcel" onclick="exportClientsExcel()">⬇️ Exporter Excel</button>
+          <button class="ghost" id="btnClientsPdf" onclick="exportClientsPdf()">⬇️ Exporter PDF</button>
         </div>
       </div>
       <div class="table-wrap" id="clientsBody"></div>
     </div>
     <div class="card">
-      <h3>Historique des paiements (300 derniers)</h3>
+      <h3 id="h3History">Historique des paiements (300 derniers)</h3>
       <input id="historySearch" placeholder="Rechercher par email ou plan…" style="max-width:280px" oninput="renderHistoryFiltered()">
       <div class="table-wrap" id="historyBody"></div>
     </div>
@@ -161,8 +166,168 @@
 const API_URL = window.MYBOUTIK_API_URL || 'http://localhost:8000';
 function call(action, extra) {
   const password = sessionStorage.getItem('myboutik_admin_pw') || document.getElementById('adminPassword').value;
-  return fetch(API_URL+'/admin?action='+action, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(Object.assign({password}, extra||{}))})
+  return fetch(API_URL+'/admin?action='+action, {method:'POST', headers:{'Content-Type':'application/json','X-Lang':LANG}, body:JSON.stringify(Object.assign({password}, extra||{}))})
     .then(r => r.json());
+}
+// ============================================================
+// TRADUCTION (FR/EN) - textes fixes de l'interface. Les messages qui
+// viennent du serveur (succes/erreur) sont deja traduits cote backend via
+// l'entete X-Lang envoye ci-dessus (voir t()/EN_DICT dans index.php).
+// ============================================================
+let LANG = localStorage.getItem('myboutik_admin_lang') === 'en' ? 'en' : 'fr';
+const I18N = {
+  fr: {
+    subtitle: 'Panneau admin — Gestion de la plateforme',
+    admin_password_placeholder: 'Mot de passe admin (ADMIN_PASSWORD)',
+    login_btn: 'Se connecter',
+    h3_subs: "Demandes d'abonnement en attente",
+    h3_payouts: "Retraits d'affiliation en attente",
+    h3_revenue: 'Revenus par mois',
+    total_year_label: "Total de l'année : ",
+    legend_monthly: 'Revenu mensuel',
+    legend_cumulative: 'Revenu cumulé',
+    legend_scale_note: '(échelle propre à chaque courbe)',
+    h3_clients: 'Tous les clients',
+    search_email_placeholder: 'Rechercher par email…',
+    filter_all_plans: 'Tous les plans',
+    filter_all_status: 'Tous les statuts',
+    status_active: 'Actif',
+    status_expiring: 'Expire bientôt',
+    status_expired: 'Expiré',
+    export_excel: '⬇️ Exporter Excel',
+    export_pdf: '⬇️ Exporter PDF',
+    export_excel_short: '⬇️ Excel',
+    export_pdf_short: '⬇️ PDF',
+    h3_history: 'Historique des paiements (300 derniers)',
+    search_history_placeholder: 'Rechercher par email ou plan…',
+    col_email: 'Email', col_name: 'Nom', col_plan: 'Plan', col_status: 'Statut',
+    col_expires: 'Expire le', col_boutiques: 'Boutiques (propriétaire)', col_payments: 'Paiements',
+    col_total_paid: 'Total payé', col_registered: 'Inscrit le', col_month: 'Mois', col_revenue: 'Revenu',
+    col_date: 'Date', col_requested: 'Demandé le', col_processed: 'Traité le', col_amount: 'Montant',
+    col_method: 'Méthode', col_number: 'Numéro',
+    stat_clients: 'Clients', stat_active: 'Actifs', stat_expired: 'Expirés', stat_total_revenue: 'Revenu total',
+    no_clients_match: 'Aucun client ne correspond à cette recherche.',
+    no_history_match: 'Aucun historique ne correspond à cette recherche.',
+    no_pending_requests: 'Aucune demande en attente.',
+    no_pending_payouts: 'Aucun retrait en attente.',
+    btn_approve: 'Approuver', btn_reject: 'Rejeter', btn_mark_paid: 'Marquer payé',
+    pill_approved: 'Approuvé', pill_rejected: 'Rejeté', pill_pending: 'En attente',
+    waiting_since: '⚠️ En attente depuis {n} j',
+    copy_email_title: "Copier l'email",
+    email_copied: 'Email copié : ',
+    copy_failed: 'Impossible de copier',
+    confirm_approve: 'Approuver le plan {plan} pour {email} ?\n\nSon abonnement sera activé/prolongé de 30 jours.',
+    confirm_reject: 'Rejeter la demande de plan {plan} pour {email} ?',
+    confirm_payout: 'Confirmer que le retrait de {amount} FCFA pour {email} a bien été payé ?\n\nCette action est irréversible.',
+    toast_done: 'Fait.', toast_error: 'Erreur.', toast_payout_marked: 'Paiement marqué payé.',
+    server_unreachable: 'Impossible de contacter le serveur.',
+    boutique_singular: 'boutique', boutique_plural: 'boutiques',
+    member_of: '(membre de {n})',
+    upcoming: 'à venir', cumulative_prefix: 'cumul ',
+    export_title_clients: 'Clients MYBOUTIK',
+    export_title_revenue_prefix: 'Revenus ', export_title_suffix: ' — MYBOUTIK',
+    export_header_boutiques_count: 'Nb. boutiques', export_header_boutiques_names: 'Noms des boutiques',
+    export_header_total_paid_fcfa: 'Total payé (FCFA)', export_member_suffix: ' (membre)',
+    export_header_revenue_fcfa: 'Revenu (FCFA)', export_total_prefix: 'Total ',
+  },
+  en: {
+    subtitle: 'Admin panel — Platform management',
+    admin_password_placeholder: 'Admin password (ADMIN_PASSWORD)',
+    login_btn: 'Log in',
+    h3_subs: 'Pending subscription requests',
+    h3_payouts: 'Pending affiliate payouts',
+    h3_revenue: 'Monthly revenue',
+    total_year_label: 'Total for the year: ',
+    legend_monthly: 'Monthly revenue',
+    legend_cumulative: 'Cumulative revenue',
+    legend_scale_note: '(each curve has its own scale)',
+    h3_clients: 'All customers',
+    search_email_placeholder: 'Search by email…',
+    filter_all_plans: 'All plans',
+    filter_all_status: 'All statuses',
+    status_active: 'Active',
+    status_expiring: 'Expiring soon',
+    status_expired: 'Expired',
+    export_excel: '⬇️ Export Excel',
+    export_pdf: '⬇️ Export PDF',
+    export_excel_short: '⬇️ Excel',
+    export_pdf_short: '⬇️ PDF',
+    h3_history: 'Payment history (last 300)',
+    search_history_placeholder: 'Search by email or plan…',
+    col_email: 'Email', col_name: 'Name', col_plan: 'Plan', col_status: 'Status',
+    col_expires: 'Expires on', col_boutiques: 'Shops (owner)', col_payments: 'Payments',
+    col_total_paid: 'Total paid', col_registered: 'Registered on', col_month: 'Month', col_revenue: 'Revenue',
+    col_date: 'Date', col_requested: 'Requested on', col_processed: 'Processed on', col_amount: 'Amount',
+    col_method: 'Method', col_number: 'Number',
+    stat_clients: 'Customers', stat_active: 'Active', stat_expired: 'Expired', stat_total_revenue: 'Total revenue',
+    no_clients_match: 'No customer matches this search.',
+    no_history_match: 'No history matches this search.',
+    no_pending_requests: 'No pending requests.',
+    no_pending_payouts: 'No pending payouts.',
+    btn_approve: 'Approve', btn_reject: 'Reject', btn_mark_paid: 'Mark as paid',
+    pill_approved: 'Approved', pill_rejected: 'Rejected', pill_pending: 'Pending',
+    waiting_since: '⚠️ Waiting for {n} d',
+    copy_email_title: 'Copy email',
+    email_copied: 'Email copied: ',
+    copy_failed: 'Unable to copy',
+    confirm_approve: 'Approve the {plan} plan for {email}?\n\nTheir subscription will be activated/extended by 30 days.',
+    confirm_reject: 'Reject the {plan} plan request for {email}?',
+    confirm_payout: 'Confirm that the {amount} FCFA payout for {email} has been paid?\n\nThis action is irreversible.',
+    toast_done: 'Done.', toast_error: 'Error.', toast_payout_marked: 'Payment marked as paid.',
+    server_unreachable: 'Unable to reach the server.',
+    boutique_singular: 'shop', boutique_plural: 'shops',
+    member_of: '(member of {n})',
+    upcoming: 'upcoming', cumulative_prefix: 'cumulative ',
+    export_title_clients: 'MYBOUTIK Customers',
+    export_title_revenue_prefix: 'Revenue ', export_title_suffix: ' — MYBOUTIK',
+    export_header_boutiques_count: 'No. of shops', export_header_boutiques_names: 'Shop names',
+    export_header_total_paid_fcfa: 'Total paid (FCFA)', export_member_suffix: ' (member)',
+    export_header_revenue_fcfa: 'Revenue (FCFA)', export_total_prefix: 'Total ',
+  },
+};
+function t(key) { return (I18N[LANG] && I18N[LANG][key]) ?? I18N.fr[key] ?? key; }
+function tf(key, vars) {
+  let s = t(key);
+  Object.keys(vars || {}).forEach(k => { s = s.split('{'+k+'}').join(vars[k]); });
+  return s;
+}
+function setLang(lang) {
+  LANG = lang === 'en' ? 'en' : 'fr';
+  localStorage.setItem('myboutik_admin_lang', LANG);
+  document.getElementById('langFr').classList.toggle('active', LANG === 'fr');
+  document.getElementById('langEn').classList.toggle('active', LANG === 'en');
+  applyStaticTranslations();
+  if (document.getElementById('dataCards').style.display !== 'none') {
+    renderStats(CLIENTS); renderClients(); renderHistoryFiltered();
+    renderSubs(SUBS_ROWS); renderPayouts(PAYOUTS_ROWS);
+    if (CURRENT_REVENUE_YEAR) renderRevenue();
+  }
+}
+function applyStaticTranslations() {
+  document.documentElement.lang = LANG;
+  document.getElementById('subtitleText').textContent = t('subtitle');
+  document.getElementById('adminPassword').placeholder = t('admin_password_placeholder');
+  document.getElementById('loginBtn').textContent = t('login_btn');
+  document.getElementById('h3Subs').textContent = t('h3_subs');
+  document.getElementById('h3Payouts').textContent = t('h3_payouts');
+  document.getElementById('h3Revenue').textContent = t('h3_revenue');
+  document.getElementById('revenueTotalLabel').textContent = t('total_year_label');
+  document.getElementById('btnRevExcel').textContent = t('export_excel_short');
+  document.getElementById('btnRevPdf').textContent = t('export_pdf_short');
+  document.getElementById('legendMonthly').textContent = t('legend_monthly');
+  document.getElementById('legendCumu').textContent = t('legend_cumulative');
+  document.getElementById('legendScaleNote').textContent = t('legend_scale_note');
+  document.getElementById('h3Clients').textContent = t('h3_clients');
+  document.getElementById('clientSearch').placeholder = t('search_email_placeholder');
+  document.getElementById('optAllPlans').textContent = t('filter_all_plans');
+  document.getElementById('optAllStatus').textContent = t('filter_all_status');
+  document.getElementById('optStatusOk').textContent = t('status_active');
+  document.getElementById('optStatusWarn').textContent = t('status_expiring');
+  document.getElementById('optStatusBad').textContent = t('status_expired');
+  document.getElementById('btnClientsExcel').textContent = t('export_excel');
+  document.getElementById('btnClientsPdf').textContent = t('export_pdf');
+  document.getElementById('h3History').textContent = t('h3_history');
+  document.getElementById('historySearch').placeholder = t('search_history_placeholder');
 }
 // L'icone reflete l'etat ACTUEL du champ : 🙈 = actuellement masque
 // (cliquer pour reveler), 👁️ = actuellement visible (cliquer pour masquer).
@@ -186,8 +351,15 @@ function showToast(message, type) {
   }, 4000);
 }
 let CLIENTS = [];
+let SUBS_ROWS = [];
+let PAYOUTS_ROWS = [];
 let REVENUE_BY_MONTH = []; // [{month:'2026-09', revenue: 12000}, ...]
-const MONTH_NAMES = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
+const MONTH_NAMES_FR = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
+const MONTH_NAMES_EN = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+const MONTH_ABBR_FR = ['Jan','Fév','Mar','Avr','Mai','Juin','Juil','Aoû','Sep','Oct','Nov','Déc'];
+const MONTH_ABBR_EN = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+function monthNames() { return LANG === 'en' ? MONTH_NAMES_EN : MONTH_NAMES_FR; }
+function monthAbbr() { return LANG === 'en' ? MONTH_ABBR_EN : MONTH_ABBR_FR; }
 function setupRevenueYears() {
   const years = Array.from(new Set(REVENUE_BY_MONTH.map(r => r.month.slice(0,4)))).sort().reverse();
   const currentYear = String(new Date().getFullYear());
@@ -196,7 +368,6 @@ function setupRevenueYears() {
   sel.innerHTML = years.map(y => '<option value="'+y+'">'+y+'</option>').join('');
   renderRevenue();
 }
-const MONTH_ABBR = ['Jan','Fév','Mar','Avr','Mai','Juin','Juil','Aoû','Sep','Oct','Nov','Déc'];
 let CURRENT_REVENUE_ROWS = [];
 let CURRENT_REVENUE_YEAR = '';
 function renderRevenue() {
@@ -206,7 +377,7 @@ function renderRevenue() {
   REVENUE_BY_MONTH.filter(r => r.month.startsWith(year)).forEach(r => { byMonth[r.month.slice(5,7)] = r.revenue; });
   const total = Object.values(byMonth).reduce((s,v) => s+Number(v), 0);
   document.getElementById('revenueYearTotal').textContent = fmtMoney(total);
-  const rows = MONTH_NAMES.map((name, i) => {
+  const rows = monthNames().map((name, i) => {
     const key = String(i+1).padStart(2,'0');
     return {name, revenue: byMonth[key] || 0};
   });
@@ -214,7 +385,7 @@ function renderRevenue() {
   const now = new Date();
   const lastElapsedMonth = (Number(year) === now.getFullYear()) ? (now.getMonth() + 1) : 12;
   renderRevenueChart(rows, lastElapsedMonth);
-  document.getElementById('revenueBody').innerHTML = `<table><thead><tr><th>Mois</th><th>Revenu</th></tr></thead><tbody>
+  document.getElementById('revenueBody').innerHTML = `<table><thead><tr><th>${t('col_month')}</th><th>${t('col_revenue')}</th></tr></thead><tbody>
     ${rows.map(r => '<tr><td>'+r.name+'</td><td>'+(r.revenue ? fmtMoney(r.revenue) : '—')+'</td></tr>').join('')}
     </tbody></table>`;
 }
@@ -261,16 +432,16 @@ function renderRevenueChart(rows, lastElapsedMonth) {
     const cumuPts = elapsed.map((p, i) => ({x: p.x, y: padTop + innerH - (cumuValues[i] / cumuMax) * innerH}));
     cumuPath = curveThrough(cumuPts);
   }
-  const dots = pts.map(p => `<circle cx="${p.x}" cy="${p.y}" r="4" fill="${p.i < lastElapsedMonth ? (p.r.revenue > 0 ? '#2f5be0' : '#cbd5e1') : '#f1f5f9'}" stroke="#fff" stroke-width="1.5"><title>${MONTH_NAMES[p.i]} : ${p.i < lastElapsedMonth ? fmtMoney(p.r.revenue) : 'à venir'}</title></circle>`).join('');
+  const dots = pts.map(p => `<circle cx="${p.x}" cy="${p.y}" r="4" fill="${p.i < lastElapsedMonth ? (p.r.revenue > 0 ? '#2f5be0' : '#cbd5e1') : '#f1f5f9'}" stroke="#fff" stroke-width="1.5"><title>${monthNames()[p.i]} : ${p.i < lastElapsedMonth ? fmtMoney(p.r.revenue) : t('upcoming')}</title></circle>`).join('');
   // Marqueurs en losange pour la courbe cumulee - une forme differente de
   // celle du revenu mensuel (des ronds) pour rester lisible meme quand les
   // deux courbes se superposent exactement (cas d'un seul mois avec du
   // revenu, ou tout le cumul se fait d'un coup).
   const cumuDots = elapsed.length >= 2 ? elapsed.map((p, i) => {
     const cy = padTop + innerH - (cumuValues[i] / cumuMax) * innerH;
-    return `<rect x="${p.x-3.5}" y="${cy-3.5}" width="7" height="7" fill="#f59e0b" stroke="#fff" stroke-width="1.2" transform="rotate(45 ${p.x} ${cy})"><title>${MONTH_NAMES[p.i]} : cumul ${fmtMoney(cumuValues[i])}</title></rect>`;
+    return `<rect x="${p.x-3.5}" y="${cy-3.5}" width="7" height="7" fill="#f59e0b" stroke="#fff" stroke-width="1.2" transform="rotate(45 ${p.x} ${cy})"><title>${monthNames()[p.i]} : ${t('cumulative_prefix')}${fmtMoney(cumuValues[i])}</title></rect>`;
   }).join('') : '';
-  const labels = pts.map(p => `<text x="${p.x}" y="${h - 8}" text-anchor="middle" font-size="11" fill="${p.i < lastElapsedMonth ? '#64748b' : '#cbd5e1'}">${MONTH_ABBR[p.i]}</text>`).join('');
+  const labels = pts.map(p => `<text x="${p.x}" y="${h - 8}" text-anchor="middle" font-size="11" fill="${p.i < lastElapsedMonth ? '#64748b' : '#cbd5e1'}">${monthAbbr()[p.i]}</text>`).join('');
   const gridY = h - padBottom;
   document.getElementById('revenueChart').innerHTML = `<svg viewBox="0 0 ${w} ${h}" style="width:100%;height:auto;max-height:220px">
     <defs><linearGradient id="revFill" x1="0" y1="0" x2="0" y2="1">
@@ -292,8 +463,9 @@ function loadAll() {
     sessionStorage.setItem('myboutik_admin_pw', document.getElementById('adminPassword').value);
     document.getElementById('loginCard').style.display = 'none';
     document.getElementById('dataCards').style.display = 'block';
-    renderSubs(data.data);
-    call('payouts_pending').then(d2 => renderPayouts(d2.data || []));
+    SUBS_ROWS = data.data || [];
+    renderSubs(SUBS_ROWS);
+    call('payouts_pending').then(d2 => { PAYOUTS_ROWS = d2.data || []; renderPayouts(PAYOUTS_ROWS); });
     call('clients_list').then(d3 => {
       if (!d3.success) { document.getElementById('clientsBody').innerHTML = '<p style="color:#b91c1c">'+d3.message+'</p>'; return; }
       CLIENTS = d3.data || []; renderStats(CLIENTS); renderClients();
@@ -306,10 +478,10 @@ function loadAll() {
       if (!d5.success) { document.getElementById('revenueBody').innerHTML = '<p style="color:#b91c1c">'+d5.message+'</p>'; return; }
       REVENUE_BY_MONTH = d5.data || []; setupRevenueYears();
     });
-  }).catch(() => { document.getElementById('loginMsg').innerHTML = '<div class="msg">Impossible de contacter le serveur.</div>'; });
+  }).catch(() => { document.getElementById('loginMsg').innerHTML = '<div class="msg">'+t('server_unreachable')+'</div>'; });
 }
-function fmtMoney(n) { return Math.round(n||0).toLocaleString('fr-FR') + ' FCFA'; }
-function fmtDate(d) { return d ? new Date(d).toLocaleDateString('fr-FR') : '—'; }
+function fmtMoney(n) { return Math.round(n||0).toLocaleString(LANG === 'en' ? 'en-US' : 'fr-FR') + ' FCFA'; }
+function fmtDate(d) { return d ? new Date(d).toLocaleDateString(LANG === 'en' ? 'en-US' : 'fr-FR') : '—'; }
 // 'ok'/'warn'/'bad' - reutilise par le pill d'affichage ET par le filtre de statut.
 function clientStatusKey(c) {
   if (!c.plan_valid_until) return 'ok';
@@ -320,9 +492,9 @@ function clientStatusKey(c) {
 }
 function clientStatusPill(c) {
   const key = clientStatusKey(c);
-  if (key === 'bad') return '<span class="pill pill-bad">Expiré</span>';
-  if (key === 'warn') return '<span class="pill pill-warn">Expire bientôt</span>';
-  return '<span class="pill pill-ok">Actif</span>';
+  if (key === 'bad') return '<span class="pill pill-bad">'+t('status_expired')+'</span>';
+  if (key === 'warn') return '<span class="pill pill-warn">'+t('status_expiring')+'</span>';
+  return '<span class="pill pill-ok">'+t('status_active')+'</span>';
 }
 // Le nombre seul ne dit pas quelle(s) boutique(s) - avec plus de quelques
 // boutiques ca devient illisible en ligne, d'ou un menu deroulant (<details>)
@@ -332,12 +504,13 @@ function clientStatusPill(c) {
 function boutiqueCell(c) {
   const owned = c.boutique_names || [];
   if (owned.length) {
-    return `<details class="bq-list"><summary>${c.boutique_count} boutique${c.boutique_count>1?'s':''}</summary>
+    const label = c.boutique_count + ' ' + (c.boutique_count > 1 ? t('boutique_plural') : t('boutique_singular'));
+    return `<details class="bq-list"><summary>${label}</summary>
       <div class="bq-menu">${owned.map(n => '<div>🏬 '+escapeAttr(n)+'</div>').join('')}</div></details>`;
   }
   const member = c.member_boutique_names || [];
   if (member.length) {
-    return `0 <details class="bq-list" style="display:inline-block"><summary style="color:var(--gray)">(membre de ${member.length})</summary>
+    return `0 <details class="bq-list" style="display:inline-block"><summary style="color:var(--gray)">${tf('member_of', {n: member.length})}</summary>
       <div class="bq-menu">${member.map(n => '<div>🏬 '+escapeAttr(n)+'</div>').join('')}</div></details>`;
   }
   return '0';
@@ -351,23 +524,23 @@ function renderStats(rows) {
   const byPlan = {};
   rows.forEach(c => { byPlan[c.plan] = (byPlan[c.plan]||0) + 1; });
   document.getElementById('statsGrid').innerHTML = `
-    <div class="stat" style="--accent:#2f5be0"><div class="lbl">Clients</div><div class="val">${total}</div></div>
-    <div class="stat" style="--accent:#0f9d63"><div class="lbl">Actifs</div><div class="val">${active}</div></div>
-    <div class="stat" style="--accent:#dc3545"><div class="lbl">Expirés</div><div class="val">${expired}</div></div>
-    <div class="stat" style="--accent:#7c3aed"><div class="lbl">Revenu total</div><div class="val">${fmtMoney(revenue)}</div></div>
+    <div class="stat" style="--accent:#2f5be0"><div class="lbl">${t('stat_clients')}</div><div class="val">${total}</div></div>
+    <div class="stat" style="--accent:#0f9d63"><div class="lbl">${t('stat_active')}</div><div class="val">${active}</div></div>
+    <div class="stat" style="--accent:#dc3545"><div class="lbl">${t('stat_expired')}</div><div class="val">${expired}</div></div>
+    <div class="stat" style="--accent:#7c3aed"><div class="lbl">${t('stat_total_revenue')}</div><div class="val">${fmtMoney(revenue)}</div></div>
   `;
 }
-// Colonnes triables : cle -> [libelle, fonction d'extraction de la valeur a comparer]
+// Colonnes triables : cle -> [cle de traduction du libelle, fonction d'extraction de la valeur a comparer]
 const CLIENT_COLUMNS = {
-  email:      ['Email', c => c.email.toLowerCase()],
-  full_name:  ['Nom', c => (c.full_name||'').toLowerCase()],
-  plan:       ['Plan', c => c.plan],
-  status:     ['Statut', c => c.plan_valid_until ? new Date(c.plan_valid_until).getTime() : Infinity],
-  plan_valid_until: ['Expire le', c => c.plan_valid_until ? new Date(c.plan_valid_until).getTime() : -1],
-  boutique_count: ['Boutiques (propriétaire)', c => Number(c.boutique_count)],
-  payments_count: ['Paiements', c => Number(c.payments_count)],
-  total_paid: ['Total payé', c => Number(c.total_paid)],
-  created_at: ['Inscrit le', c => new Date(c.created_at).getTime()],
+  email:      ['col_email', c => c.email.toLowerCase()],
+  full_name:  ['col_name', c => (c.full_name||'').toLowerCase()],
+  plan:       ['col_plan', c => c.plan],
+  status:     ['col_status', c => c.plan_valid_until ? new Date(c.plan_valid_until).getTime() : Infinity],
+  plan_valid_until: ['col_expires', c => c.plan_valid_until ? new Date(c.plan_valid_until).getTime() : -1],
+  boutique_count: ['col_boutiques', c => Number(c.boutique_count)],
+  payments_count: ['col_payments', c => Number(c.payments_count)],
+  total_paid: ['col_total_paid', c => Number(c.total_paid)],
+  created_at: ['col_registered', c => new Date(c.created_at).getTime()],
 };
 let clientSort = {key: 'created_at', dir: -1};
 function sortClients(key) {
@@ -383,21 +556,21 @@ function renderClients() {
   });
   const th = key => {
     const arrow = clientSort.key === key ? (clientSort.dir === 1 ? ' ▲' : ' ▼') : '';
-    return `<th style="cursor:pointer;user-select:none" onclick="sortClients('${key}')">${CLIENT_COLUMNS[key][0]}${arrow}</th>`;
+    return `<th style="cursor:pointer;user-select:none" onclick="sortClients('${key}')">${t(CLIENT_COLUMNS[key][0])}${arrow}</th>`;
   };
   document.getElementById('clientsBody').innerHTML = rows.length ? `<table><thead><tr>
       ${Object.keys(CLIENT_COLUMNS).map(th).join('')}
     </tr></thead><tbody>
     ${rows.map(c => `<tr>
-      <td>${c.email} <button class="copy-btn" title="Copier l'email" onclick="copyClientEmail('${c.email}')">📋</button></td>
+      <td>${c.email} <button class="copy-btn" title="${t('copy_email_title')}" onclick="copyClientEmail('${c.email}')">📋</button></td>
       <td>${c.full_name||'—'}</td><td>${c.plan}</td><td>${clientStatusPill(c)}</td>
       <td>${fmtDate(c.plan_valid_until)}</td><td>${boutiqueCell(c)}</td><td>${c.payments_count}</td>
       <td>${fmtMoney(c.total_paid)}</td><td>${fmtDate(c.created_at)}</td>
     </tr>`).join('')}
-    </tbody></table>` : '<p style="color:var(--gray)">Aucun client ne correspond à cette recherche.</p>';
+    </tbody></table>` : '<p style="color:var(--gray)">'+t('no_clients_match')+'</p>';
 }
 function copyClientEmail(email) {
-  navigator.clipboard.writeText(email).then(() => showToast('Email copié : '+email, 'success')).catch(() => showToast('Impossible de copier', 'error'));
+  navigator.clipboard.writeText(email).then(() => showToast(t('email_copied')+email, 'success')).catch(() => showToast(t('copy_failed'), 'error'));
 }
 function filteredClients() {
   const q = (document.getElementById('clientSearch').value || '').toLowerCase();
@@ -410,8 +583,8 @@ function filteredClients() {
   );
 }
 function clientExportRows() {
-  const headers = ['Email','Nom','Plan','Expire le','Nb. boutiques','Noms des boutiques','Paiements','Total payé (FCFA)','Inscrit le'];
-  const rows = filteredClients().map(c => [c.email, c.full_name||'—', c.plan, fmtDate(c.plan_valid_until), c.boutique_count, (c.boutique_names||[]).join(', ') || (c.member_boutique_names||[]).map(n=>n+' (membre)').join(', ') || '—', c.payments_count, fmtMoney(c.total_paid), fmtDate(c.created_at)]);
+  const headers = [t('col_email'), t('col_name'), t('col_plan'), t('col_expires'), t('export_header_boutiques_count'), t('export_header_boutiques_names'), t('col_payments'), t('export_header_total_paid_fcfa'), t('col_registered')];
+  const rows = filteredClients().map(c => [c.email, c.full_name||'—', c.plan, fmtDate(c.plan_valid_until), c.boutique_count, (c.boutique_names||[]).join(', ') || (c.member_boutique_names||[]).map(n=>n+t('export_member_suffix')).join(', ') || '—', c.payments_count, fmtMoney(c.total_paid), fmtDate(c.created_at)]);
   return {headers, rows};
 }
 // Fichier .xls (tableau HTML) plutot qu'un CSV brut : s'ouvre directement
@@ -447,7 +620,7 @@ function exportPdf(title, headers, rows) {
       th,td{padding:6px 8px;border-bottom:1px solid #ddd;text-align:left;white-space:nowrap}
       th{background:#eff6ff}
     </style></head><body>
-    <h1>${title} — ${new Date().toLocaleDateString('fr-FR')}</h1>
+    <h1>${title} — ${new Date().toLocaleDateString(LANG === 'en' ? 'en-US' : 'fr-FR')}</h1>
     <table><thead><tr>${headers.map(h=>'<th>'+h+'</th>').join('')}</tr></thead><tbody>
       ${rows.map(r => '<tr>'+r.map(v=>'<td>'+v+'</td>').join('')+'</tr>').join('')}
     </tbody></table>
@@ -457,25 +630,25 @@ function exportPdf(title, headers, rows) {
 }
 function exportClientsExcel() {
   const {headers, rows} = clientExportRows();
-  exportExcel('Clients MYBOUTIK', 'clients-myboutik.xls', headers, rows);
+  exportExcel(t('export_title_clients'), 'clients-myboutik.xls', headers, rows);
 }
 function exportClientsPdf() {
   const {headers, rows} = clientExportRows();
-  exportPdf('Clients MYBOUTIK', headers, rows);
+  exportPdf(t('export_title_clients'), headers, rows);
 }
 function exportRevenueExcel() {
   const {headers, rows} = revenueExportRows();
-  exportExcel('Revenus '+CURRENT_REVENUE_YEAR+' — MYBOUTIK', 'revenus-'+CURRENT_REVENUE_YEAR+'-myboutik.xls', headers, rows);
+  exportExcel(t('export_title_revenue_prefix')+CURRENT_REVENUE_YEAR+t('export_title_suffix'), 'revenus-'+CURRENT_REVENUE_YEAR+'-myboutik.xls', headers, rows);
 }
 function exportRevenuePdf() {
   const {headers, rows} = revenueExportRows();
-  exportPdf('Revenus '+CURRENT_REVENUE_YEAR+' — MYBOUTIK', headers, rows);
+  exportPdf(t('export_title_revenue_prefix')+CURRENT_REVENUE_YEAR+t('export_title_suffix'), headers, rows);
 }
 function revenueExportRows() {
-  const headers = ['Mois','Revenu (FCFA)'];
+  const headers = [t('col_month'), t('export_header_revenue_fcfa')];
   const total = CURRENT_REVENUE_ROWS.reduce((s,r) => s+Number(r.revenue), 0);
   const rows = CURRENT_REVENUE_ROWS.map(r => [r.name, r.revenue ? fmtMoney(r.revenue) : '—']);
-  rows.push(['Total '+CURRENT_REVENUE_YEAR, fmtMoney(total)]);
+  rows.push([t('export_total_prefix')+CURRENT_REVENUE_YEAR, fmtMoney(total)]);
   return {headers, rows};
 }
 let HISTORY_ROWS = [];
@@ -486,42 +659,47 @@ function renderHistory(rows) {
 function renderHistoryFiltered() {
   const q = (document.getElementById('historySearch').value || '').toLowerCase();
   const rows = HISTORY_ROWS.filter(r => !q || r.email.toLowerCase().includes(q) || r.plan.toLowerCase().includes(q));
-  const statusPill = s => s==='approved' ? '<span class="pill pill-ok">Approuvé</span>' : s==='rejected' ? '<span class="pill pill-bad">Rejeté</span>' : '<span class="pill pill-warn">En attente</span>';
-  document.getElementById('historyBody').innerHTML = rows.length ? `<table><thead><tr><th>Email</th><th>Plan</th><th>Statut</th><th>Demandé le</th><th>Traité le</th></tr></thead><tbody>
-    ${rows.map(r => `<tr><td>${r.email}</td><td>${r.plan}</td><td>${statusPill(r.status)}</td><td>${new Date(r.created_at).toLocaleString('fr-FR')}</td><td>${r.reviewed_at?new Date(r.reviewed_at).toLocaleString('fr-FR'):'—'}</td></tr>`).join('')}
-    </tbody></table>` : '<p style="color:var(--gray)">Aucun historique ne correspond à cette recherche.</p>';
+  const statusPill = s => s==='approved' ? '<span class="pill pill-ok">'+t('pill_approved')+'</span>' : s==='rejected' ? '<span class="pill pill-bad">'+t('pill_rejected')+'</span>' : '<span class="pill pill-warn">'+t('pill_pending')+'</span>';
+  const locale = LANG === 'en' ? 'en-US' : 'fr-FR';
+  document.getElementById('historyBody').innerHTML = rows.length ? `<table><thead><tr><th>${t('col_email')}</th><th>${t('col_plan')}</th><th>${t('col_status')}</th><th>${t('col_requested')}</th><th>${t('col_processed')}</th></tr></thead><tbody>
+    ${rows.map(r => `<tr><td>${r.email}</td><td>${r.plan}</td><td>${statusPill(r.status)}</td><td>${new Date(r.created_at).toLocaleString(locale)}</td><td>${r.reviewed_at?new Date(r.reviewed_at).toLocaleString(locale):'—'}</td></tr>`).join('')}
+    </tbody></table>` : '<p style="color:var(--gray)">'+t('no_history_match')+'</p>';
 }
 function renderSubs(rows) {
+  SUBS_ROWS = rows;
   const hoursSince = r => (Date.now() - new Date(r.created_at).getTime()) / 3600000;
-  document.getElementById('subsBody').innerHTML = rows.length ? `<table><thead><tr><th>Email</th><th>Plan</th><th>Date</th><th></th></tr></thead><tbody>
-    ${rows.map(r => `<tr><td>${r.email}</td><td>${r.plan}</td><td>${new Date(r.created_at).toLocaleString('fr-FR')}${hoursSince(r) > 24 ? '<span class="badge-late">⚠️ En attente depuis '+Math.floor(hoursSince(r)/24)+' j</span>' : ''}</td>
-      <td><button onclick="review('${r.id}','subscription_approve','${r.email}','${r.plan}',true)">Approuver</button>
-          <button class="ghost" onclick="review('${r.id}','subscription_reject','${r.email}','${r.plan}',false)">Rejeter</button></td></tr>`).join('')}
-    </tbody></table>` : '<p style="color:var(--gray)">Aucune demande en attente.</p>';
+  const locale = LANG === 'en' ? 'en-US' : 'fr-FR';
+  document.getElementById('subsBody').innerHTML = rows.length ? `<table><thead><tr><th>${t('col_email')}</th><th>${t('col_plan')}</th><th>${t('col_date')}</th><th></th></tr></thead><tbody>
+    ${rows.map(r => `<tr><td>${r.email}</td><td>${r.plan}</td><td>${new Date(r.created_at).toLocaleString(locale)}${hoursSince(r) > 24 ? '<span class="badge-late">'+tf('waiting_since', {n: Math.floor(hoursSince(r)/24)})+'</span>' : ''}</td>
+      <td><button onclick="review('${r.id}','subscription_approve','${r.email}','${r.plan}',true)">${t('btn_approve')}</button>
+          <button class="ghost" onclick="review('${r.id}','subscription_reject','${r.email}','${r.plan}',false)">${t('btn_reject')}</button></td></tr>`).join('')}
+    </tbody></table>` : '<p style="color:var(--gray)">'+t('no_pending_requests')+'</p>';
 }
 function renderPayouts(rows) {
-  document.getElementById('payoutsBody').innerHTML = rows.length ? `<table><thead><tr><th>Email</th><th>Montant</th><th>Méthode</th><th>Numéro</th><th></th></tr></thead><tbody>
-    ${rows.map(r => `<tr><td>${r.email}</td><td>${Math.round(r.amount).toLocaleString('fr-FR')} FCFA</td><td>${r.method||'—'}</td><td>${r.phone||'—'}</td>
-      <td><button onclick="markPayoutPaid('${r.id}','${r.email}',${Math.round(r.amount)})">Marquer payé</button></td></tr>`).join('')}
-    </tbody></table>` : '<p style="color:var(--gray)">Aucun retrait en attente.</p>';
+  PAYOUTS_ROWS = rows;
+  document.getElementById('payoutsBody').innerHTML = rows.length ? `<table><thead><tr><th>${t('col_email')}</th><th>${t('col_amount')}</th><th>${t('col_method')}</th><th>${t('col_number')}</th><th></th></tr></thead><tbody>
+    ${rows.map(r => `<tr><td>${r.email}</td><td>${Math.round(r.amount).toLocaleString(LANG === 'en' ? 'en-US' : 'fr-FR')} FCFA</td><td>${r.method||'—'}</td><td>${r.phone||'—'}</td>
+      <td><button onclick="markPayoutPaid('${r.id}','${r.email}',${Math.round(r.amount)})">${t('btn_mark_paid')}</button></td></tr>`).join('')}
+    </tbody></table>` : '<p style="color:var(--gray)">'+t('no_pending_payouts')+'</p>';
 }
 function review(id, action, email, plan, isApprove) {
-  const question = isApprove
-    ? 'Approuver le plan '+plan+' pour '+email+' ?\n\nSon abonnement sera activé/prolongé de 30 jours.'
-    : 'Rejeter la demande de plan '+plan+' pour '+email+' ?';
+  const question = isApprove ? tf('confirm_approve', {plan, email}) : tf('confirm_reject', {plan, email});
   if (!confirm(question)) return;
   call(action, {id}).then(data => {
-    showToast(data.message || (data.success ? 'Fait.' : 'Erreur.'), data.success ? 'success' : 'error');
+    showToast(data.message || (data.success ? t('toast_done') : t('toast_error')), data.success ? 'success' : 'error');
     loadAll();
   });
 }
 function markPayoutPaid(id, email, amount) {
-  if (!confirm('Confirmer que le retrait de '+amount.toLocaleString('fr-FR')+' FCFA pour '+email+' a bien été payé ?\n\nCette action est irréversible.')) return;
+  if (!confirm(tf('confirm_payout', {amount: amount.toLocaleString(LANG === 'en' ? 'en-US' : 'fr-FR'), email}))) return;
   call('payout_mark_paid', {id}).then(data => {
-    showToast(data.message || (data.success ? 'Paiement marqué payé.' : 'Erreur.'), data.success ? 'success' : 'error');
+    showToast(data.message || (data.success ? t('toast_payout_marked') : t('toast_error')), data.success ? 'success' : 'error');
     loadAll();
   });
 }
+document.getElementById('langFr').classList.toggle('active', LANG === 'fr');
+document.getElementById('langEn').classList.toggle('active', LANG === 'en');
+applyStaticTranslations();
 if (sessionStorage.getItem('myboutik_admin_pw')) {
   document.getElementById('adminPassword').value = sessionStorage.getItem('myboutik_admin_pw');
   loadAll();
