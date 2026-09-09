@@ -72,7 +72,7 @@ define('TWILIO_WHATSAPP_FROM',  getenv('TWILIO_WHATSAPP_FROM')  ?: null);
 // directement depuis un navigateur. A completer avec le(s) domaine(s) ou
 // sont hebergees index.html / dashboard / store une fois deployees.
 $ALLOWED_ORIGINS = [
-    'https://romariosia07-lab.github.io',
+    'https://lumen-devworks.github.io',
     'https://myboutik-ci.netlify.app',
 ];
 $requestOrigin = $_SERVER['HTTP_ORIGIN'] ?? '';
