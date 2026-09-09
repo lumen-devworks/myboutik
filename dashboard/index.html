@@ -793,6 +793,7 @@ const I18N = {
     multi_product_order_note: 'Une commande avec plusieurs produits ? Mettez une ligne par produit avec le même id_commande.',
     import_result_title: 'Résultat de l\'import',
     skipped_rows_prefix: 'Lignes ignorées :',
+    tiktok_link_copied: 'Lien copié — collez-le dans votre bio ou votre vidéo TikTok.',
     order_status_pending: 'En attente',
     order_status_processing: 'Validée',
     order_status_shipped: 'Expédiée',
@@ -1374,6 +1375,7 @@ const I18N = {
     multi_product_order_note: 'An order with multiple products? Put one row per product with the same id_commande.',
     import_result_title: 'Import result',
     skipped_rows_prefix: 'Skipped rows:',
+    tiktok_link_copied: 'Link copied — paste it in your bio or TikTok video.',
     order_status_pending: 'Pending',
     order_status_processing: 'Confirmed',
     order_status_shipped: 'Shipped',
@@ -3301,30 +3303,30 @@ function renderBilling() {
     const plans = Object.entries(B.plans);
     const daysLeft = B.plan_valid_until ? Math.ceil((new Date(B.plan_valid_until) - new Date()) / 86400000) : null;
     document.getElementById('content').innerHTML = `
-      <h2 class="page-title">Abonnement</h2>
-      <div class="page-sub">Plan actuel : <strong>${B.plans[B.current_plan]?.name || B.current_plan}</strong> ${B.plan_status==='active'?'<span class="pill pill-delivered">Actif</span>':'<span class="pill pill-pending">En attente</span>'}
-        ${daysLeft !== null ? (daysLeft >= 0 ? ' — accès valide jusqu\'au '+fmtDate(B.plan_valid_until)+' ('+daysLeft+' jour(s) restant(s))' : ' — <strong style="color:#b91c1c">accès expiré le '+fmtDate(B.plan_valid_until)+'</strong>') : ''}
+      <h2 class="page-title">${t('billing_title')}</h2>
+      <div class="page-sub">${t('current_plan_prefix')}<strong>${B.plans[B.current_plan]?.name || B.current_plan}</strong> ${B.plan_status==='active'?'<span class="pill pill-delivered">'+t('status_active')+'</span>':'<span class="pill pill-pending">'+t('status_pending')+'</span>'}
+        ${daysLeft !== null ? (daysLeft >= 0 ? t('access_valid_until_prefix')+fmtDate(B.plan_valid_until)+' ('+daysLeft+t('days_remaining_suffix') : ' — <strong style="color:#b91c1c">'+t('access_expired_prefix')+fmtDate(B.plan_valid_until)+'</strong>') : ''}
       </div>
-      ${daysLeft !== null && daysLeft < 0 ? '<div class="card" style="background:#fef2f2;border-color:#fecaca">⚠️ Votre accès aux boutiques est bloqué tant que vous ne renouvelez pas votre abonnement ci-dessous.</div>' : ''}
-      ${daysLeft !== null && daysLeft >= 0 && daysLeft <= 5 ? '<div class="card" style="background:var(--amber-bg);border-color:#fde68a">⏳ Votre abonnement expire dans '+daysLeft+' jour(s) — pensez à renouveler pour ne pas perdre l\'accès à vos boutiques.</div>' : ''}
-      ${B.pending_request ? `<div class="card" style="background:var(--amber-bg);border-color:#fde68a">Demande en cours pour le plan <strong>${B.plans[B.pending_request.plan]?.name}</strong> — ${B.payment_instructions}</div>` : ''}
+      ${daysLeft !== null && daysLeft < 0 ? '<div class="card" style="background:#fef2f2;border-color:#fecaca">'+t('blocked_access_warning')+'</div>' : ''}
+      ${daysLeft !== null && daysLeft >= 0 && daysLeft <= 5 ? '<div class="card" style="background:var(--amber-bg);border-color:#fde68a">'+t('expiring_soon_prefix')+daysLeft+t('expiring_soon_suffix')+'</div>' : ''}
+      ${B.pending_request ? `<div class="card" style="background:var(--amber-bg);border-color:#fde68a">${t('pending_request_prefix')}<strong>${B.plans[B.pending_request.plan]?.name}</strong> — ${B.payment_instructions}</div>` : ''}
       <div class="kpi-grid">
         ${plans.map(([key,p]) => `
           <div class="card" style="${key===B.current_plan?'border-color:var(--blue)':''}">
             <div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px">
               <h3 style="margin:0">${p.name}</h3>
-              ${key==='starter' ? '<span style="color:#16a34a;font-weight:700;font-size:26px;white-space:nowrap">1er mois gratuit</span>' : ''}
+              ${key==='starter' ? '<span style="color:#16a34a;font-weight:700;font-size:26px;white-space:nowrap">'+t('first_month_free')+'</span>' : ''}
             </div>
-            <div style="font-size:22px;font-weight:800;margin:8px 0">${fmtMoney(p.price)}<span class="muted" style="font-size:13px;font-weight:400">/mois</span></div>
-            <div class="muted" style="margin-bottom:14px">${p.boutique_limit} boutique(s)</div>
-            ${key===B.current_plan ? '<button class="btn btn-ghost btn-block" disabled>Plan actuel</button>' : '<button class="btn btn-primary btn-block" onclick="subscribeToPlan(\''+key+'\',\''+p.name+'\','+p.price+')">Choisir</button>'}
+            <div style="font-size:22px;font-weight:800;margin:8px 0">${fmtMoney(p.price)}<span class="muted" style="font-size:13px;font-weight:400">${t('per_month')}</span></div>
+            <div class="muted" style="margin-bottom:14px">${p.boutique_limit}${t('boutique_limit_suffix')}</div>
+            ${key===B.current_plan ? '<button class="btn btn-ghost btn-block" disabled>'+t('btn_current_plan')+'</button>' : '<button class="btn btn-primary btn-block" onclick="subscribeToPlan(\''+key+'\',\''+p.name+'\','+p.price+')">'+t('btn_choose')+'</button>'}
           </div>`).join('')}
       </div>
     `;
   });
 }
 function subscribeToPlan(plan, planName, price) {
-  if (!confirm('Passer au plan '+planName+' ('+fmtMoney(price)+'/mois) ?\n\nUne demande d\'activation sera envoyée ; votre plan actuel reste actif jusqu\'à validation du paiement par l\'équipe MYBOUTIK.')) return;
+  if (!confirm(tf('confirm_subscribe', {plan: planName, price: fmtMoney(price)}))) return;
   post('/billing?action=subscribe', {plan}).then(({data}) => {
     showToast(data.message, data.success ? 'success' : 'error');
     if (data.success) renderBilling();
@@ -3341,41 +3343,41 @@ function renderAffiliate() {
     const A = data.data;
     const link = window.location.origin + window.location.pathname.replace(/dashboard\/.*/, '') + '?ref=' + A.referral_code;
     document.getElementById('content').innerHTML = `
-      <h2 class="page-title">Affiliation</h2>
-      <div class="page-sub">Recommandez MYBOUTIK et gagnez 10% de chaque abonnement payé par vos filleuls.</div>
+      <h2 class="page-title">${t('affiliate_title')}</h2>
+      <div class="page-sub">${t('affiliate_subtitle')}</div>
       <div class="card">
-        <h3>Votre lien d'affiliation</h3>
-        <div class="page-sub">Gagnez 10% de chaque paiement d'abonnement de vos filleuls.</div>
+        <h3>${t('referral_link_title')}</h3>
+        <div class="page-sub">${t('referral_link_subtitle')}</div>
         <div class="field-row">
           <input id="refLinkInput" value="${link}" readonly>
-          <button class="btn btn-primary" onclick="copyRefLink()">Copier</button>
+          <button class="btn btn-primary" onclick="copyRefLink()">${t('btn_copy')}</button>
         </div>
       </div>
       <div class="kpi-grid">
-        <div class="kpi"><div class="lbl">Clics sur le lien</div><div class="val">${A.clicks}</div></div>
-        <div class="kpi"><div class="lbl">Inscriptions</div><div class="val">${A.signups}</div></div>
-        <div class="kpi"><div class="lbl">Abonnés payants</div><div class="val">${A.paying_referrals}</div></div>
-        <div class="kpi"><div class="lbl">Total gagné</div><div class="val">${fmtMoney(A.total_earned)}</div></div>
+        <div class="kpi"><div class="lbl">${t('kpi_link_clicks')}</div><div class="val">${A.clicks}</div></div>
+        <div class="kpi"><div class="lbl">${t('kpi_signups')}</div><div class="val">${A.signups}</div></div>
+        <div class="kpi"><div class="lbl">${t('kpi_paying_referrals')}</div><div class="val">${A.paying_referrals}</div></div>
+        <div class="kpi"><div class="lbl">${t('kpi_total_earned')}</div><div class="val">${fmtMoney(A.total_earned)}</div></div>
       </div>
       <div class="card">
-        <h3>Mes commissions</h3>
+        <h3>${t('commissions_title')}</h3>
         <div class="kpi-grid">
-          <div class="kpi"><div class="lbl">En attente de validation</div><div class="val">${fmtMoney(A.pending_validation)}</div></div>
-          <div class="kpi" style="background:var(--success-bg,#ecfdf5)"><div class="lbl">Disponible au retrait</div><div class="val">${fmtMoney(A.available)}</div></div>
-          <div class="kpi"><div class="lbl">Déjà payé</div><div class="val">${fmtMoney(A.paid)}</div></div>
+          <div class="kpi"><div class="lbl">${t('kpi_pending_validation')}</div><div class="val">${fmtMoney(A.pending_validation)}</div></div>
+          <div class="kpi" style="background:var(--success-bg,#ecfdf5)"><div class="lbl">${t('kpi_available_withdraw')}</div><div class="val">${fmtMoney(A.available)}</div></div>
+          <div class="kpi"><div class="lbl">${t('kpi_already_paid')}</div><div class="val">${fmtMoney(A.paid)}</div></div>
         </div>
-        <div class="muted" style="margin:10px 0">Une commission devient disponible après ${A.validation_days} jours de validation. Retrait minimum : ${fmtMoney(A.min_payout)}.</div>
+        <div class="muted" style="margin:10px 0">${tf('commission_validation_note', {days: A.validation_days, min: fmtMoney(A.min_payout)})}</div>
         <div class="field-row">
           <select id="payoutMethod"><option value="wave">Wave</option><option value="orange_money">Orange Money</option><option value="mtn_momo">MTN MoMo</option><option value="moov_money">Moov Money</option></select>
-          <input id="payoutPhone" placeholder="+225 00 00 00 00 00">
-          <button class="btn btn-primary" ${A.available<A.min_payout?'disabled':''} onclick="requestPayout()">Demander le retrait</button>
+          <input id="payoutPhone" placeholder="${t('placeholder_payout_phone')}">
+          <button class="btn btn-primary" ${A.available<A.min_payout?'disabled':''} onclick="requestPayout()">${t('btn_request_payout')}</button>
         </div>
       </div>
       <div class="card">
-        <h3>Mes filleuls</h3>
-        ${A.referred_users.length ? `<table><thead><tr><th>Email</th><th>Statut</th><th>Inscrit le</th></tr></thead><tbody>
-          ${A.referred_users.map(r=>`<tr><td>${escapeHtml(r.email)}</td><td>${r.plan_status==='active'?'<span class="pill pill-delivered">Payant</span>':'<span class="pill pill-pending">Inscrit</span>'}</td><td>${fmtDate(r.created_at)}</td></tr>`).join('')}
-          </tbody></table>` : '<div class="empty">Personne pour l\'instant — partagez votre lien pour commencer à gagner.</div>'}
+        <h3>${t('referrals_title')}</h3>
+        ${A.referred_users.length ? `<table><thead><tr><th>${t('col_email')}</th><th>${t('col_status')}</th><th>${t('col_registered_on')}</th></tr></thead><tbody>
+          ${A.referred_users.map(r=>`<tr><td>${escapeHtml(r.email)}</td><td>${r.plan_status==='active'?'<span class="pill pill-delivered">'+t('status_paying')+'</span>':'<span class="pill pill-pending">'+t('status_signed_up')+'</span>'}</td><td>${fmtDate(r.created_at)}</td></tr>`).join('')}
+          </tbody></table>` : '<div class="empty">'+t('no_referrals_yet')+'</div>'}
       </div>
     `;
   });
@@ -3403,7 +3405,7 @@ function storeLink() {
 // d'equivalent web, d'ou l'absence de bouton pour ce reseau.
 function shareStoreOn(network) {
   const link = storeLink();
-  const text = 'Découvrez ' + CURRENT.name + ' !';
+  const text = (LANG === 'en' ? 'Check out ' : 'Découvrez ') + CURRENT.name + (LANG === 'en' ? '!' : ' !');
   const urls = {
     whatsapp: 'https://wa.me/?text=' + encodeURIComponent(text + ' ' + link),
     facebook: 'https://www.facebook.com/sharer/sharer.php?u=' + encodeURIComponent(link),
@@ -3412,7 +3414,7 @@ function shareStoreOn(network) {
   };
   if (network === 'tiktok') {
     navigator.clipboard.writeText(link).catch(() => {});
-    showToast('Lien copié — collez-le dans votre bio ou votre vidéo TikTok.', 'info');
+    showToast(t('tiktok_link_copied'), 'info');
     window.open('https://www.tiktok.com/upload', '_blank');
     return;
   }
@@ -3420,7 +3422,7 @@ function shareStoreOn(network) {
 }
 function requestPayout() {
   const phone = document.getElementById('payoutPhone').value.trim();
-  if (!phone) { showToast('Numéro Mobile Money requis', 'error'); return; }
+  if (!phone) { showToast(t('err_mobile_money_required'), 'error'); return; }
   post('/billing?action=affiliate_request_payout', {method:document.getElementById('payoutMethod').value, phone}).then(({data}) => {
     showToast(data.message, data.success ? 'success' : 'error');
     if (data.success) renderAffiliate();
