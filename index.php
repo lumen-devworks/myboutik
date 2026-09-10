@@ -2465,6 +2465,7 @@ function route_orders($action) {
         case 'get':                orders_get($pl); break;
         case 'create':              orders_create_manual($pl); break;
         case 'update_status':       orders_update_status($pl); break;
+        case 'resend_digital':      orders_resend_digital($pl); break;
         case 'abandoned_list':      abandoned_list($pl); break;
         case 'abandoned_mark':      abandoned_mark($pl); break;
         case 'abandoned_settings_get':  abandoned_settings_get($pl); break;
@@ -2579,11 +2580,12 @@ function orders_update_status($pl) {
 // rien si : deja envoye pour cette commande (digital_delivery_sent_at),
 // aucun email client connu, ou aucun article non physique n'a de contenu
 // renseigne par le marchand.
-function maybe_send_digital_delivery($bt, $o) {
-    if (!empty($o['digital_delivery_sent_at'])) return;
-    if (empty($o['customer_id'])) return;
-    $email = trim((string)(q("SELECT email FROM customers WHERE id=?", [$o['customer_id']])->fetchColumn() ?: ''));
-    if ($email === '') return;
+// $claimNewCodes=true (premier envoi) : pioche de nouveaux codes dans le
+// pool. $claimNewCodes=false (renvoi manuel, voir orders_resend_digital()) :
+// reutilise les codes DEJA attribues a cette commande plutot que d'en piocher
+// de nouveaux - un renvoi doit redonner exactement ce que le client a deja
+// recu, jamais un code different ni consommer le pool une deuxieme fois.
+function digital_delivery_parts($bt, $o, $claimNewCodes) {
     $items = q("SELECT oi.product_id, oi.product_name, oi.qty, p.is_digital, p.digital_delivery_content
                 FROM order_items oi LEFT JOIN products p ON p.id = oi.product_id
                 WHERE oi.order_id=?", [$o['id']])->fetchAll();
@@ -2598,35 +2600,71 @@ function maybe_send_digital_delivery($bt, $o) {
         $pieces = [];
         $content = trim((string)($it['digital_delivery_content'] ?? ''));
         if ($content !== '') $pieces[] = $content;
-        $poolSize = (int)q("SELECT COUNT(*) c FROM product_digital_codes WHERE product_id=?", [$it['product_id']])->fetch()['c'];
-        if ($poolSize > 0) {
-            // Pioche atomique d'un code disponible par unite commandee : le
-            // SELECT ... FOR UPDATE SKIP LOCKED evite que deux commandes du
-            // meme produit livrees en meme temps ne recuperent le meme code.
-            $codes = [];
-            for ($i = 0; $i < (int)$it['qty']; $i++) {
-                $code = q("UPDATE product_digital_codes SET status='used', used_by_order_id=?, used_at=NOW()
-                           WHERE id = (SELECT id FROM product_digital_codes WHERE product_id=? AND status='available'
-                                       ORDER BY created_at LIMIT 1 FOR UPDATE SKIP LOCKED)
-                           RETURNING code", [$o['id'], $it['product_id']])->fetchColumn();
-                if ($code === false) break;
-                $codes[] = $code;
+        if ($claimNewCodes) {
+            $poolSize = (int)q("SELECT COUNT(*) c FROM product_digital_codes WHERE product_id=?", [$it['product_id']])->fetch()['c'];
+            if ($poolSize > 0) {
+                // Pioche atomique d'un code disponible par unite commandee :
+                // le SELECT ... FOR UPDATE SKIP LOCKED evite que deux
+                // commandes du meme produit livrees en meme temps ne
+                // recuperent le meme code.
+                $codes = [];
+                for ($i = 0; $i < (int)$it['qty']; $i++) {
+                    $code = q("UPDATE product_digital_codes SET status='used', used_by_order_id=?, used_at=NOW()
+                               WHERE id = (SELECT id FROM product_digital_codes WHERE product_id=? AND status='available'
+                                           ORDER BY created_at LIMIT 1 FOR UPDATE SKIP LOCKED)
+                               RETURNING code", [$o['id'], $it['product_id']])->fetchColumn();
+                    if ($code === false) break;
+                    $codes[] = $code;
+                }
+                if ($codes) $pieces[] = (count($codes) > 1 ? 'Vos codes' : 'Votre code').' : '.implode(', ', $codes);
+                if (count($codes) < (int)$it['qty']) {
+                    log_activity($bt['id'], 'Stock de codes numeriques epuise pour '.$it['product_name'].' (commande '.$o['ref'].')');
+                }
             }
-            if ($codes) {
-                $pieces[] = (count($codes) > 1 ? 'Vos codes' : 'Votre code').' : '.implode(', ', $codes);
-            }
-            if (count($codes) < (int)$it['qty']) {
-                log_activity($bt['id'], 'Stock de codes numeriques epuise pour '.$it['product_name'].' (commande '.$o['ref'].')');
-            }
+        } else {
+            $codes = q("SELECT code FROM product_digital_codes WHERE product_id=? AND used_by_order_id=?",
+                       [$it['product_id'], $o['id']])->fetchAll(PDO::FETCH_COLUMN);
+            if ($codes) $pieces[] = (count($codes) > 1 ? 'Vos codes' : 'Votre code').' : '.implode(', ', $codes);
         }
         if ($pieces) $parts[] = $it['product_name'].":\n".implode("\n", $pieces);
     }
+    return $parts;
+}
+
+function maybe_send_digital_delivery($bt, $o) {
+    if (!empty($o['digital_delivery_sent_at'])) return;
+    if (empty($o['customer_id'])) return;
+    $email = trim((string)(q("SELECT email FROM customers WHERE id=?", [$o['customer_id']])->fetchColumn() ?: ''));
+    if ($email === '') return;
+    $parts = digital_delivery_parts($bt, $o, true);
     if (!$parts) return;
     $body = "Bonjour,\n\nMerci pour votre commande ".$o['ref']." chez ".$bt['name'].
         " ! Voici votre/vos produit(s) numerique(s) :\n\n".implode("\n\n", $parts).
         "\n\nBonne utilisation !";
     send_email($email, 'Votre produit numerique - commande '.$o['ref'].' - '.$bt['name'], $body);
     q("UPDATE orders SET digital_delivery_sent_at=NOW() WHERE id=?", [$o['id']]);
+}
+
+// Renvoi manuel a la demande du marchand (bouton "Renvoyer" sur une commande
+// numerique deja livree) - typiquement quand le client dit ne rien avoir
+// recu (spam, adresse mal tapee corrigee entre temps...). Contrairement au
+// premier envoi, jamais bloque par digital_delivery_sent_at : c'est prevu
+// pour etre redeclenchable autant de fois que necessaire.
+function orders_resend_digital($pl) {
+    $b = body();
+    $bt = require_boutique_owned($b['boutique_id'] ?? '', $pl['sub']);
+    $o = order_owned($b['id'] ?? '', $bt['id']);
+    if (empty($o['customer_id'])) fail('Client introuvable');
+    $email = trim((string)(q("SELECT email FROM customers WHERE id=?", [$o['customer_id']])->fetchColumn() ?: ''));
+    if ($email === '') fail('Ce client n\'a pas d\'email enregistre');
+    $parts = digital_delivery_parts($bt, $o, false);
+    if (!$parts) fail('Aucun contenu numerique a renvoyer pour cette commande');
+    $body = "Bonjour,\n\nVoici a nouveau votre/vos produit(s) numerique(s) pour la commande ".$o['ref']." chez ".$bt['name'].
+        " :\n\n".implode("\n\n", $parts)."\n\nBonne utilisation !";
+    send_email($email, 'Votre produit numerique - commande '.$o['ref'].' - '.$bt['name'], $body);
+    q("UPDATE orders SET digital_delivery_sent_at=NOW() WHERE id=?", [$o['id']]);
+    log_activity($bt['id'], 'Livraison numerique renvoyee pour la commande '.$o['ref'], $pl['sub']);
+    ok(null, 'Email renvoye a '.$email);
 }
 
 function abandoned_list($pl) {
@@ -4097,9 +4135,28 @@ function cron_stock_alerts() {
         $low = q("SELECT name, stock_qty, low_stock_threshold FROM products
                    WHERE boutique_id=? AND status='active' AND track_inventory=1 AND stock_qty <= low_stock_threshold
                    ORDER BY stock_qty ASC LIMIT 30", [$bt['id']])->fetchAll();
-        if (!$low) continue;
-        $lines = array_map(fn($p) => '- '.$p['name'].' : '.$p['stock_qty'].' restant(s)', $low);
-        $message = "Stock limite sur ".count($low)." produit(s) de ".$bt['name'].":\n".implode("\n", $lines);
+        // Meme seuil (low_stock_threshold) reutilise pour le pool de codes
+        // numeriques - seuls les produits ayant deja au moins un code dans
+        // leur pool sont concernes (poolSize=0 = le marchand n'utilise pas
+        // les codes pour ce produit, rien a signaler).
+        $lowCodes = q("SELECT p.name,
+                         (SELECT COUNT(*) FROM product_digital_codes c WHERE c.product_id=p.id AND c.status='available') AS available_codes
+                       FROM products p
+                       WHERE p.boutique_id=? AND p.status='active' AND p.is_digital=1
+                         AND EXISTS (SELECT 1 FROM product_digital_codes c WHERE c.product_id=p.id)
+                         AND (SELECT COUNT(*) FROM product_digital_codes c WHERE c.product_id=p.id AND c.status='available') <= p.low_stock_threshold
+                       ORDER BY available_codes ASC LIMIT 30", [$bt['id']])->fetchAll();
+        if (!$low && !$lowCodes) continue;
+        $messageParts = [];
+        if ($low) {
+            $lines = array_map(fn($p) => '- '.$p['name'].' : '.$p['stock_qty'].' restant(s)', $low);
+            $messageParts[] = "Stock limite sur ".count($low)." produit(s) physique(s) :\n".implode("\n", $lines);
+        }
+        if ($lowCodes) {
+            $lines = array_map(fn($p) => '- '.$p['name'].' : '.$p['available_codes'].' code(s) disponible(s)', $lowCodes);
+            $messageParts[] = "Stock de codes numeriques limite sur ".count($lowCodes)." produit(s) :\n".implode("\n", $lines);
+        }
+        $message = implode("\n\n", $messageParts)."\n\nBoutique : ".$bt['name'];
         $settings = q("SELECT notify_order_email, notify_email FROM boutiques WHERE id=?", [$bt['id']])->fetch();
         if ($settings['notify_order_email']) {
             $to = $settings['notify_email'] ?: (q("SELECT email FROM users WHERE id=?", [$bt['owner_user_id']])->fetchColumn() ?: null);

@@ -80,6 +80,7 @@
       <div><div class="name">MYBOUTIK</div><div class="tagline" id="taglineText"></div></div>
     </div>
     <div class="header-actions">
+      <a id="accountLink" href="../index.html" style="border:1px solid var(--border);background:#fff;border-radius:999px;padding:7px 14px;font-size:12px;font-weight:700"></a>
       <button id="installBtn" onclick="installApp()">📲 <span id="installBtnText"></span></button>
       <div class="lang-switch"><button type="button" onclick="setLang('fr')" id="langFr">FR</button><button type="button" onclick="setLang('en')" id="langEn">EN</button></div>
     </div>
@@ -140,6 +141,8 @@ function fmtMoney(n, currency) { return Math.round(Number(n)||0).toLocaleString(
 const I18N = {
   fr: {
     tagline: 'Annuaire des boutiques',
+    my_dashboard_link: '📊 Mon tableau de bord',
+    login_link: '🔑 Se connecter',
     hero_title: 'Trouvez votre prochaine boutique',
     hero_desc: 'Parcourez les boutiques MYBOUTIK qui ont choisi d\'être visibles ici, ou cherchez directement un article.',
     mode_shops: '🏬 Boutiques',
@@ -163,6 +166,8 @@ const I18N = {
   },
   en: {
     tagline: 'Shop directory',
+    my_dashboard_link: '📊 My dashboard',
+    login_link: '🔑 Log in',
     hero_title: 'Find your next shop',
     hero_desc: 'Browse MYBOUTIK shops that chose to be visible here, or search directly for a product.',
     mode_shops: '🏬 Shops',
@@ -205,10 +210,21 @@ function setMode(mode) {
   runSearch();
 }
 
+// Le meme localStorage (myboutik_token) est partage par toutes les pages du
+// site (index.html, dashboard, ici) puisqu'il n'est pas lie a un chemin -
+// un marchand deja connecte via une autre page est donc deja reconnu ici,
+// sans avoir a se reconnecter juste pour changer de contexte.
+function applyAccountLink() {
+  const link = document.getElementById('accountLink');
+  const loggedIn = !!localStorage.getItem('myboutik_token');
+  link.href = loggedIn ? '../dashboard/index.html' : '../index.html';
+  link.textContent = loggedIn ? t('my_dashboard_link') : t('login_link');
+}
 function applyStaticText() {
   document.getElementById('langFr').classList.toggle('active', LANG === 'fr');
   document.getElementById('langEn').classList.toggle('active', LANG === 'en');
   document.getElementById('taglineText').textContent = t('tagline');
+  applyAccountLink();
   document.getElementById('heroTitle').textContent = t('hero_title');
   document.getElementById('heroDesc').textContent = t('hero_desc');
   document.getElementById('modeShops').textContent = t('mode_shops');
@@ -252,7 +268,7 @@ function renderShops(rows, q) {
     return;
   }
   area.innerHTML = '<div class="shops-grid">'+rows.map(b => `
-    <a class="shop-card" href="../store/index.html?b=${encodeURIComponent(b.slug)}">
+    <a class="shop-card" href="../store/index.html?b=${encodeURIComponent(b.slug)}&utm_source=annuaire">
       <div class="top">
         ${b.logo_url ? '<img class="logo" src="'+b.logo_url+'">' : '<div class="ph">🏬</div>'}
         <div class="name">${escapeHtml(b.name)}</div>
@@ -269,7 +285,7 @@ function renderProducts(rows) {
     return;
   }
   area.innerHTML = '<div class="products-grid">'+rows.map(p => `
-    <a class="product-card" href="../store/index.html?b=${encodeURIComponent(p.boutique_slug)}&p=${encodeURIComponent(p.product_slug||'')}">
+    <a class="product-card" href="../store/index.html?b=${encodeURIComponent(p.boutique_slug)}&p=${encodeURIComponent(p.product_slug||'')}&utm_source=annuaire">
       <div class="pname">${escapeHtml(p.name)}</div>
       <div class="price">${fmtMoney(p.price, p.currency)}</div>
       <div class="shop">${t('sold_by')}${escapeHtml(p.boutique_name)}</div>

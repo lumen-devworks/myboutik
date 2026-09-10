@@ -1,9 +1,9 @@
 {
-  "name": "MYBOUTIK — Annuaire des boutiques",
+  "name": "MYBOUTIK — Achetez et gérez votre boutique",
   "short_name": "MYBOUTIK",
-  "description": "Découvrez et achetez chez des boutiques en ligne locales, paiement à la livraison.",
+  "description": "Découvrez et achetez chez des boutiques en ligne locales, ou gérez la vôtre — paiement à la livraison.",
   "start_url": "./index.html",
-  "scope": "./",
+  "scope": "../",
   "display": "standalone",
   "orientation": "portrait",
   "background_color": "#f4f6fb",

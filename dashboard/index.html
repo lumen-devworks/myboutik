@@ -316,6 +316,8 @@ const I18N = {
     col_status: 'Statut',
     col_date: 'Date',
     btn_bordereau: '🖨️ Bordereau',
+    btn_resend_digital: '✉️ Renvoyer',
+    confirm_resend_digital: 'Renvoyer le contenu numérique (même code) au client pour la commande {ref} ?',
     btn_print_selected: '🖨️ Imprimer les bordereaux sélectionnés',
     err_select_at_least_one_order: 'Sélectionnez au moins une commande',
     bulk_bordereau_title: 'Bordereaux de livraison',
@@ -560,7 +562,7 @@ const I18N = {
     placeholder_digital_delivery: 'Ex : Lien de téléchargement : https://... ou code de licence : XXXX-XXXX',
     digital_delivery_note: 'Envoyé par email automatiquement dès que la commande passe au statut "Livrée" — uniquement si le client a renseigné son email à la commande.',
     label_digital_codes_pool: 'Codes uniques (optionnel)',
-    digital_codes_pool_note: 'Utilisez ceci en plus ou à la place du champ ci-dessus quand chaque acheteur doit recevoir un code différent (licences, codes cadeaux...) — un code est pioché automatiquement à chaque vente et jamais réutilisé. Le contenu ci-dessus et un code pioché ici sont envoyés ensemble si les deux sont renseignés.',
+    digital_codes_pool_note: 'Utilisez ceci en plus ou à la place du champ ci-dessus quand chaque acheteur doit recevoir un code différent (licences, codes cadeaux...) — un code est pioché automatiquement à chaque vente et jamais réutilisé. Le contenu ci-dessus et un code pioché ici sont envoyés ensemble si les deux sont renseignés. Le seuil "Alerte stock limité" plus haut s\'applique aussi au nombre de codes disponibles.',
     placeholder_digital_codes: 'Un code par ligne, ex :\nABCD-1234-EFGH\nWXYZ-5678-IJKL',
     btn_add_codes: '+ Ajouter ces codes au stock',
     codes_saved_with_product_note: 'Ces codes seront enregistrés avec le produit dès que vous cliquerez sur "Enregistrer" ci-dessous.',
@@ -924,6 +926,8 @@ const I18N = {
     col_status: 'Status',
     col_date: 'Date',
     btn_bordereau: '🖨️ Waybill',
+    btn_resend_digital: '✉️ Resend',
+    confirm_resend_digital: 'Resend the digital content (same code) to the customer for order {ref}?',
     btn_print_selected: '🖨️ Print selected waybills',
     err_select_at_least_one_order: 'Select at least one order',
     bulk_bordereau_title: 'Delivery waybills',
@@ -1168,7 +1172,7 @@ const I18N = {
     placeholder_digital_delivery: 'E.g.: Download link: https://... or license code: XXXX-XXXX',
     digital_delivery_note: 'Sent by email automatically as soon as the order status becomes "Delivered" — only if the customer entered their email at checkout.',
     label_digital_codes_pool: 'Unique codes (optional)',
-    digital_codes_pool_note: 'Use this in addition to or instead of the field above when each buyer must get a different code (licenses, gift codes...) — one code is automatically picked per sale and never reused. The content above and a code picked here are both sent together if both are filled in.',
+    digital_codes_pool_note: 'Use this in addition to or instead of the field above when each buyer must get a different code (licenses, gift codes...) — one code is automatically picked per sale and never reused. The content above and a code picked here are both sent together if both are filled in. The "Low-stock alert" threshold above also applies to the number of codes available.',
     placeholder_digital_codes: 'One code per line, e.g.:\nABCD-1234-EFGH\nWXYZ-5678-IJKL',
     btn_add_codes: '+ Add these codes to stock',
     codes_saved_with_product_note: 'These codes will be saved with the product as soon as you click "Save" below.',
@@ -1755,7 +1759,7 @@ function renderOrdersTable(rows, bt, compact) {
       ${compact?'':'<td><input type="checkbox" class="order-check" value="'+o.id+'"></td>'}
       <td>${escapeHtml(o.ref)}${orderTypeBadge(o)}</td><td>${escapeHtml(o.customer_name)}<br><span class="muted">${escapeHtml(o.customer_phone)}</span></td>
       <td>${fmtMoney(o.total, bt.currency)}</td><td>${pill(o.status)}</td>
-      ${compact?'':'<td>'+fmtDate(o.created_at)+'</td><td>'+orderStatusSelect(o)+'</td><td><button class="btn btn-ghost btn-sm" onclick="printOrderBordereau(\''+o.id+'\')">'+t('btn_bordereau')+'</button></td>'}
+      ${compact?'':'<td>'+fmtDate(o.created_at)+'</td><td>'+orderStatusSelect(o)+'</td><td style="white-space:nowrap"><button class="btn btn-ghost btn-sm" onclick="printOrderBordereau(\''+o.id+'\')">'+t('btn_bordereau')+'</button>'+(Number(o.has_digital)===1 && o.status==='delivered' ? ' <button class="btn btn-ghost btn-sm" onclick="resendDigitalDelivery(\''+o.id+'\',\''+escapeHtml(o.ref)+'\')">'+t('btn_resend_digital')+'</button>' : '')+'</td>'}
     </tr>`).join('')}
   </tbody></table>`;
 }
@@ -1844,6 +1848,15 @@ function printOrderBordereau(orderId) {
   api('/orders?action=get&boutique_id='+CURRENT.id+'&id='+orderId).then(({data}) => {
     if (!data.success) { showToast(data.message, 'error'); return; }
     openBordereauWindow([data.data], t('invoice_title_prefix')+escapeHtml(data.data.ref));
+  });
+}
+// Renvoie le meme contenu numerique (meme code, pas un nouveau pioche dans
+// le pool - voir orders_resend_digital() cote serveur) - utile quand le
+// client dit ne rien avoir recu (spam, adresse corrigee entre temps...).
+function resendDigitalDelivery(orderId, ref) {
+  if (!confirm(t('confirm_resend_digital').replace('{ref}', ref))) return;
+  post('/orders?action=resend_digital', {boutique_id:CURRENT.id, id:orderId}).then(({data}) => {
+    showToast(data.message, data.success ? 'success' : 'error');
   });
 }
 function printSelectedBordereaux() {
