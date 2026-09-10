@@ -19,6 +19,12 @@
   .lang-switch{display:flex;gap:3px;background:var(--bg);border:1px solid var(--border);border-radius:999px;padding:3px}
   .lang-switch button{background:none;color:var(--gray);border:none;padding:6px 10px;font-size:11px;font-weight:700;border-radius:999px;cursor:pointer}
   .lang-switch button.active{background:var(--blue);color:#fff}
+  #toastContainer{position:fixed;top:18px;left:50%;transform:translateX(-50%);z-index:200;display:flex;flex-direction:column;gap:8px;align-items:center;pointer-events:none;max-width:90vw}
+  .toast{pointer-events:auto;padding:12px 20px;border-radius:10px;font-size:14px;font-weight:600;box-shadow:0 6px 18px rgba(15,23,42,.15);max-width:440px;text-align:center;opacity:0;transform:translateY(-8px);transition:opacity .2s,transform .2s}
+  .toast.show{opacity:1;transform:translateY(0)}
+  .toast-success{background:#dcfce7;color:#166534;border:1px solid #86efac}
+  .toast-error{background:#fee2e2;color:#991b1b;border:1px solid #fecaca}
+  .toast-info{background:#eff6ff;color:#1e40af;border:1px solid #bfdbfe}
 
   .products-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:18px;padding:28px 0}
   .cat-pill{flex-shrink:0;padding:7px 14px;border-radius:999px;border:1px solid var(--border);background:#fff;font-size:13px;cursor:pointer;white-space:nowrap}
@@ -70,6 +76,7 @@
 <div class="overlay" id="productOverlay"><div class="sheet" id="productSheet"></div></div>
 <div class="overlay" id="cartOverlay"><div class="sheet" id="cartSheet"></div></div>
 <div class="overlay" id="trackOverlay"><div class="sheet" id="trackSheet"></div></div>
+<div id="toastContainer"></div>
 
 <script src="../config.js"></script>
 <script>
@@ -86,6 +93,19 @@ function getSlug() {
   return '';
 }
 const SLUG = getSlug();
+function showToast(message, type) {
+  const container = document.getElementById('toastContainer');
+  if (!container) { window.alert(message); return; }
+  const el = document.createElement('div');
+  el.className = 'toast toast-' + (type || 'info');
+  el.textContent = message;
+  container.appendChild(el);
+  requestAnimationFrame(() => el.classList.add('show'));
+  setTimeout(() => {
+    el.classList.remove('show');
+    setTimeout(() => el.remove(), 300);
+  }, 4000);
+}
 function sessionId() {
   let id = sessionStorage.getItem('myboutik_session');
   if (!id) { id = 'sess_'+Math.random().toString(36).slice(2)+Date.now().toString(36); sessionStorage.setItem('myboutik_session', id); }
@@ -737,14 +757,24 @@ function trackAbandoned() {
   post('/shop?action=track_abandoned', {slug:SLUG, session_id:sessionId(), phone, email, cart:CART, total});
 }
 
+// #checkoutMsg est en haut du formulaire de commande - si le client a
+// deja scrolle vers le bouton "Confirmer" en bas, un message affiche la-haut
+// passe inapercu (l'impression que le clic ne fait rien). Le toast
+// (position fixe, toujours visible) et le scroll vers le message reglent
+// ca en meme temps.
+function showCheckoutError(message) {
+  const el = document.getElementById('checkoutMsg');
+  if (el) { el.innerHTML = '<div class="msg error">'+message+'</div>'; el.scrollIntoView({behavior:'smooth', block:'center'}); }
+  showToast(message, 'error');
+}
 function submitCheckout() {
   const name = document.getElementById('coName').value.trim();
   const phone = document.getElementById('coPhone').value.trim();
   const address = document.getElementById('coAddress').value.trim();
   const email = document.getElementById('coEmail').value.trim();
-  if (!name || !phone) { document.getElementById('checkoutMsg').innerHTML = '<div class="msg error">'+t('name_phone_required')+'</div>'; return; }
-  if (CART.length === 0) { document.getElementById('checkoutMsg').innerHTML = '<div class="msg error">'+t('cart_empty_error')+'</div>'; return; }
-  if (cartHasDigitalItem() && !email) { document.getElementById('checkoutMsg').innerHTML = '<div class="msg error">'+t('digital_email_required_error')+'</div>'; return; }
+  if (!name || !phone) { showCheckoutError(t('name_phone_required')); return; }
+  if (CART.length === 0) { showCheckoutError(t('cart_empty_error')); return; }
+  if (cartHasDigitalItem() && !email) { showCheckoutError(t('digital_email_required_error')); return; }
   const btn = document.getElementById('coSubmitBtn'); btn.disabled = true; btn.textContent = t('sending_in_progress');
   const params = new URLSearchParams(window.location.search);
   post('/shop?action=checkout', {
@@ -755,7 +785,7 @@ function submitCheckout() {
     promo_code: APPLIED_PROMO ? APPLIED_PROMO.code : '',
   }).then(({data}) => {
     btn.disabled = false; btn.textContent = t('confirm_order_btn');
-    if (!data.success) { document.getElementById('checkoutMsg').innerHTML = '<div class="msg error">'+data.message+'</div>'; return; }
+    if (!data.success) { showCheckoutError(data.message); return; }
     window.__lastOrderRef = data.data.ref;
     CART = []; saveCart(); APPLIED_PROMO = null;
     renderCartSheet('confirm');
