@@ -2700,15 +2700,24 @@ function addOptionRow() {
 // Etiquettes (tags) plutot qu'un champ texte libre "separe par des virgules"
 // - ambigu et source d'erreur (un merchant qui tape des espaces ou des
 // points-virgules se retrouvait avec une seule "valeur" fourre-tout au lieu
-// de plusieurs tailles/couleurs distinctes). Entree ou virgule valident une
-// etiquette, Retour arriere sur un champ vide supprime la derniere.
+// de plusieurs tailles/couleurs distinctes, ex: "S M XL" ou "Rouge ;Vert;
+// Orange" comme UNE seule valeur, donc une seule variante generee). Entree,
+// virgule OU point-virgule valident une/des etiquette(s) - et si plusieurs
+// valeurs separees par , ou ; ont ete tapees/collees d'un coup, chacune
+// devient sa propre etiquette au lieu d'une seule fourre-tout. L'espace
+// n'est volontairement PAS un separateur : des valeurs legitimes en
+// contiennent (ex: "Vert fonce"). Retour arriere sur un champ vide supprime
+// la derniere etiquette.
 function handleOptionTagInput(e, rowIndex) {
-  if (e.key === 'Enter' || e.key === ',') {
+  if (e.key === 'Enter' || e.key === ',' || e.key === ';') {
     e.preventDefault();
-    const val = e.target.value.trim().replace(/,$/, '');
-    if (val) {
+    const raw = e.target.value.replace(/[,;]$/, '');
+    const parts = raw.split(/[,;]+/).map(v => v.trim()).filter(Boolean);
+    if (parts.length) {
       if (!window.__optionRows[rowIndex].values) window.__optionRows[rowIndex].values = [];
-      if (!window.__optionRows[rowIndex].values.includes(val)) window.__optionRows[rowIndex].values.push(val);
+      parts.forEach((val) => {
+        if (!window.__optionRows[rowIndex].values.includes(val)) window.__optionRows[rowIndex].values.push(val);
+      });
       renderOptionRows();
       focusOptionRowInput(rowIndex);
     } else {

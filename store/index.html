@@ -133,6 +133,7 @@ const I18N = {
     add_slug_hint: "Ajoutez ?b=nom-de-la-boutique à l'adresse.",
     shop_not_found_closed: 'Boutique introuvable ou fermée.',
     track_order_btn: '📦 Suivre ma commande',
+    back_to_directory: '← Annuaire',
     cart_btn: '🛒 Panier',
     promo_banner_suffix: ' — à saisir au moment de commander !',
     search_placeholder: 'Rechercher un produit…',
@@ -212,6 +213,7 @@ const I18N = {
     add_slug_hint: 'Add ?b=shop-name to the address.',
     shop_not_found_closed: 'Shop not found or closed.',
     track_order_btn: '📦 Track my order',
+    back_to_directory: '← Directory',
     cart_btn: '🛒 Cart',
     promo_banner_suffix: ' — enter it when you order!',
     search_placeholder: 'Search for a product…',
@@ -337,8 +339,9 @@ if (!SLUG) {
 function renderShop() {
   document.getElementById('root').innerHTML = `
     <header><div class="wrap bar">
-      <div style="display:flex;align-items:center;gap:10px">
-        ${BOUTIQUE.logo_url ? '<img src="'+escapeHtml(BOUTIQUE.logo_url)+'" style="width:36px;height:36px;border-radius:8px;object-fit:cover">' : ''}
+      <div style="display:flex;align-items:center;gap:10px;min-width:0">
+        <a href="../directory/index.html" style="flex-shrink:0;font-size:12px;font-weight:700;color:var(--gray);white-space:nowrap" title="${t('back_to_directory')}">${t('back_to_directory')}</a>
+        ${BOUTIQUE.logo_url ? '<img src="'+escapeHtml(BOUTIQUE.logo_url)+'" style="width:36px;height:36px;border-radius:8px;object-fit:cover;flex-shrink:0">' : ''}
         <div class="shop-name">${escapeHtml(BOUTIQUE.name)}</div>
       </div>
       <div style="display:flex;align-items:center;gap:8px">
