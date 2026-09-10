@@ -214,6 +214,7 @@ const EN_DICT = [
     'Non autorise' => 'Not authorized',
     'Note invalide (1 a 5)' => 'Invalid rating (1 to 5)',
     'Numero Mobile Money requis' => 'Mobile Money number required',
+    'Un email est requis pour recevoir un produit numerique' => 'An email is required to receive a digital product',
     'Numero de commande et telephone requis' => 'Order number and phone required',
     'Panneau admin non configure (variable ADMIN_PASSWORD absente)' => 'Admin panel not configured (ADMIN_PASSWORD variable missing)',
     'Parametres enregistres' => 'Settings saved',
@@ -2045,6 +2046,15 @@ function shop_checkout() {
             $lineData[] = [
                 'product' => $product, 'variant' => $variant, 'qty' => $qty, 'unit_price' => $unitPrice,
             ];
+        }
+        // L'email n'est obligatoire que si le panier contient au moins un
+        // produit non physique - c'est le seul moyen de lui faire parvenir
+        // sa livraison numerique plus tard (voir maybe_send_digital_delivery()).
+        // Pour un panier 100% physique, il reste optionnel comme avant.
+        foreach ($lineData as $l) {
+            if (!$l['product']['is_physical'] && $customerEmail === '') {
+                throw new Exception('Un email est requis pour recevoir un produit numerique');
+            }
         }
         // Le frais de livraison vient de la boutique (reglage marchand), pas
         // du client - jamais du corps de la requete publique, pour eviter

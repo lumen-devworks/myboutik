@@ -148,6 +148,8 @@ const I18N = {
     checkout_phone_label: 'Téléphone',
     checkout_address_label: 'Adresse de livraison',
     checkout_email_label: 'Email (optionnel — pour recevoir la confirmation de commande)',
+    checkout_email_label_required: 'Email (obligatoire — pour recevoir votre produit numérique)',
+    digital_email_required_error: 'Un email est requis pour recevoir un produit numérique',
     promo_placeholder: 'Code promo',
     promo_remove_btn: 'Retirer',
     promo_apply_btn: 'Appliquer',
@@ -222,6 +224,8 @@ const I18N = {
     checkout_phone_label: 'Phone',
     checkout_address_label: 'Delivery address',
     checkout_email_label: 'Email (optional — to receive the order confirmation)',
+    checkout_email_label_required: 'Email (required — to receive your digital product)',
+    digital_email_required_error: 'An email is required to receive a digital product',
     promo_placeholder: 'Promo code',
     promo_remove_btn: 'Remove',
     promo_apply_btn: 'Apply',
@@ -579,6 +583,15 @@ function openCart() {
 // donc on retient le plus eleve plutot que de les additionner. Purement
 // pour l'affichage avant validation - le total facture reste toujours
 // recalcule cote serveur a la commande.
+// Vrai si le panier contient au moins un produit non physique (numerique) -
+// utilise pour rendre l'email obligatoire uniquement dans ce cas (voir
+// maybe_send_digital_delivery() cote serveur, qui en a besoin pour livrer).
+function cartHasDigitalItem() {
+  return CART.some(l => {
+    const p = PRODUCTS.find(x => x.id === l.product_id);
+    return p && Number(p.is_physical) === 0;
+  });
+}
 function computeDeliveryFee() {
   let fee = 0;
   CART.forEach(l => {
@@ -658,7 +671,7 @@ function renderCartSheet(step, prefill) {
       <div class="field"><label>${t('checkout_phone_label')}</label><input id="coPhone" value="${escapeHtml(prefill.phone||'')}" oninput="onCheckoutPhoneInput()" onblur="trackAbandoned()"></div>
       <div id="personalPromoHint"></div>
       <div class="field"><label>${t('checkout_address_label')}</label><textarea id="coAddress" rows="2">${escapeHtml(prefill.address||'')}</textarea></div>
-      <div class="field"><label>${t('checkout_email_label')}</label><input id="coEmail" type="email" value="${escapeHtml(prefill.email||'')}" oninput="onCheckoutPhoneInput()" onblur="trackAbandoned()"></div>
+      <div class="field"><label>${cartHasDigitalItem() ? t('checkout_email_label_required') : t('checkout_email_label')}</label><input id="coEmail" type="email" value="${escapeHtml(prefill.email||'')}" oninput="onCheckoutPhoneInput()" onblur="trackAbandoned()"></div>
       ${promoFieldHtml()}
       ${totalsHtml}
       <button class="btn btn-primary" id="coSubmitBtn" onclick="submitCheckout()">${t('confirm_order_btn')}</button>
@@ -730,6 +743,7 @@ function submitCheckout() {
   const email = document.getElementById('coEmail').value.trim();
   if (!name || !phone) { document.getElementById('checkoutMsg').innerHTML = '<div class="msg error">'+t('name_phone_required')+'</div>'; return; }
   if (CART.length === 0) { document.getElementById('checkoutMsg').innerHTML = '<div class="msg error">'+t('cart_empty_error')+'</div>'; return; }
+  if (cartHasDigitalItem() && !email) { document.getElementById('checkoutMsg').innerHTML = '<div class="msg error">'+t('digital_email_required_error')+'</div>'; return; }
   const btn = document.getElementById('coSubmitBtn'); btn.disabled = true; btn.textContent = t('sending_in_progress');
   const params = new URLSearchParams(window.location.search);
   post('/shop?action=checkout', {
