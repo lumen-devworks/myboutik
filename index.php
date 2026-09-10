@@ -4022,9 +4022,17 @@ function feedback_submit_public() {
 // ============================================================
 function route_admin($action) {
     if (!ADMIN_PASSWORD) fail('Panneau admin non configure (variable ADMIN_PASSWORD absente)', 503);
-    rate_limit_check('admin_auth', 30, 300);
     $password = bg('password', '');
-    if (!hash_equals(ADMIN_PASSWORD, (string)$password)) fail('Mot de passe incorrect', 403);
+    // Le compteur ne s'incremente que sur un MAUVAIS mot de passe - le
+    // panneau admin declenche 7 appels par chargement de page (un par
+    // carte), donc compter aussi les appels avec le bon mot de passe
+    // epuisait le quota au bout de 4-5 rechargements en 5 minutes, meme
+    // pour l'operateur legitime. La protection anti-bruteforce reste
+    // intacte : un mot de passe errone continue de compter.
+    if (!hash_equals(ADMIN_PASSWORD, (string)$password)) {
+        rate_limit_check('admin_auth', 30, 300);
+        fail('Mot de passe incorrect', 403);
+    }
     switch ($action) {
         case 'subscription_requests': admin_subscription_requests(); break;
         case 'subscription_approve':  admin_subscription_approve(); break;
