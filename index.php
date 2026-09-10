@@ -103,7 +103,7 @@ function t($msg) {
     return EN_DICT[$msg] ?? $msg;
 }
 const EN_DICT = [
-    '12 images maximum par produit' => '12 images maximum per product',
+    '5 images maximum par produit' => '5 images maximum per product',
     'Action inconnue' => 'Unknown action',
     'Action non autorisee pour votre role' => 'Action not allowed for your role',
     'Action reservee au proprietaire ou a un administrateur de la boutique' => 'Action reserved for the shop owner or an administrator',
@@ -1636,8 +1636,8 @@ function products_create($pl) {
     }
     // Photos supplementaires choisies avant meme la creation du produit (le
     // formulaire n'a plus besoin d'un aller-retour enregistrer/rouvrir pour
-    // en ajouter plusieurs) - meme plafond de 12 que product_image_add().
-    $extraImages = array_slice(array_filter((array)($b['extra_images'] ?? []), fn($d) => trim((string)$d) !== ''), 0, 11);
+    // en ajouter plusieurs) - meme plafond de 5 que product_image_add().
+    $extraImages = array_slice(array_filter((array)($b['extra_images'] ?? []), fn($d) => trim((string)$d) !== ''), 0, 4);
     foreach ($extraImages as $i => $data) {
         q("INSERT INTO product_images (id,product_id,boutique_id,data,position,is_primary) VALUES (?,?,?,?,?,0)",
           [uid(), $id, $bt['id'], $data, $i + 1]);
@@ -1720,7 +1720,7 @@ function product_image_add($pl) {
     $data = trim($b['data'] ?? '');
     if ($data === '') fail('Image manquante');
     $count = (int)q("SELECT COUNT(*) c FROM product_images WHERE product_id=?", [$p['id']])->fetch()['c'];
-    if ($count >= 12) fail('12 images maximum par produit', 400);
+    if ($count >= 5) fail('5 images maximum par produit', 400);
     $isPrimary = $count === 0 ? 1 : 0;
     $id = uid();
     q("INSERT INTO product_images (id,product_id,boutique_id,data,position,is_primary) VALUES (?,?,?,?,?,?)",

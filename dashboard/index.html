@@ -2610,7 +2610,7 @@ function renderProductFormModal(p, allProducts, categories) {
       `}
     </div>
     <div class="field">
-      <label>${t('label_photos')}${p.id?' ('+images.length+'/12)':''}</label>
+      <label>${t('label_photos')}${p.id?' ('+images.length+'/5)':''}</label>
       ${p.id ? `
       <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px">
         ${images.map(img => `
@@ -2621,7 +2621,7 @@ function renderProductFormModal(p, allProducts, categories) {
               : '<button type="button" onclick="setPrimaryProductImage(\''+img.id+'\')" style="position:absolute;bottom:2px;left:2px;background:#fff;border:1px solid var(--border);font-size:9px;padding:1px 4px;border-radius:4px;cursor:pointer">'+t('btn_set_primary')+'</button>'}
             <button type="button" onclick="deleteProductImage('${img.id}')" style="position:absolute;top:-6px;right:-6px;width:18px;height:18px;border-radius:50%;background:var(--red);color:#fff;border:none;font-size:11px;cursor:pointer;line-height:1">✕</button>
           </div>`).join('')}
-        ${images.length < 12 ? `
+        ${images.length < 5 ? `
           <label title="${t('title_choose_from_gallery')}" style="width:72px;height:72px;border:2px dashed var(--border);border-radius:8px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--gray);font-size:24px">+<input type="file" accept="image/*" multiple style="display:none" onchange="addProductImage(this)"></label>
           <label title="${t('title_take_photo')}" style="width:72px;height:72px;border:2px dashed var(--border);border-radius:8px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--gray);font-size:24px">📷<input type="file" accept="image/*" capture="environment" style="display:none" onchange="addProductImage(this)"></label>
         ` : ''}
@@ -2777,7 +2777,7 @@ function handleNewProductImageFile(input) {
     chain = chain.then(() => new Promise(resolve => {
       const primary = document.getElementById('prodImage').value.trim();
       const total = (primary ? 1 : 0) + window.__pendingExtraImages.length;
-      if (total >= 12) { resolve(); return; }
+      if (total >= 5) { resolve(); return; }
       resizeImageToDataUrl(file, 900, dataUrl => {
         if (!document.getElementById('prodImage').value.trim()) {
           document.getElementById('prodImage').value = dataUrl;

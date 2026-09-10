@@ -692,7 +692,7 @@ function renderCartSheet(step, prefill) {
       <div class="field"><label>${t('checkout_phone_label')}</label><input id="coPhone" value="${escapeHtml(prefill.phone||'')}" oninput="onCheckoutPhoneInput()" onblur="trackAbandoned()"></div>
       <div id="personalPromoHint"></div>
       <div class="field"><label>${t('checkout_address_label')}</label><textarea id="coAddress" rows="2">${escapeHtml(prefill.address||'')}</textarea></div>
-      <div class="field"><label>${cartHasDigitalItem() ? t('checkout_email_label_required') : t('checkout_email_label')}</label><input id="coEmail" type="email" value="${escapeHtml(prefill.email||'')}" oninput="onCheckoutPhoneInput()" onblur="trackAbandoned()"></div>
+      <div class="field"><label>${cartHasDigitalItem() ? '<span style="color:#dc2626;font-weight:800">★ </span>'+t('checkout_email_label_required') : t('checkout_email_label')}</label><input id="coEmail" type="email" value="${escapeHtml(prefill.email||'')}" oninput="onCheckoutPhoneInput()" onblur="trackAbandoned()" style="${cartHasDigitalItem()?'border-color:#dc2626':''}"></div>
       ${promoFieldHtml()}
       ${totalsHtml}
       <button class="btn btn-primary" id="coSubmitBtn" onclick="submitCheckout()">${t('confirm_order_btn')}</button>
