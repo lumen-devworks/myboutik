@@ -2702,17 +2702,18 @@ function addOptionRow() {
 // points-virgules se retrouvait avec une seule "valeur" fourre-tout au lieu
 // de plusieurs tailles/couleurs distinctes, ex: "S M XL" ou "Rouge ;Vert;
 // Orange" comme UNE seule valeur, donc une seule variante generee). Entree,
-// virgule OU point-virgule valident une/des etiquette(s) - et si plusieurs
-// valeurs separees par , ou ; ont ete tapees/collees d'un coup, chacune
-// devient sa propre etiquette au lieu d'une seule fourre-tout. L'espace
-// n'est volontairement PAS un separateur : des valeurs legitimes en
-// contiennent (ex: "Vert fonce"). Retour arriere sur un champ vide supprime
-// la derniere etiquette.
+// virgule, point-virgule OU espace valident une/des etiquette(s) - et si
+// plusieurs valeurs separees par , ; ou un espace ont ete tapees/collees
+// d'un coup, chacune devient sa propre etiquette au lieu d'une seule
+// fourre-tout. Compromis assume : une valeur "legitimement" composee de
+// plusieurs mots (ex: "Vert fonce") sera aussi coupee en deux etiquettes -
+// choix explicite du marchand pour prioriser la rapidite de saisie.
+// Retour arriere sur un champ vide supprime la derniere etiquette.
 function handleOptionTagInput(e, rowIndex) {
-  if (e.key === 'Enter' || e.key === ',' || e.key === ';') {
+  if (e.key === 'Enter' || e.key === ',' || e.key === ';' || e.key === ' ') {
     e.preventDefault();
-    const raw = e.target.value.replace(/[,;]$/, '');
-    const parts = raw.split(/[,;]+/).map(v => v.trim()).filter(Boolean);
+    const raw = e.target.value.replace(/[,;\s]$/, '');
+    const parts = raw.split(/[,;\s]+/).map(v => v.trim()).filter(Boolean);
     if (parts.length) {
       if (!window.__optionRows[rowIndex].values) window.__optionRows[rowIndex].values = [];
       parts.forEach((val) => {
