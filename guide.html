@@ -139,9 +139,24 @@
         <tr><td>Suivre la quantité</td><td>Décochez pour un produit à stock illimité (ex: service, produit numérique).</td></tr>
         <tr><td>Alerte stock limité</td><td>Seuil en dessous duquel vous serez alerté (page Produits) pour recommander.</td></tr>
       </table>
-      <p><strong>Photos</strong> : jusqu'à 12 par produit. Utilisez « Choisir un fichier » (galerie) ou « 📷 Prendre une photo » (ouvre directement l'appareil photo sur téléphone). La première photo ajoutée devient l'image principale ; vous pouvez en définir une autre comme principale, ou en supprimer, à tout moment.</p>
+      <p><strong>Photos</strong> : jusqu'à 5 par produit. Utilisez « Choisir un fichier » (galerie) ou « 📷 Prendre une photo » (ouvre directement l'appareil photo sur téléphone). La première photo ajoutée devient l'image principale ; vous pouvez en définir une autre comme principale, ou en supprimer, à tout moment. Pour un nouveau produit, vous pouvez déjà ajouter plusieurs photos avant même de l'enregistrer.</p>
       <p><strong>Produits associés</strong> : en bas du formulaire, cochez d'autres produits de votre catalogue à proposer en « Vous aimerez aussi » sur la fiche de ce produit côté vitrine — utile pour l'upsell (ex: proposer une housse avec un téléphone).</p>
       <p><strong>Catégories</strong> : bouton « Catégories » en haut de la page Produits pour créer/supprimer des catégories (ex: Chaussures, Vêtements), puis choisissez-en une dans le formulaire du produit (champ optionnel). Sur la vitrine, vos clients peuvent filtrer le catalogue par catégorie, et une barre de recherche permet de trouver un produit par son nom.</p>
+      <p><strong>Produit physique / Produit numérique</strong> : deux cases indépendantes (cocher l'une décoche l'autre) — un produit ne peut pas être les deux à la fois.</p>
+      <ul>
+        <li><strong>Produit physique</strong> : livré à l'adresse du client, facturé avec les frais de livraison, imprimable en bordereau.</li>
+        <li><strong>Produit numérique</strong> : rien n'est livré physiquement. Deux champs apparaissent — remplissez l'un, l'autre, ou les deux ensemble :
+          <ul>
+            <li><strong>Lien / instructions partagés</strong> : le même contenu envoyé à tous les acheteurs (ex: un lien Google Drive vers un fichier).</li>
+            <li><strong>Codes uniques</strong> : un pool de codes à usage unique que vous collez à l'avance (un par ligne) — utile pour des licences ou codes cadeaux, chaque vente pioche automatiquement un code différent, jamais réutilisé. Le nombre de codes disponibles s'affiche, et l'activité de la boutique vous prévient si le stock de codes s'épuise.</li>
+          </ul>
+        </li>
+      </ul>
+      <p>Le contenu numérique est envoyé <strong>automatiquement par email</strong> dès que vous passez la commande au statut « Livrée » (voir section 7) — le client doit avoir renseigné son email à la commande (obligatoire pour un produit numérique, optionnel sinon).</p>
+      <div class="card warn">
+        <strong>Aucune vérification automatique du paiement</strong>
+        Comme pour le paiement à la livraison, rien ne vérifie qu'un paiement Mobile Money a réellement eu lieu avant l'envoi — c'est à vous de vérifier la transaction avant de passer la commande à « Livrée », sans quoi le contenu part gratuitement et ne peut pas être « repris ».
+      </div>
     </section>
 
     <section id="variantes">
@@ -156,7 +171,7 @@
       </ol>
       <div class="card warn">
         <strong>Piège fréquent</strong>
-        Chaque valeur doit être validée par Entrée séparément. Écrire « S, M, L » dans le champ sans appuyer sur Entrée entre chaque ne crée qu'une seule valeur fourre-tout — les combinaisons ne fonctionneront pas côté vitrine.
+        Chaque valeur doit être validée séparément par Entrée, virgule ou point-virgule. Écrire « S M L » avec des espaces uniquement ne crée qu'une seule valeur fourre-tout — les combinaisons ne fonctionneront pas côté vitrine. Coller « S,M,L » ou « S;M;L » d'un coup fonctionne aussi : chaque valeur devient sa propre étiquette automatiquement.
       </div>
       <p>Côté acheteur, chaque option apparaît comme un menu déroulant séparé (un pour Taille, un pour Couleur). S'il choisit une combinaison qui n'a pas été générée, le bouton « Ajouter au panier » reste désactivé.</p>
     </section>
@@ -169,6 +184,7 @@
         <li><strong>Description</strong> : un texte de présentation affiché sous l'en-tête de la vitrine.</li>
         <li><strong>Frais de livraison par défaut</strong> : ajouté automatiquement au panier du client, sauf si un produit a son propre frais de livraison défini (qui prend alors le dessus).</li>
         <li><strong>Paiement à la livraison</strong> : à laisser activé si vous vendez des produits physiques — c'est le seul mode de paiement pris en charge pour eux actuellement. Ne concerne pas les produits numériques (voir section 3), qui restent vendables même si vous désactivez ceci.</li>
+        <li><strong>Lister ma boutique dans l'annuaire public MYBOUTIK</strong> : <strong>désactivé par défaut</strong>. L'annuaire (accessible via « Découvrir les boutiques » depuis la page d'accueil MYBOUTIK) permet à n'importe quel visiteur de parcourir et rechercher parmi les boutiques qui ont explicitement activé cette case, ainsi que de rechercher un article par son nom à travers toutes ces boutiques à la fois. Rien ne change pour vous si vous ne l'activez pas — votre boutique reste accessible uniquement via le lien que vous partagez vous-même.</li>
       </ul>
       <p><strong>Sauvegarde</strong> (en bas de la page) : bouton <strong>« ⬇️ Exporter une sauvegarde complète »</strong> — télécharge un fichier avec toutes les données de la boutique (produits, clients, commandes, finances…), à garder de côté au cas où. Réservé au propriétaire/administrateur. Les photos ne sont pas incluses, pour garder le fichier léger.</p>
     </section>
@@ -202,7 +218,8 @@
         <tr><td>Refusée</td><td>Le client a refusé à la livraison.</td></tr>
       </table>
       <p><strong>Livraisons</strong> : assignez chaque commande à un livreur (à créer via « + Ajouter un livreur » — nom, téléphone, véhicule…), puis faites évoluer son statut à chaque étape.</p>
-      <p><strong>Bordereau de livraison</strong> : bouton « 🖨️ Bordereau » sur une commande (page Commandes) — ouvre une fiche imprimable avec les coordonnées du client, les articles et le montant à encaisser, à remettre au livreur.</p>
+      <p><strong>📦 / 📧 sur la référence</strong> : chaque commande affiche un badge indiquant si elle contient un produit physique (📦, à livrer) et/ou un produit numérique (📧, envoyé par email) — les deux peuvent apparaître ensemble si le panier mélange les deux types.</p>
+      <p><strong>Bordereau de livraison</strong> : bouton « 🖨️ Bordereau » sur une commande (page Commandes) — ouvre une fiche imprimable avec les coordonnées du client, les articles et le montant à encaisser, à remettre au livreur. Pour en imprimer plusieurs d'un coup, cochez les commandes concernées puis cliquez « 🖨️ Imprimer les bordereaux sélectionnés » — chacun s'imprime sur sa propre page dans une seule fenêtre.</p>
       <p><strong>Confirmation au client</strong> : si le client renseigne son email à l'étape « Vos informations » (champ optionnel), il reçoit automatiquement un récapitulatif de sa commande par email (référence, articles, total à payer à la livraison).</p>
       <div class="card">
         <strong>Le stock ne bloque jamais une commande</strong>
@@ -420,9 +437,24 @@
         <tr><td>Track stock quantity</td><td>Uncheck for an unlimited-stock product (e.g. a service, a digital product).</td></tr>
         <tr><td>Low-stock alert</td><td>Threshold below which you'll be alerted (Products page) to reorder.</td></tr>
       </table>
-      <p><strong>Photos</strong>: up to 12 per product. Use "Choose a file" (gallery) or "📷 Take a photo" (opens the camera directly on a phone). The first photo added becomes the main image; you can set another as main, or delete one, at any time.</p>
+      <p><strong>Photos</strong>: up to 5 per product. Use "Choose a file" (gallery) or "📷 Take a photo" (opens the camera directly on a phone). The first photo added becomes the main image; you can set another as main, or delete one, at any time. For a new product, you can already add several photos before even saving it.</p>
       <p><strong>Related products</strong>: at the bottom of the form, check other products from your catalog to suggest as "You may also like" on this product's storefront page — useful for upselling (e.g. suggesting a case with a phone).</p>
       <p><strong>Categories</strong>: the "Categories" button at the top of the Products page lets you create/delete categories (e.g. Shoes, Clothing), then pick one in the product form (optional field). On the storefront, your customers can filter the catalog by category, and a search bar lets them find a product by name.</p>
+      <p><strong>Physical product / Digital product</strong>: two independent checkboxes (checking one unchecks the other) — a product can't be both at once.</p>
+      <ul>
+        <li><strong>Physical product</strong>: shipped to the customer's address, billed with delivery fees, printable as a waybill.</li>
+        <li><strong>Digital product</strong>: nothing is physically delivered. Two fields appear — fill in one, the other, or both together:
+          <ul>
+            <li><strong>Shared link / instructions</strong>: the same content sent to every buyer (e.g. a Google Drive link to a file).</li>
+            <li><strong>Unique codes</strong>: a pool of single-use codes you paste in advance (one per line) — useful for licenses or gift codes, each sale automatically picks a different code, never reused. The number of codes available is shown, and the shop's activity feed warns you if the code stock runs out.</li>
+          </ul>
+        </li>
+      </ul>
+      <p>Digital content is sent <strong>automatically by email</strong> as soon as you set the order's status to "Delivered" (see section 7) — the customer must have entered their email at checkout (required for a digital product, optional otherwise).</p>
+      <div class="card warn">
+        <strong>No automatic payment verification</strong>
+        Just like cash on delivery, nothing checks that a Mobile Money payment actually happened before sending - it's up to you to verify the transaction before setting the order to "Delivered", otherwise the content goes out for free and can't be "taken back".
+      </div>
     </section>
 
     <section id="variantes-en">
@@ -437,7 +469,7 @@
       </ol>
       <div class="card warn">
         <strong>Common pitfall</strong>
-        Each value must be confirmed with Enter separately. Typing "S, M, L" into the field without pressing Enter between each only creates one catch-all value — the combinations won't work on the storefront.
+        Each value must be confirmed separately with Enter, comma, or semicolon. Typing "S M L" with spaces only creates one catch-all value — the combinations won't work on the storefront. Pasting "S,M,L" or "S;M;L" in one go also works: each value automatically becomes its own tag.
       </div>
       <p>On the buyer's side, each option appears as a separate dropdown (one for Size, one for Color). If they pick a combination that wasn't generated, the "Add to cart" button stays disabled.</p>
     </section>
@@ -450,6 +482,7 @@
         <li><strong>Description</strong>: an introductory text shown under the storefront header.</li>
         <li><strong>Default delivery fee</strong>: added automatically to the customer's cart, unless a product has its own delivery fee set (which then takes over).</li>
         <li><strong>Cash on delivery</strong>: leave it enabled if you sell physical products — it's the only payment method currently supported for them. It doesn't affect digital products (see section 3), which stay sellable even if you turn this off.</li>
+        <li><strong>List my shop in the public MYBOUTIK directory</strong>: <strong>off by default</strong>. The directory (reachable via "Discover shops" from the MYBOUTIK home page) lets any visitor browse and search among shops that explicitly enabled this, and also search for a product by name across all of them at once. Nothing changes for you if you leave this off — your shop stays reachable only through the link you share yourself.</li>
       </ul>
       <p><strong>Backup</strong> (bottom of the page): "⬇️ Export a full backup" button — downloads a file with all the shop's data (products, customers, orders, finances…), to keep aside just in case. Owner/admin only. Photos aren't included, to keep the file light.</p>
     </section>
@@ -483,7 +516,8 @@
         <tr><td>Refused</td><td>The customer refused it at delivery.</td></tr>
       </table>
       <p><strong>Deliveries</strong>: assign each order to a delivery person (create one via "+ Add a delivery person" — name, phone, vehicle…), then move its status forward at each step.</p>
-      <p><strong>Delivery waybill</strong>: the "🖨️ Waybill" button on an order (Orders page) opens a printable sheet with the customer's details, the items, and the amount to collect, to hand to the delivery person.</p>
+      <p><strong>📦 / 📧 next to the reference</strong>: each order shows a badge for whether it contains a physical product (📦, to be shipped) and/or a digital product (📧, sent by email) — both can appear together if the cart mixes the two types.</p>
+      <p><strong>Delivery waybill</strong>: the "🖨️ Waybill" button on an order (Orders page) opens a printable sheet with the customer's details, the items, and the amount to collect, to hand to the delivery person. To print several at once, check the relevant orders then click "🖨️ Print selected waybills" - each one prints on its own page in a single window.</p>
       <p><strong>Customer confirmation</strong>: if the customer enters their email at the "Your information" step (optional field), they automatically receive an order summary by email (reference, items, total due on delivery).</p>
       <div class="card">
         <strong>Stock never blocks an order</strong>

@@ -110,6 +110,7 @@
   <div class="wrap">
     <div class="cta" id="footerCta"></div>
     <a class="btn" id="createShopBtn" href="../index.html"></a>
+    <div style="margin-top:14px"><a id="guideLink" href="../guide.html" style="color:var(--blue);font-weight:600;font-size:13px"></a></div>
   </div>
 </footer>
 
@@ -157,6 +158,7 @@ const I18N = {
     sold_by: 'Chez ',
     footer_cta: 'Vous vendez en ligne ? Créez votre boutique gratuitement sur MYBOUTIK.',
     create_shop_btn: 'Créer ma boutique',
+    guide_link: 'Consulter le guide d\'utilisation',
     server_unreachable: 'Impossible de contacter le serveur.',
   },
   en: {
@@ -179,6 +181,7 @@ const I18N = {
     sold_by: 'At ',
     footer_cta: 'Selling online? Create your shop for free on MYBOUTIK.',
     create_shop_btn: 'Create my shop',
+    guide_link: 'View the user guide',
     server_unreachable: 'Unable to reach the server.',
   },
 };
@@ -215,6 +218,7 @@ function applyStaticText() {
   document.getElementById('installBtnText').textContent = t('install_btn');
   document.getElementById('footerCta').textContent = t('footer_cta');
   document.getElementById('createShopBtn').textContent = t('create_shop_btn');
+  document.getElementById('guideLink').textContent = t('guide_link');
 }
 
 let searchTimer = null;
