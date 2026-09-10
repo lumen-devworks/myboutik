@@ -124,6 +124,8 @@ const EN_DICT = [
     'Avis supprime' => 'Review deleted',
     'Boutique creee' => 'Shop created',
     'Boutique introuvable' => 'Shop not found',
+    'Boutique suspendue' => 'Shop suspended',
+    'Boutique reactivee' => 'Shop reactivated',
     'Boutique mise a jour' => 'Shop updated',
     'Categorie creee' => 'Category created',
     'Categorie introuvable' => 'Category not found',
@@ -4034,6 +4036,8 @@ function route_admin($action) {
         case 'revenue_by_month':      admin_revenue_by_month(); break;
         case 'feedback_list':         admin_feedback_list(); break;
         case 'feedback_mark_replied': admin_feedback_mark_replied(); break;
+        case 'boutiques_list':        admin_boutiques_list(); break;
+        case 'boutique_set_status':   admin_boutique_set_status(); break;
         default: fail('Action inconnue', 404);
     }
 }
@@ -4107,6 +4111,31 @@ function admin_feedback_mark_replied() {
     if (!$id) fail('Introuvable', 404);
     q("UPDATE platform_feedback SET replied_at=NOW() WHERE id=?", [$id]);
     ok(null, 'Marque comme repondu');
+}
+
+// Vue d'ensemble de toutes les boutiques de la plateforme (pas seulement
+// celles d'un marchand connecte) - permet a l'operateur de retrouver une
+// boutique signalee et de la suspendre (voir admin_boutique_set_status()).
+function admin_boutiques_list() {
+    ok(q("SELECT b.id, b.name, b.slug, b.status, b.public_listed, b.category, b.city, b.created_at,
+                 u.email AS owner_email, u.full_name AS owner_name
+          FROM boutiques b JOIN users u ON u.id = b.owner_user_id
+          ORDER BY b.created_at DESC")->fetchAll());
+}
+// Suspendre = status different de 'active' : toutes les routes publiques
+// (vitrine, apercus OG, annuaire, alertes de stock) filtrent deja sur
+// status='active', donc ca coupe immediatement la boutique du public sans
+// toucher aux donnees ni empecher le marchand de se connecter a son
+// tableau de bord pour voir ce qui se passe.
+function admin_boutique_set_status() {
+    $b = body();
+    $id = $b['id'] ?? '';
+    $status = $b['status'] ?? '';
+    if (!in_array($status, ['active', 'suspended'], true)) fail('Statut invalide');
+    $row = q("SELECT id FROM boutiques WHERE id=?", [$id])->fetch();
+    if (!$row) fail('Boutique introuvable', 404);
+    q("UPDATE boutiques SET status=? WHERE id=?", [$status, $id]);
+    ok(null, $status === 'suspended' ? 'Boutique suspendue' : 'Boutique reactivee');
 }
 
 function admin_subscription_approve() {

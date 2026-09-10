@@ -107,7 +107,16 @@
     <button id="loginBtn" onclick="loadAll()">Se connecter</button>
   </div>
   <div id="dataCards" style="display:none">
+    <div style="text-align:right;margin-bottom:10px">
+      <button class="ghost" id="logoutBtn" onclick="adminLogout()">🚪 <span id="logoutBtnText"></span></button>
+    </div>
     <div class="stats-grid" id="statsGrid"></div>
+    <div class="card">
+      <h3 id="h3Boutiques">Boutiques</h3>
+      <div class="stats-grid" id="boutiquesStatsGrid" style="margin-bottom:16px"></div>
+      <input id="boutiqueSearch" placeholder="Rechercher par nom ou email…" style="max-width:280px" oninput="renderBoutiquesFiltered()">
+      <div class="table-wrap" id="boutiquesBody"></div>
+    </div>
     <div class="card">
       <h3 id="h3Subs">Demandes d'abonnement en attente</h3>
       <div id="subsBody"></div>
@@ -159,7 +168,13 @@
     </div>
     <div class="card">
       <h3 id="h3History">Historique des paiements (300 derniers)</h3>
-      <input id="historySearch" placeholder="Rechercher par email ou plan…" style="max-width:280px" oninput="renderHistoryFiltered()">
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px">
+        <input id="historySearch" placeholder="Rechercher par email ou plan…" style="max-width:280px;margin:0;flex:1 1 180px" oninput="renderHistoryFiltered()">
+        <div style="display:flex;gap:8px;flex-shrink:0">
+          <button class="ghost" id="btnHistoryExcel" onclick="exportHistoryExcel()">⬇️ Excel</button>
+          <button class="ghost" id="btnHistoryPdf" onclick="exportHistoryPdf()">⬇️ PDF</button>
+        </div>
+      </div>
       <div class="table-wrap" id="historyBody"></div>
     </div>
   </div>
@@ -242,6 +257,19 @@ const I18N = {
     feedback_mail_subject: 'Réponse à votre avis MYBOUTIK',
     feedback_mail_intro: 'Avis de {name} ({email}) du {date} — Note : {stars} ({rating}/5)',
     feedback_mail_reply_marker: '--- Votre réponse ci-dessous ---',
+    btn_logout: 'Se déconnecter',
+    h3_boutiques: 'Boutiques',
+    search_boutique_placeholder: 'Rechercher par nom ou email…',
+    col_owner: 'Propriétaire', col_directory: 'Annuaire public', col_city: 'Ville',
+    status_suspended: 'Suspendue', status_yes: 'Oui', status_no: 'Non',
+    btn_suspend: 'Suspendre', btn_reactivate: 'Réactiver',
+    no_boutiques_match: 'Aucune boutique ne correspond à cette recherche.',
+    confirm_suspend_boutique: 'Suspendre la boutique {name} ?\n\nSa vitrine publique et l\'annuaire ne seront plus accessibles aux clients. Le marchand garde l\'accès à son tableau de bord.',
+    confirm_reactivate_boutique: 'Réactiver la boutique {name} ?',
+    stat_boutiques_total: 'Boutiques', stat_boutiques_active: 'Actives',
+    stat_boutiques_suspended: 'Suspendues', stat_boutiques_listed: 'Listées (annuaire)',
+    no_history_to_export: 'Aucun historique à exporter.',
+    export_title_history: 'Historique des paiements MYBOUTIK',
   },
   en: {
     subtitle: 'Admin panel — Platform management',
@@ -305,6 +333,19 @@ const I18N = {
     feedback_mail_subject: 'Reply to your MYBOUTIK feedback',
     feedback_mail_intro: 'Feedback from {name} ({email}) on {date} — Rating: {stars} ({rating}/5)',
     feedback_mail_reply_marker: '--- Your reply below ---',
+    btn_logout: 'Log out',
+    h3_boutiques: 'Shops',
+    search_boutique_placeholder: 'Search by name or email…',
+    col_owner: 'Owner', col_directory: 'Public directory', col_city: 'City',
+    status_suspended: 'Suspended', status_yes: 'Yes', status_no: 'No',
+    btn_suspend: 'Suspend', btn_reactivate: 'Reactivate',
+    no_boutiques_match: 'No shop matches this search.',
+    confirm_suspend_boutique: 'Suspend the shop {name}?\n\nIts public storefront and directory listing will no longer be reachable by customers. The merchant keeps access to their dashboard.',
+    confirm_reactivate_boutique: 'Reactivate the shop {name}?',
+    stat_boutiques_total: 'Shops', stat_boutiques_active: 'Active',
+    stat_boutiques_suspended: 'Suspended', stat_boutiques_listed: 'Listed (directory)',
+    no_history_to_export: 'No history to export.',
+    export_title_history: 'MYBOUTIK payment history',
   },
 };
 function t(key) { return (I18N[LANG] && I18N[LANG][key]) ?? I18N.fr[key] ?? key; }
@@ -322,6 +363,7 @@ function setLang(lang) {
   if (document.getElementById('dataCards').style.display !== 'none') {
     renderStats(CLIENTS); renderClients(); renderHistoryFiltered();
     renderSubs(SUBS_ROWS); renderPayouts(PAYOUTS_ROWS); renderFeedback(FEEDBACK_ROWS);
+    renderBoutiquesFiltered();
     if (CURRENT_REVENUE_YEAR) renderRevenue();
   }
 }
@@ -351,6 +393,11 @@ function applyStaticTranslations() {
   document.getElementById('btnClientsPdf').textContent = t('export_pdf');
   document.getElementById('h3History').textContent = t('h3_history');
   document.getElementById('historySearch').placeholder = t('search_history_placeholder');
+  document.getElementById('btnHistoryExcel').textContent = t('export_excel_short');
+  document.getElementById('btnHistoryPdf').textContent = t('export_pdf_short');
+  document.getElementById('logoutBtnText').textContent = t('btn_logout');
+  document.getElementById('h3Boutiques').textContent = t('h3_boutiques');
+  document.getElementById('boutiqueSearch').placeholder = t('search_boutique_placeholder');
 }
 // L'icone reflete l'etat ACTUEL du champ : 🙈 = actuellement masque
 // (cliquer pour reveler), 👁️ = actuellement visible (cliquer pour masquer).
@@ -377,6 +424,7 @@ let CLIENTS = [];
 let SUBS_ROWS = [];
 let PAYOUTS_ROWS = [];
 let FEEDBACK_ROWS = [];
+let BOUTIQUES_ROWS = [];
 let REVENUE_BY_MONTH = []; // [{month:'2026-09', revenue: 12000}, ...]
 const MONTH_NAMES_FR = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
 const MONTH_NAMES_EN = ['January','February','March','April','May','June','July','August','September','October','November','December'];
@@ -505,6 +553,10 @@ function loadAll() {
     call('feedback_list').then(d6 => {
       if (!d6.success) { document.getElementById('feedbackBody').innerHTML = '<p style="color:#b91c1c">'+d6.message+'</p>'; return; }
       FEEDBACK_ROWS = d6.data || []; renderFeedback(FEEDBACK_ROWS);
+    });
+    call('boutiques_list').then(d7 => {
+      if (!d7.success) { document.getElementById('boutiquesBody').innerHTML = '<p style="color:#b91c1c">'+d7.message+'</p>'; return; }
+      BOUTIQUES_ROWS = d7.data || []; renderBoutiquesFiltered();
     });
   }).catch(() => { document.getElementById('loginMsg').innerHTML = '<div class="msg">'+t('server_unreachable')+'</div>'; });
 }
@@ -767,6 +819,74 @@ function markFeedbackReplied(id) {
     if (row) row.replied_at = new Date().toISOString();
     renderFeedback(FEEDBACK_ROWS);
   });
+}
+function renderBoutiquesStats() {
+  const total = BOUTIQUES_ROWS.length;
+  const active = BOUTIQUES_ROWS.filter(b => b.status === 'active').length;
+  const suspended = total - active;
+  const listed = BOUTIQUES_ROWS.filter(b => Number(b.public_listed)).length;
+  document.getElementById('boutiquesStatsGrid').innerHTML = `
+    <div class="stat" style="--accent:#ea580c"><div class="lbl">${t('stat_boutiques_total')}</div><div class="val">${total}</div></div>
+    <div class="stat" style="--accent:#0f9d63"><div class="lbl">${t('stat_boutiques_active')}</div><div class="val">${active}</div></div>
+    <div class="stat" style="--accent:#dc3545"><div class="lbl">${t('stat_boutiques_suspended')}</div><div class="val">${suspended}</div></div>
+    <div class="stat" style="--accent:#2563eb"><div class="lbl">${t('stat_boutiques_listed')}</div><div class="val">${listed}</div></div>
+  `;
+}
+function renderBoutiquesFiltered() {
+  renderBoutiquesStats();
+  const q = (document.getElementById('boutiqueSearch').value || '').toLowerCase();
+  const rows = BOUTIQUES_ROWS.filter(b => !q || b.name.toLowerCase().includes(q) || b.owner_email.toLowerCase().includes(q));
+  document.getElementById('boutiquesBody').innerHTML = rows.length ? `<table><thead><tr>
+      <th>${t('col_name')}</th><th>${t('col_owner')}</th><th>${t('col_status')}</th><th>${t('col_directory')}</th><th>${t('col_city')}</th><th>${t('col_registered')}</th><th></th>
+    </tr></thead><tbody>
+    ${rows.map(b => `<tr>
+      <td>${escapeAttr(b.name)}</td>
+      <td>${escapeAttr(b.owner_email)}</td>
+      <td>${b.status === 'active' ? '<span class="pill pill-ok">'+t('status_active')+'</span>' : '<span class="pill pill-bad">'+t('status_suspended')+'</span>'}</td>
+      <td>${Number(b.public_listed) ? '<span class="pill pill-ok">'+t('status_yes')+'</span>' : '<span class="pill" style="background:var(--bg);color:var(--gray)">'+t('status_no')+'</span>'}</td>
+      <td>${escapeAttr(b.city||'—')}</td>
+      <td>${fmtDate(b.created_at)}</td>
+      <td>${b.status === 'active'
+        ? '<button class="ghost" onclick="toggleBoutiqueStatus(\''+b.id+'\',\'suspended\')">'+t('btn_suspend')+'</button>'
+        : '<button onclick="toggleBoutiqueStatus(\''+b.id+'\',\'active\')">'+t('btn_reactivate')+'</button>'}</td>
+    </tr>`).join('')}
+    </tbody></table>` : '<p style="color:var(--gray)">'+t('no_boutiques_match')+'</p>';
+}
+function toggleBoutiqueStatus(id, status) {
+  const b = BOUTIQUES_ROWS.find(x => x.id === id);
+  const name = b ? b.name : '';
+  const question = status === 'suspended' ? tf('confirm_suspend_boutique', {name}) : tf('confirm_reactivate_boutique', {name});
+  if (!confirm(question)) return;
+  call('boutique_set_status', {id, status}).then(data => {
+    showToast(data.message || (data.success ? t('toast_done') : t('toast_error')), data.success ? 'success' : 'error');
+    if (data.success && b) b.status = status;
+    renderBoutiquesFiltered();
+  });
+}
+function adminLogout() {
+  sessionStorage.removeItem('myboutik_admin_pw');
+  document.getElementById('adminPassword').value = '';
+  document.getElementById('dataCards').style.display = 'none';
+  document.getElementById('loginCard').style.display = 'block';
+}
+function historyExportRows() {
+  const q = (document.getElementById('historySearch').value || '').toLowerCase();
+  const rows = HISTORY_ROWS.filter(r => !q || r.email.toLowerCase().includes(q) || r.plan.toLowerCase().includes(q));
+  const locale = LANG === 'en' ? 'en-US' : 'fr-FR';
+  const statusLabel = s => s==='approved' ? t('pill_approved') : s==='rejected' ? t('pill_rejected') : t('pill_pending');
+  const headers = [t('col_email'), t('col_plan'), t('col_status'), t('col_requested'), t('col_processed')];
+  const exportRows = rows.map(r => [r.email, r.plan, statusLabel(r.status), new Date(r.created_at).toLocaleString(locale), r.reviewed_at ? new Date(r.reviewed_at).toLocaleString(locale) : '—']);
+  return {headers, rows: exportRows};
+}
+function exportHistoryExcel() {
+  const {headers, rows} = historyExportRows();
+  if (!rows.length) { showToast(t('no_history_to_export'), 'error'); return; }
+  exportExcel(t('export_title_history'), 'historique-paiements-myboutik.xls', headers, rows);
+}
+function exportHistoryPdf() {
+  const {headers, rows} = historyExportRows();
+  if (!rows.length) { showToast(t('no_history_to_export'), 'error'); return; }
+  exportPdf(t('export_title_history'), headers, rows);
 }
 document.getElementById('langFr').classList.toggle('active', LANG === 'fr');
 document.getElementById('langEn').classList.toggle('active', LANG === 'en');
