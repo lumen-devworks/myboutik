@@ -561,7 +561,7 @@ const I18N = {
     digital_codes_pool_note: 'Utilisez ceci en plus ou à la place du champ ci-dessus quand chaque acheteur doit recevoir un code différent (licences, codes cadeaux...) — un code est pioché automatiquement à chaque vente et jamais réutilisé. Le contenu ci-dessus et un code pioché ici sont envoyés ensemble si les deux sont renseignés.',
     placeholder_digital_codes: 'Un code par ligne, ex :\nABCD-1234-EFGH\nWXYZ-5678-IJKL',
     btn_add_codes: '+ Ajouter ces codes au stock',
-    save_product_first_for_codes: 'Enregistrez d\'abord le produit pour pouvoir ajouter des codes.',
+    codes_saved_with_product_note: 'Ces codes seront enregistrés avec le produit dès que vous cliquerez sur "Enregistrer" ci-dessous.',
     codes_available_label: 'code(s) disponible(s)',
     codes_total_label: 'au total',
     code_used_label: 'Utilisé',
@@ -572,7 +572,6 @@ const I18N = {
     title_choose_from_gallery: 'Choisir depuis la galerie',
     title_take_photo: 'Prendre une photo',
     btn_take_photo: '📷 Prendre une photo',
-    save_first_to_add_photos: 'Enregistrez une première fois pour ajouter d\'autres photos.',
     label_options_gen: 'Options (génère les variantes automatiquement, 3 max)',
     btn_add_option: '+ Ajouter une option',
     btn_generate_variants: 'Générer les variantes',
@@ -1165,7 +1164,7 @@ const I18N = {
     digital_codes_pool_note: 'Use this in addition to or instead of the field above when each buyer must get a different code (licenses, gift codes...) — one code is automatically picked per sale and never reused. The content above and a code picked here are both sent together if both are filled in.',
     placeholder_digital_codes: 'One code per line, e.g.:\nABCD-1234-EFGH\nWXYZ-5678-IJKL',
     btn_add_codes: '+ Add these codes to stock',
-    save_product_first_for_codes: 'Save the product first to be able to add codes.',
+    codes_saved_with_product_note: 'These codes will be saved with the product as soon as you click "Save" below.',
     codes_available_label: 'code(s) available',
     codes_total_label: 'total',
     code_used_label: 'Used',
@@ -1176,7 +1175,6 @@ const I18N = {
     title_choose_from_gallery: 'Choose from gallery',
     title_take_photo: 'Take a photo',
     btn_take_photo: '📷 Take a photo',
-    save_first_to_add_photos: 'Save once first to add more photos.',
     label_options_gen: 'Options (auto-generates variants, 3 max)',
     btn_add_option: '+ Add an option',
     btn_generate_variants: 'Generate variants',
@@ -2555,6 +2553,7 @@ function openProductForm(id) {
 function renderProductFormModal(p, allProducts, categories) {
   p = p || {}; allProducts = allProducts || []; categories = categories || [];
   window.__editingProductId = p.id || null;
+  window.__pendingExtraImages = [];
   let relatedIds = [];
   try { relatedIds = p.related_product_ids ? JSON.parse(p.related_product_ids) : []; } catch(e) {}
   const pickableProducts = allProducts.filter(x => x.id !== p.id);
@@ -2605,7 +2604,10 @@ function renderProductFormModal(p, allProducts, categories) {
         <textarea id="prodNewCodes" rows="4" placeholder="${t('placeholder_digital_codes')}"></textarea>
         <button type="button" class="btn btn-ghost btn-sm" style="margin:8px 0" onclick="addDigitalCodes('${p.id}')">${t('btn_add_codes')}</button>
         <div id="digitalCodesList" style="max-height:180px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;padding:8px;font-size:12px"></div>
-      ` : `<div class="muted" style="font-size:12px">${t('save_product_first_for_codes')}</div>`}
+      ` : `
+        <textarea id="prodNewCodes" rows="4" placeholder="${t('placeholder_digital_codes')}"></textarea>
+        <div class="muted" style="font-size:12px;margin-top:4px">${t('codes_saved_with_product_note')}</div>
+      `}
     </div>
     <div class="field">
       <label>${t('label_photos')}${p.id?' ('+images.length+'/12)':''}</label>
@@ -2624,11 +2626,11 @@ function renderProductFormModal(p, allProducts, categories) {
           <label title="${t('title_take_photo')}" style="width:72px;height:72px;border:2px dashed var(--border);border-radius:8px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--gray);font-size:24px">📷<input type="file" accept="image/*" capture="environment" style="display:none" onchange="addProductImage(this)"></label>
         ` : ''}
       </div>` : `
+      <div id="pendingImagesGrid" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px"></div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         <input type="file" accept="image/*" multiple onchange="handleNewProductImageFile(this)">
         <label class="btn btn-ghost btn-sm" style="cursor:pointer">${t('btn_take_photo')}<input type="file" accept="image/*" capture="environment" style="display:none" onchange="handleNewProductImageFile(this)"></label>
       </div>
-      <div class="muted" style="margin-top:6px">${t('save_first_to_add_photos')}</div>
       <input type="hidden" id="prodImage" value="">`}
     </div>
     <div class="field">
@@ -2761,13 +2763,53 @@ function resizeImageToDataUrl(file, maxDim, cb) {
   };
   reader.readAsDataURL(file);
 }
+// Avant la creation du produit, les photos supplementaires (au-dela de la
+// principale) sont gardees en memoire (window.__pendingExtraImages) et
+// envoyees avec le reste du formulaire a la sauvegarde (voir
+// submitProductForm() -> payload.extra_images) - plus besoin d'enregistrer
+// le produit une premiere fois avant de pouvoir en ajouter plusieurs.
 function handleNewProductImageFile(input) {
-  // Un seul emplacement disponible avant la creation du produit (products.
-  // image_url) - si plusieurs fichiers sont choisis ici, seul le premier est
-  // utilise ; les autres pourront etre ajoutes juste apres via la galerie.
-  const file = input.files[0];
-  if (!file) return;
-  resizeImageToDataUrl(file, 900, dataUrl => { document.getElementById('prodImage').value = dataUrl; });
+  const files = Array.from(input.files || []);
+  if (!files.length) return;
+  window.__pendingExtraImages = window.__pendingExtraImages || [];
+  let chain = Promise.resolve();
+  files.forEach(file => {
+    chain = chain.then(() => new Promise(resolve => {
+      const primary = document.getElementById('prodImage').value.trim();
+      const total = (primary ? 1 : 0) + window.__pendingExtraImages.length;
+      if (total >= 12) { resolve(); return; }
+      resizeImageToDataUrl(file, 900, dataUrl => {
+        if (!document.getElementById('prodImage').value.trim()) {
+          document.getElementById('prodImage').value = dataUrl;
+        } else {
+          window.__pendingExtraImages.push(dataUrl);
+        }
+        resolve();
+      });
+    }));
+  });
+  chain.then(renderPendingImagesGrid);
+  input.value = '';
+}
+function renderPendingImagesGrid() {
+  const grid = document.getElementById('pendingImagesGrid');
+  if (!grid) return;
+  const primary = document.getElementById('prodImage').value.trim();
+  const all = primary ? [primary, ...(window.__pendingExtraImages || [])] : (window.__pendingExtraImages || []);
+  grid.innerHTML = all.map((data, i) => `
+    <div style="position:relative">
+      <img src="${data}" style="width:72px;height:72px;object-fit:cover;border-radius:8px;border:2px solid ${i===0?'var(--blue)':'var(--border)'}">
+      ${i===0 ? '<span style="position:absolute;bottom:2px;left:2px;background:var(--blue);color:#fff;font-size:9px;padding:1px 4px;border-radius:4px">'+t('label_primary_photo')+'</span>' : ''}
+      <button type="button" onclick="removePendingImage(${i})" style="position:absolute;top:-6px;right:-6px;width:18px;height:18px;border-radius:50%;background:var(--red);color:#fff;border:none;font-size:11px;cursor:pointer;line-height:1">✕</button>
+    </div>`).join('');
+}
+function removePendingImage(index) {
+  const primary = document.getElementById('prodImage').value.trim();
+  const all = primary ? [primary, ...(window.__pendingExtraImages || [])] : (window.__pendingExtraImages || []);
+  all.splice(index, 1);
+  document.getElementById('prodImage').value = all[0] || '';
+  window.__pendingExtraImages = all.slice(1);
+  renderPendingImagesGrid();
 }
 function addProductImage(input) {
   const files = Array.from(input.files || []);
@@ -2842,7 +2884,12 @@ function submitProductForm(id) {
     related_product_ids: Array.from(document.querySelectorAll('.relatedProductCheck:checked')).map(c=>c.value),
     category_id: document.getElementById('prodCategory').value || null,
   };
-  if (!id) payload.image_url = document.getElementById('prodImage').value.trim();
+  if (!id) {
+    payload.image_url = document.getElementById('prodImage').value.trim();
+    payload.extra_images = window.__pendingExtraImages || [];
+    const newCodes = document.getElementById('prodNewCodes');
+    if (newCodes) payload.codes = newCodes.value;
+  }
   const action = id ? '/products?action=update' : '/products?action=create';
   if (id) payload.id = id;
   post(action, payload).then(({data}) => {

@@ -1634,6 +1634,22 @@ function products_create($pl) {
         q("INSERT INTO product_images (id,product_id,boutique_id,data,position,is_primary) VALUES (?,?,?,?,0,1)",
           [uid(), $id, $bt['id'], $imageUrl]);
     }
+    // Photos supplementaires choisies avant meme la creation du produit (le
+    // formulaire n'a plus besoin d'un aller-retour enregistrer/rouvrir pour
+    // en ajouter plusieurs) - meme plafond de 12 que product_image_add().
+    $extraImages = array_slice(array_filter((array)($b['extra_images'] ?? []), fn($d) => trim((string)$d) !== ''), 0, 11);
+    foreach ($extraImages as $i => $data) {
+        q("INSERT INTO product_images (id,product_id,boutique_id,data,position,is_primary) VALUES (?,?,?,?,?,0)",
+          [uid(), $id, $bt['id'], $data, $i + 1]);
+    }
+    // Codes numeriques colles directement a la creation - meme logique que
+    // digital_codes_add(), sans le controle de doublons contre l'existant
+    // puisqu'il n'y a encore aucun code pour ce produit tout neuf.
+    $codesRaw = (string)($b['codes'] ?? '');
+    $codeLines = array_values(array_unique(array_filter(array_map('trim', explode("\n", $codesRaw)))));
+    foreach ($codeLines as $code) {
+        q("INSERT INTO product_digital_codes (id,product_id,code) VALUES (?,?,?)", [uid(), $id, $code]);
+    }
     log_activity($bt['id'], 'Produit ajoute: '.$name, $pl['sub']);
     ok(q("SELECT * FROM products WHERE id=?", [$id])->fetch(), 'Produit cree', 201);
 }
