@@ -552,12 +552,11 @@ const I18N = {
     checkbox_track_stock: 'Suivre la quantité en stock',
     checkbox_physical_product: 'Produit physique (nécessite une livraison)',
     product_form_stock_note: 'Une commande est toujours acceptée, même si le stock est insuffisant — c\'est à vous de gérer la suite. L\'alerte ci-dessus sert juste à repérer les produits à réapprovisionner.',
-    label_digital_delivery_content: 'Contenu envoyé automatiquement au client (lien, code, instructions...)',
+    label_digital_delivery_content: 'Lien / instructions partagés (optionnel)',
     placeholder_digital_delivery: 'Ex : Lien de téléchargement : https://... ou code de licence : XXXX-XXXX',
     digital_delivery_note: 'Envoyé par email automatiquement dès que la commande passe au statut "Livrée" — uniquement si le client a renseigné son email à la commande.',
-    label_digital_delivery_mode: 'Type de contenu numérique',
-    digital_mode_link: 'Lien partagé (même contenu pour tous les acheteurs)',
-    digital_mode_codes: 'Codes uniques (un code différent par vente — licences, codes cadeaux...)',
+    label_digital_codes_pool: 'Codes uniques (optionnel)',
+    digital_codes_pool_note: 'Utilisez ceci en plus ou à la place du champ ci-dessus quand chaque acheteur doit recevoir un code différent (licences, codes cadeaux...) — un code est pioché automatiquement à chaque vente et jamais réutilisé. Le contenu ci-dessus et un code pioché ici sont envoyés ensemble si les deux sont renseignés.',
     placeholder_digital_codes: 'Un code par ligne, ex :\nABCD-1234-EFGH\nWXYZ-5678-IJKL',
     btn_add_codes: '+ Ajouter ces codes au stock',
     save_product_first_for_codes: 'Enregistrez d\'abord le produit pour pouvoir ajouter des codes.',
@@ -1155,12 +1154,11 @@ const I18N = {
     checkbox_track_stock: 'Track stock quantity',
     checkbox_physical_product: 'Physical product (requires delivery)',
     product_form_stock_note: 'An order is always accepted, even if stock is insufficient — it\'s up to you to handle it. The alert above is just to spot products that need restocking.',
-    label_digital_delivery_content: 'Content sent automatically to the customer (link, code, instructions...)',
+    label_digital_delivery_content: 'Shared link / instructions (optional)',
     placeholder_digital_delivery: 'E.g.: Download link: https://... or license code: XXXX-XXXX',
     digital_delivery_note: 'Sent by email automatically as soon as the order status becomes "Delivered" — only if the customer entered their email at checkout.',
-    label_digital_delivery_mode: 'Digital content type',
-    digital_mode_link: 'Shared link (same content for every buyer)',
-    digital_mode_codes: 'Unique codes (a different code per sale — licenses, gift codes...)',
+    label_digital_codes_pool: 'Unique codes (optional)',
+    digital_codes_pool_note: 'Use this in addition to or instead of the field above when each buyer must get a different code (licenses, gift codes...) — one code is automatically picked per sale and never reused. The content above and a code picked here are both sent together if both are filled in.',
     placeholder_digital_codes: 'One code per line, e.g.:\nABCD-1234-EFGH\nWXYZ-5678-IJKL',
     btn_add_codes: '+ Add these codes to stock',
     save_product_first_for_codes: 'Save the product first to be able to add codes.',
@@ -2591,24 +2589,17 @@ function renderProductFormModal(p, allProducts, categories) {
     <label style="display:flex;align-items:center;gap:8px;margin-bottom:14px"><input type="checkbox" id="prodPhysical" onchange="toggleDigitalDeliveryField()" ${p.is_physical!=0?'checked':''}> ${t('checkbox_physical_product')}</label>
     <div class="muted" style="margin:-6px 0 14px;font-size:12px">${t('product_form_stock_note')}</div>
     <div class="field" id="digitalDeliveryField" style="${p.is_physical!=0?'display:none':''}">
-      <label>${t('label_digital_delivery_mode')}</label>
-      <select id="prodDigitalMode" onchange="toggleDigitalModeFields()">
-        <option value="link" ${(p.digital_delivery_mode||'link')==='link'?'selected':''}>${t('digital_mode_link')}</option>
-        <option value="codes" ${p.digital_delivery_mode==='codes'?'selected':''}>${t('digital_mode_codes')}</option>
-      </select>
-      <div id="digitalLinkField" style="${p.digital_delivery_mode==='codes'?'display:none':''}">
-        <label>${t('label_digital_delivery_content')}</label>
-        <textarea id="prodDigitalContent" rows="4" placeholder="${t('placeholder_digital_delivery')}">${escapeHtml(p.digital_delivery_content||'')}</textarea>
-        <div class="muted" style="font-size:12px;margin-top:-6px">${t('digital_delivery_note')}</div>
-      </div>
-      <div id="digitalCodesField" style="${p.digital_delivery_mode==='codes'?'':'display:none'}">
-        ${p.id ? `
-          <div class="muted" style="font-size:12px;margin-bottom:8px" id="digitalCodesCount">${t('loading')}</div>
-          <textarea id="prodNewCodes" rows="4" placeholder="${t('placeholder_digital_codes')}"></textarea>
-          <button type="button" class="btn btn-ghost btn-sm" style="margin:8px 0" onclick="addDigitalCodes('${p.id}')">${t('btn_add_codes')}</button>
-          <div id="digitalCodesList" style="max-height:180px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;padding:8px;font-size:12px"></div>
-        ` : `<div class="muted" style="font-size:12px">${t('save_product_first_for_codes')}</div>`}
-      </div>
+      <label>${t('label_digital_delivery_content')}</label>
+      <textarea id="prodDigitalContent" rows="4" placeholder="${t('placeholder_digital_delivery')}">${escapeHtml(p.digital_delivery_content||'')}</textarea>
+      <div class="muted" style="font-size:12px;margin-top:-6px;margin-bottom:14px">${t('digital_delivery_note')}</div>
+      <label>${t('label_digital_codes_pool')}</label>
+      <div class="muted" style="font-size:12px;margin-bottom:8px">${t('digital_codes_pool_note')}</div>
+      ${p.id ? `
+        <div class="muted" style="font-size:12px;margin-bottom:8px" id="digitalCodesCount">${t('loading')}</div>
+        <textarea id="prodNewCodes" rows="4" placeholder="${t('placeholder_digital_codes')}"></textarea>
+        <button type="button" class="btn btn-ghost btn-sm" style="margin:8px 0" onclick="addDigitalCodes('${p.id}')">${t('btn_add_codes')}</button>
+        <div id="digitalCodesList" style="max-height:180px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;padding:8px;font-size:12px"></div>
+      ` : `<div class="muted" style="font-size:12px">${t('save_product_first_for_codes')}</div>`}
     </div>
     <div class="field">
       <label>${t('label_photos')}${p.id?' ('+images.length+'/12)':''}</label>
@@ -2796,11 +2787,6 @@ function setPrimaryProductImage(imgId) {
 function toggleDigitalDeliveryField() {
   document.getElementById('digitalDeliveryField').style.display = document.getElementById('prodPhysical').checked ? 'none' : '';
 }
-function toggleDigitalModeFields() {
-  const codes = document.getElementById('prodDigitalMode').value === 'codes';
-  document.getElementById('digitalLinkField').style.display = codes ? 'none' : '';
-  document.getElementById('digitalCodesField').style.display = codes ? '' : 'none';
-}
 function loadDigitalCodes(productId) {
   const list = document.getElementById('digitalCodesList');
   if (!list) return;
@@ -2843,7 +2829,6 @@ function submitProductForm(id) {
     track_inventory: document.getElementById('prodTrackInv').checked,
     is_physical: document.getElementById('prodPhysical').checked,
     digital_delivery_content: document.getElementById('prodDigitalContent').value.trim(),
-    digital_delivery_mode: document.getElementById('prodDigitalMode').value,
     low_stock_threshold: document.getElementById('prodLowStock').value,
     options_json: JSON.stringify((window.__optionRows||[]).filter(r => r.name && r.name.trim() && r.values && r.values.length)),
     variants: window.__productVariants || [],

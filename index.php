@@ -776,12 +776,17 @@ function route_install() {
     "ALTER TABLE products ADD COLUMN IF NOT EXISTS is_physical SMALLINT DEFAULT 1",
     "ALTER TABLE products ADD COLUMN IF NOT EXISTS delivery_fee DECIMAL(14,2)",
     // Produit numerique (is_physical=0) : contenu envoye automatiquement par
-    // email au client quand la commande passe au statut "livree". Deux modes
-    // (digital_delivery_mode) : 'link' = un contenu unique reutilise pour
-    // toutes les ventes (lien de telechargement, instructions...) ; 'codes'
-    // = un pool de codes a usage unique (licences, codes cadeaux...), un
-    // code different pioche a chaque vente dans product_digital_codes.
+    // email au client quand la commande passe au statut "livree". Deux
+    // sources cumulables : digital_delivery_content (meme contenu partage
+    // pour toutes les ventes - lien, instructions...) et un pool de codes a
+    // usage unique dans product_digital_codes (licences, codes cadeaux...),
+    // un code different pioche a chaque vente. Les deux peuvent etre
+    // renseignes ensemble (ex: meme lien de telechargement pour tous + une
+    // cle de licence differente par acheteur) - voir maybe_send_digital_delivery().
     "ALTER TABLE products ADD COLUMN IF NOT EXISTS digital_delivery_content TEXT",
+    // digital_delivery_mode : colonne conservee pour compatibilite (evite une
+    // migration DROP COLUMN) mais plus utilisee - les deux sources ci-dessus
+    // se cumulent desormais au lieu d'etre un choix exclusif.
     "ALTER TABLE products ADD COLUMN IF NOT EXISTS digital_delivery_mode VARCHAR(20) DEFAULT 'link'",
     "ALTER TABLE orders ADD COLUMN IF NOT EXISTS digital_delivery_sent_at TIMESTAMP",
     "CREATE TABLE IF NOT EXISTS product_digital_codes (
@@ -1594,10 +1599,9 @@ function products_create($pl) {
     if ($optionsJson !== '' && json_decode($optionsJson) === null) $optionsJson = '';
     $relatedJson = related_product_ids_json($bt['id'], $b['related_product_ids'] ?? [], null);
     $categoryId = !empty($b['category_id']) ? category_owned($b['category_id'], $bt['id'])['id'] : null;
-    $digitalMode = ($b['digital_delivery_mode'] ?? '') === 'codes' ? 'codes' : 'link';
     q("INSERT INTO products (id,boutique_id,name,description,price,compare_at_price,cost_price,stock_qty,
-       image_url,status,sku,barcode,slug,track_inventory,allow_backorder,is_physical,delivery_fee,digital_delivery_content,digital_delivery_mode,options_json,low_stock_threshold,related_product_ids,category_id)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+       image_url,status,sku,barcode,slug,track_inventory,allow_backorder,is_physical,delivery_fee,digital_delivery_content,options_json,low_stock_threshold,related_product_ids,category_id)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
       [$id, $bt['id'], $name, trim($b['description'] ?? ''), (float)($b['price'] ?? 0),
        isset($b['compare_at_price']) && $b['compare_at_price'] !== '' ? (float)$b['compare_at_price'] : null,
        isset($b['cost_price']) && $b['cost_price'] !== '' ? (float)$b['cost_price'] : null,
@@ -1606,7 +1610,6 @@ function products_create($pl) {
        (int)!!($b['track_inventory'] ?? 1), (int)!!($b['allow_backorder'] ?? 0), (int)!!($b['is_physical'] ?? 1),
        isset($b['delivery_fee']) && $b['delivery_fee'] !== '' ? (float)$b['delivery_fee'] : null,
        trim($b['digital_delivery_content'] ?? '') !== '' ? trim($b['digital_delivery_content']) : null,
-       $digitalMode,
        $optionsJson !== '' ? $optionsJson : null,
        (int)($b['low_stock_threshold'] ?? 5), $relatedJson, $categoryId]);
     foreach (($b['variants'] ?? []) as $v) {
@@ -1652,7 +1655,7 @@ function products_update($pl) {
         $categoryId = !empty($b['category_id']) ? category_owned($b['category_id'], $bt['id'])['id'] : null;
     }
     q("UPDATE products SET name=?, description=?, price=?, compare_at_price=?, cost_price=?, stock_qty=?,
-       image_url=?, status=?, sku=?, barcode=?, slug=?, track_inventory=?, allow_backorder=?, is_physical=?, delivery_fee=?, digital_delivery_content=?, digital_delivery_mode=?, options_json=?, low_stock_threshold=?, related_product_ids=?, category_id=?
+       image_url=?, status=?, sku=?, barcode=?, slug=?, track_inventory=?, allow_backorder=?, is_physical=?, delivery_fee=?, digital_delivery_content=?, options_json=?, low_stock_threshold=?, related_product_ids=?, category_id=?
        WHERE id=?",
       [$name, trim($b['description'] ?? $p['description']), (float)($b['price'] ?? $p['price']),
        isset($b['compare_at_price']) && $b['compare_at_price'] !== '' ? (float)$b['compare_at_price'] : $p['compare_at_price'],
@@ -1664,7 +1667,6 @@ function products_update($pl) {
        isset($b['is_physical']) ? (int)!!$b['is_physical'] : $p['is_physical'],
        isset($b['delivery_fee']) && $b['delivery_fee'] !== '' ? (float)$b['delivery_fee'] : null,
        array_key_exists('digital_delivery_content', $b) ? (trim($b['digital_delivery_content']) !== '' ? trim($b['digital_delivery_content']) : null) : $p['digital_delivery_content'],
-       isset($b['digital_delivery_mode']) ? ($b['digital_delivery_mode'] === 'codes' ? 'codes' : 'link') : $p['digital_delivery_mode'],
        $optionsJson, isset($b['low_stock_threshold']) && $b['low_stock_threshold'] !== '' ? (int)$b['low_stock_threshold'] : $p['low_stock_threshold'],
        $relatedJson, $categoryId, $p['id']]);
     // Remplacement complet des variantes si le champ est fourni (le
@@ -2479,13 +2481,22 @@ function maybe_send_digital_delivery($bt, $o) {
     if (empty($o['customer_id'])) return;
     $email = trim((string)(q("SELECT email FROM customers WHERE id=?", [$o['customer_id']])->fetchColumn() ?: ''));
     if ($email === '') return;
-    $items = q("SELECT oi.product_id, oi.product_name, oi.qty, p.is_physical, p.digital_delivery_content, p.digital_delivery_mode
+    $items = q("SELECT oi.product_id, oi.product_name, oi.qty, p.is_physical, p.digital_delivery_content
                 FROM order_items oi LEFT JOIN products p ON p.id = oi.product_id
                 WHERE oi.order_id=?", [$o['id']])->fetchAll();
     $parts = [];
     foreach ($items as $it) {
         if ((int)($it['is_physical'] ?? 1) !== 0) continue;
-        if (($it['digital_delivery_mode'] ?? 'link') === 'codes') {
+        // Les deux sources sont independantes et se cumulent : le contenu
+        // partage (meme lien/instructions pour tout le monde) ET un code
+        // unique pioche dans le pool, si le produit en a un - utile pour un
+        // logiciel ou le lien de telechargement est le meme pour tous mais
+        // la cle de licence doit etre differente a chaque vente.
+        $pieces = [];
+        $content = trim((string)($it['digital_delivery_content'] ?? ''));
+        if ($content !== '') $pieces[] = $content;
+        $poolSize = (int)q("SELECT COUNT(*) c FROM product_digital_codes WHERE product_id=?", [$it['product_id']])->fetch()['c'];
+        if ($poolSize > 0) {
             // Pioche atomique d'un code disponible par unite commandee : le
             // SELECT ... FOR UPDATE SKIP LOCKED evite que deux commandes du
             // meme produit livrees en meme temps ne recuperent le meme code.
@@ -2498,14 +2509,14 @@ function maybe_send_digital_delivery($bt, $o) {
                 if ($code === false) break;
                 $codes[] = $code;
             }
-            if ($codes) $parts[] = $it['product_name'].":\n".implode("\n", $codes);
+            if ($codes) {
+                $pieces[] = (count($codes) > 1 ? 'Vos codes' : 'Votre code').' : '.implode(', ', $codes);
+            }
             if (count($codes) < (int)$it['qty']) {
                 log_activity($bt['id'], 'Stock de codes numeriques epuise pour '.$it['product_name'].' (commande '.$o['ref'].')');
             }
-        } else {
-            $content = trim((string)($it['digital_delivery_content'] ?? ''));
-            if ($content !== '') $parts[] = $it['product_name'].":\n".$content;
         }
+        if ($pieces) $parts[] = $it['product_name'].":\n".implode("\n", $pieces);
     }
     if (!$parts) return;
     $body = "Bonjour,\n\nMerci pour votre commande ".$o['ref']." chez ".$bt['name'].
