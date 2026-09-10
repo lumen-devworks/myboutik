@@ -233,11 +233,12 @@ const I18N = {
     export_header_boutiques_count: 'Nb. boutiques', export_header_boutiques_names: 'Noms des boutiques',
     export_header_total_paid_fcfa: 'Total payé (FCFA)', export_member_suffix: ' (membre)',
     export_header_revenue_fcfa: 'Revenu (FCFA)', export_total_prefix: 'Total ',
-    h3_feedback: 'Avis des marchands sur MYBOUTIK',
+    h3_feedback: 'Avis sur MYBOUTIK (marchands et clients)',
     no_feedback: 'Aucun avis pour le moment.',
-    col_rating: 'Note', col_message: 'Message',
+    col_rating: 'Note', col_message: 'Message', col_contact: 'Contact', col_type: 'Type',
     pill_replied: 'Répondu', pill_awaiting_reply: 'En attente',
-    btn_reply: '✉️ Répondre',
+    pill_merchant: 'Marchand', pill_customer: 'Client',
+    btn_reply: '✉️ Répondre', btn_reply_whatsapp: '📲 Répondre',
     feedback_mail_subject: 'Réponse à votre avis MYBOUTIK',
     feedback_mail_intro: 'Avis de {name} ({email}) du {date} — Note : {stars} ({rating}/5)',
     feedback_mail_reply_marker: '--- Votre réponse ci-dessous ---',
@@ -295,11 +296,12 @@ const I18N = {
     export_header_boutiques_count: 'No. of shops', export_header_boutiques_names: 'Shop names',
     export_header_total_paid_fcfa: 'Total paid (FCFA)', export_member_suffix: ' (member)',
     export_header_revenue_fcfa: 'Revenue (FCFA)', export_total_prefix: 'Total ',
-    h3_feedback: 'Merchant feedback on MYBOUTIK',
+    h3_feedback: 'Feedback on MYBOUTIK (merchants and customers)',
     no_feedback: 'No feedback yet.',
-    col_rating: 'Rating', col_message: 'Message',
+    col_rating: 'Rating', col_message: 'Message', col_contact: 'Contact', col_type: 'Type',
     pill_replied: 'Replied', pill_awaiting_reply: 'Awaiting reply',
-    btn_reply: '✉️ Reply',
+    pill_merchant: 'Merchant', pill_customer: 'Customer',
+    btn_reply: '✉️ Reply', btn_reply_whatsapp: '📲 Reply',
     feedback_mail_subject: 'Reply to your MYBOUTIK feedback',
     feedback_mail_intro: 'Feedback from {name} ({email}) on {date} — Rating: {stars} ({rating}/5)',
     feedback_mail_reply_marker: '--- Your reply below ---',
@@ -729,21 +731,32 @@ function markPayoutPaid(id, email, amount) {
 // l'admin qui gere reellement l'envoi. On marque l'avis "repondu" des le
 // clic (avant meme l'envoi reel), comme un "j'ai ouvert le brouillon".
 function renderFeedback(rows) {
-  document.getElementById('feedbackBody').innerHTML = rows.length ? `<table><thead><tr><th>${t('col_email')}</th><th>${t('col_rating')}</th><th>${t('col_message')}</th><th>${t('col_date')}</th><th>${t('col_status')}</th><th></th></tr></thead><tbody>
+  document.getElementById('feedbackBody').innerHTML = rows.length ? `<table><thead><tr><th>${t('col_type')}</th><th>${t('col_contact')}</th><th>${t('col_rating')}</th><th>${t('col_message')}</th><th>${t('col_date')}</th><th>${t('col_status')}</th><th></th></tr></thead><tbody>
     ${rows.map(r => {
       const stars = '★'.repeat(r.rating) + '☆'.repeat(5 - r.rating);
       const date = fmtDate(r.created_at);
-      const subject = t('feedback_mail_subject');
-      const body = tf('feedback_mail_intro', {name: r.full_name || r.email, email: r.email, date, stars, rating: r.rating})
-        + '\n\n"' + r.message + '"\n\n' + t('feedback_mail_reply_marker') + '\n\n';
-      const mailto = 'mailto:' + encodeURIComponent(r.email) + '?subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(body);
+      const isCustomer = !!(r.is_customer === true || r.is_customer === 't' || r.is_customer === 1 || r.is_customer === '1');
+      let replyBtn;
+      if (r.email) {
+        const subject = t('feedback_mail_subject');
+        const body = tf('feedback_mail_intro', {name: r.full_name || r.email, email: r.email, date, stars, rating: r.rating})
+          + '\n\n"' + r.message + '"\n\n' + t('feedback_mail_reply_marker') + '\n\n';
+        const mailto = 'mailto:' + encodeURIComponent(r.email) + '?subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(body);
+        replyBtn = `<a href="${mailto}" onclick="markFeedbackReplied('${r.id}')" style="display:inline-block;padding:10px 17px;border-radius:10px;border:1.5px solid var(--border);color:var(--ink);text-decoration:none;font-size:13.5px;font-weight:700;white-space:nowrap">${t('btn_reply')}</a>`;
+      } else if (r.customer_phone) {
+        const digits = r.customer_phone.replace(/\D/g, '');
+        replyBtn = `<a href="https://wa.me/${digits}" target="_blank" rel="noopener" onclick="markFeedbackReplied('${r.id}')" style="display:inline-block;padding:10px 17px;border-radius:10px;border:1.5px solid var(--border);color:var(--ink);text-decoration:none;font-size:13.5px;font-weight:700;white-space:nowrap">${t('btn_reply_whatsapp')}</a>`;
+      } else {
+        replyBtn = '';
+      }
       return `<tr>
-        <td>${r.email}</td>
+        <td><span class="pill" style="background:var(--bg,#f1f5f9);color:var(--ink)">${isCustomer ? t('pill_customer') : t('pill_merchant')}</span></td>
+        <td>${escapeAttr(r.email || r.customer_phone || '')}</td>
         <td style="color:#f59e0b;white-space:nowrap">${stars}</td>
         <td style="max-width:280px">${escapeAttr(r.message)}</td>
         <td>${date}</td>
         <td>${r.replied_at ? '<span class="pill pill-ok">'+t('pill_replied')+'</span>' : '<span class="pill pill-warn">'+t('pill_awaiting_reply')+'</span>'}</td>
-        <td><a href="${mailto}" onclick="markFeedbackReplied('${r.id}')" style="display:inline-block;padding:10px 17px;border-radius:10px;border:1.5px solid var(--border);color:var(--ink);text-decoration:none;font-size:13.5px;font-weight:700;white-space:nowrap">${t('btn_reply')}</a></td>
+        <td>${replyBtn}</td>
       </tr>`;
     }).join('')}
     </tbody></table>` : '<p style="color:var(--gray)">'+t('no_feedback')+'</p>';

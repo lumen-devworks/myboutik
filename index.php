@@ -255,6 +255,7 @@ const EN_DICT = [
     'Un pourcentage ne peut pas depasser 100' => 'A percentage cannot exceed 100',
     'Veuillez verifier votre email avant de vous connecter' => 'Please verify your email before logging in',
     'Votre nom est requis' => 'Your name is required',
+    'Votre telephone est requis' => 'Your phone number is required',
     'Votre role n\'a pas acces a cette section' => 'Your role does not have access to this section',
     'boutique_id manquant' => 'boutique_id missing',
     'OK' => 'OK',
@@ -686,19 +687,29 @@ function route_install() {
     )",
     "CREATE INDEX IF NOT EXISTS idx_subreq_user ON subscription_requests(user_id)",
     "CREATE INDEX IF NOT EXISTS idx_subreq_status ON subscription_requests(status)",
-    // Avis des proprietaires de boutique sur la plateforme MYBOUTIK elle-meme
+    // Avis sur la plateforme MYBOUTIK elle-meme - soit d'un marchand connecte
+    // (user_id renseigne), soit d'un client acheteur anonyme identifie par
+    // son telephone/nom saisis a la volee (user_id NULL, customer_* renseignes) -
     // (pas les avis produits/boutique laisses par les clients - voir
-    // product_reviews plus bas). L'admin repond par email (bouton
-    // "Repondre" cote panneau admin, voir admin.html) - replied_at sert
-    // juste a cocher que c'est traite, aucun envoi automatique n'est fait.
+    // product_reviews plus bas). L'admin repond par email quand elle est
+    // connue (bouton "Repondre" cote panneau admin, voir admin.html), sinon
+    // doit recontacter via le telephone fourni - replied_at sert juste a
+    // cocher que c'est traite, aucun envoi automatique n'est fait.
     "CREATE TABLE IF NOT EXISTS platform_feedback (
         id VARCHAR(36) PRIMARY KEY,
-        user_id VARCHAR(36) NOT NULL,
+        user_id VARCHAR(36),
+        customer_name VARCHAR(150),
+        customer_phone VARCHAR(30),
+        customer_email VARCHAR(150),
         rating SMALLINT NOT NULL,
         message TEXT NOT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         replied_at TIMESTAMP
     )",
+    "ALTER TABLE platform_feedback ALTER COLUMN user_id DROP NOT NULL",
+    "ALTER TABLE platform_feedback ADD COLUMN IF NOT EXISTS customer_name VARCHAR(150)",
+    "ALTER TABLE platform_feedback ADD COLUMN IF NOT EXISTS customer_phone VARCHAR(30)",
+    "ALTER TABLE platform_feedback ADD COLUMN IF NOT EXISTS customer_email VARCHAR(150)",
     "CREATE INDEX IF NOT EXISTS idx_platform_feedback_created ON platform_feedback(created_at DESC)",
     "CREATE TABLE IF NOT EXISTS boutiques (
         id VARCHAR(36) PRIMARY KEY,
@@ -3965,6 +3976,10 @@ function billing_affiliate_request_payout($pl) {
 // "Repondre" -> mailto:, voir admin.html).
 // ============================================================
 function route_feedback($action) {
+    // submit_public : ouvert a tout client acheteur, sans compte (identifie
+    // par nom/telephone saisis a la volee, comme au checkout) - toutes les
+    // autres actions restent reservees aux marchands connectes.
+    if ($action === 'submit_public') { feedback_submit_public(); return; }
     $pl = owner_auth();
     switch ($action) {
         case 'submit': feedback_submit($pl); break;
@@ -3978,6 +3993,22 @@ function feedback_submit($pl) {
     if ($rating < 1 || $rating > 5) fail('Note invalide (1 a 5)');
     if ($message === '') fail('Le message ne peut pas etre vide');
     q("INSERT INTO platform_feedback (id,user_id,rating,message) VALUES (?,?,?,?)", [uid(), $pl['sub'], $rating, $message]);
+    ok(null, 'Avis envoye. Merci pour votre retour !', 201);
+}
+function feedback_submit_public() {
+    rate_limit_check('feedback_submit_public', 5, 1800);
+    $b = body();
+    $name = trim($b['customer_name'] ?? '');
+    $phone = trim($b['customer_phone'] ?? '');
+    $email = trim($b['customer_email'] ?? '');
+    $rating = (int)($b['rating'] ?? 0);
+    $message = trim($b['message'] ?? '');
+    if ($name === '') fail('Votre nom est requis');
+    if ($phone === '') fail('Votre telephone est requis');
+    if ($rating < 1 || $rating > 5) fail('Note invalide (1 a 5)');
+    if ($message === '') fail('Le message ne peut pas etre vide');
+    q("INSERT INTO platform_feedback (id,customer_name,customer_phone,customer_email,rating,message) VALUES (?,?,?,?,?,?)",
+      [uid(), $name, $phone, $email, $rating, $message]);
     ok(null, 'Avis envoye. Merci pour votre retour !', 201);
 }
 
@@ -4061,8 +4092,13 @@ function admin_revenue_by_month() {
 }
 
 function admin_feedback_list() {
-    ok(q("SELECT pf.*, u.email, u.full_name FROM platform_feedback pf
-          JOIN users u ON u.id = pf.user_id
+    // LEFT JOIN : un avis client anonyme (user_id NULL) n'a pas de compte
+    // marchand associe - on retombe alors sur ses customer_* saisis a la volee.
+    ok(q("SELECT pf.*, COALESCE(u.full_name, pf.customer_name) AS full_name,
+                 COALESCE(u.email, pf.customer_email) AS email,
+                 pf.customer_phone, (pf.user_id IS NULL) AS is_customer
+          FROM platform_feedback pf
+          LEFT JOIN users u ON u.id = pf.user_id
           ORDER BY pf.replied_at IS NOT NULL ASC, pf.created_at DESC LIMIT 300")->fetchAll());
 }
 function admin_feedback_mark_replied() {

@@ -152,6 +152,8 @@ const I18N = {
     related_products_title: 'Vous aimerez aussi',
     reviews_title: 'Avis clients',
     no_reviews_yet: 'Aucun avis pour le moment.',
+    platform_feedback_link: '💬 Donner votre avis sur MYBOUTIK',
+    contact_message_required: 'Le message est requis',
     leave_review_btn: 'Laisser un avis',
     review_name_label: 'Votre nom',
     review_rating_label: 'Note',
@@ -232,6 +234,8 @@ const I18N = {
     related_products_title: 'You may also like',
     reviews_title: 'Customer reviews',
     no_reviews_yet: 'No reviews yet.',
+    platform_feedback_link: '💬 Give your feedback on MYBOUTIK',
+    contact_message_required: 'The message is required',
     leave_review_btn: 'Leave a review',
     review_name_label: 'Your name',
     review_rating_label: 'Rating',
@@ -834,6 +838,10 @@ function openTrackOrder() {
     <div class="field"><label>${t('track_ref_label')}</label><input id="trkRef" placeholder="CMD-..."></div>
     <button class="btn btn-primary" onclick="submitTrackOrder()">${t('search_btn')}</button>
     <div id="trackResult"></div>
+    <div style="margin-top:18px;border-top:1px solid var(--border);padding-top:14px">
+      <a href="#" onclick="togglePlatformFeedbackForm();return false" style="font-size:13px;font-weight:700;color:var(--blue)">${t('platform_feedback_link')}</a>
+      <div id="platformFeedbackWrap"></div>
+    </div>
   `;
   document.getElementById('trackOverlay').classList.add('open');
 }
@@ -897,6 +905,38 @@ function sendContactMessage() {
   post('/shop?action=contact_message', {slug:SLUG, name, email, message}).then(({data}) => {
     document.getElementById('ctMsg').innerHTML = '<div class="msg '+(data.success?'success':'error')+'">'+data.message+'</div>';
     if (data.success) { document.getElementById('ctName').value=''; document.getElementById('ctEmail').value=''; document.getElementById('ctMessage').value=''; }
+  });
+}
+// Avis client sur MYBOUTIK (la plateforme, pas la boutique) - accessible ici
+// (suivi de commande) car c'est le seul endroit ou un client sans compte est
+// deja identifie par nom/telephone, comme au moment de sa commande.
+function togglePlatformFeedbackForm() {
+  const wrap = document.getElementById('platformFeedbackWrap');
+  if (wrap.innerHTML) { wrap.innerHTML = ''; return; }
+  wrap.innerHTML = `
+    <div id="pfMsg"></div>
+    <div class="field"><label>${t('review_name_label')}</label><input id="pfName"></div>
+    <div class="field"><label>${t('track_phone_label')}</label><input id="pfPhone" value="${escapeHtml(document.getElementById('trkPhone').value.trim())}"></div>
+    <div class="field"><label>${t('review_rating_label')}</label><select id="pfRating">
+      <option value="5">${t('rating_5')}</option><option value="4">${t('rating_4')}</option>
+      <option value="3">${t('rating_3')}</option><option value="2">${t('rating_2')}</option><option value="1">${t('rating_1')}</option>
+    </select></div>
+    <div class="field"><label>${t('review_comment_label')}</label><textarea id="pfMessage" rows="2"></textarea></div>
+    <button class="btn btn-primary btn-sm" onclick="submitPlatformFeedback()">${t('contact_send_btn')}</button>
+  `;
+}
+function submitPlatformFeedback() {
+  const customer_name = document.getElementById('pfName').value.trim();
+  const customer_phone = document.getElementById('pfPhone').value.trim();
+  const rating = Number(document.getElementById('pfRating').value);
+  const message = document.getElementById('pfMessage').value.trim();
+  const msg = document.getElementById('pfMsg');
+  if (!customer_name) { msg.innerHTML = '<div class="msg error">'+t('review_name_required')+'</div>'; return; }
+  if (!customer_phone) { msg.innerHTML = '<div class="msg error">'+t('order_number_phone_required')+'</div>'; return; }
+  if (!message) { msg.innerHTML = '<div class="msg error">'+t('contact_message_required')+'</div>'; return; }
+  post('/feedback?action=submit_public', {customer_name, customer_phone, rating, message}).then(({data}) => {
+    if (!data.success) { msg.innerHTML = '<div class="msg error">'+data.message+'</div>'; return; }
+    document.getElementById('platformFeedbackWrap').innerHTML = '<div class="msg success">'+data.message+'</div>';
   });
 }
 </script>
