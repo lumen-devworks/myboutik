@@ -152,6 +152,7 @@ const I18N = {
     share_whatsapp_btn: '📲 Partager sur WhatsApp',
     related_products_title: 'Vous aimerez aussi',
     reviews_title: 'Avis clients',
+    see_reviews_btn: 'Voir les avis',
     no_reviews_yet: 'Aucun avis pour le moment.',
     platform_feedback_link: '💬 Donner votre avis sur MYBOUTIK',
     contact_message_required: 'Le message est requis',
@@ -234,6 +235,7 @@ const I18N = {
     share_whatsapp_btn: '📲 Share on WhatsApp',
     related_products_title: 'You may also like',
     reviews_title: 'Customer reviews',
+    see_reviews_btn: 'See reviews',
     no_reviews_yet: 'No reviews yet.',
     platform_feedback_link: '💬 Give your feedback on MYBOUTIK',
     contact_message_required: 'The message is required',
@@ -462,7 +464,7 @@ function openProduct(id) {
     <button class="btn btn-primary" id="pdAddBtn" onclick="addToCart('${p.id}')">${t('add_to_cart_btn')}</button>
     <button class="btn btn-ghost" style="margin-top:8px" onclick="shareProductOnWhatsApp('${p.id}')">${t('share_whatsapp_btn')}</button>
     <div id="pdRelated"></div>
-    <div id="pdReviewsSection"></div>
+    <div id="pdReviewsSection"><button class="btn btn-ghost btn-sm" style="margin-top:14px" onclick="loadReviews('${p.id}')">${t('see_reviews_btn')}</button></div>
   `;
   document.getElementById('productOverlay').classList.add('open');
   window.__pdQty = 1;
@@ -492,7 +494,6 @@ function loadProductExtras(productId) {
     if (!data.success) return;
     renderRelatedProducts(data.data.related||[]);
   });
-  loadReviews(productId);
 }
 function openProductBySlug(slug) {
   const p = PRODUCTS.find(x => x.slug === slug);
