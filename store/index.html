@@ -311,10 +311,15 @@ function setLang(lang) {
   if (document.getElementById('trackOverlay').classList.contains('open')) openTrackOrder();
 }
 
-let BOUTIQUE = null, PRODUCTS = [], ACTIVE_PROMOS = [], CATEGORIES = [], CART = JSON.parse(sessionStorage.getItem('myboutik_cart')||'[]');
+// Cle scopee par boutique (SLUG) - sinon deux boutiques ouvertes dans le
+// meme onglet/session partagent le meme panier (sessionStorage est scope
+// par origine, pas par ?b=slug), ce qui melangeait les articles de l'une
+// dans le panier de l'autre.
+const CART_STORAGE_KEY = 'myboutik_cart_' + SLUG;
+let BOUTIQUE = null, PRODUCTS = [], ACTIVE_PROMOS = [], CATEGORIES = [], CART = JSON.parse(sessionStorage.getItem(CART_STORAGE_KEY)||'[]');
 let CATALOG_FILTER = { category: '', search: '' };
 
-function saveCart() { sessionStorage.setItem('myboutik_cart', JSON.stringify(CART)); renderCartCount(); }
+function saveCart() { sessionStorage.setItem(CART_STORAGE_KEY, JSON.stringify(CART)); renderCartCount(); }
 function renderCartCount() {
   // Nombre d'articles differents dans le panier (pas la somme des
   // quantites) - correspond a ce que le client voit en ouvrant le panier :
