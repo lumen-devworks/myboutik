@@ -309,6 +309,8 @@ const I18N = {
     no_activity_yet: 'Aucune activité pour l\'instant.',
     no_orders_yet: 'Aucune commande pour l\'instant.',
     col_ref: 'Réf',
+    badge_physical_title: 'Contient un produit physique (à livrer)',
+    badge_digital_title: 'Contient un produit numérique (envoyé par email)',
     col_client: 'Client',
     col_total: 'Total',
     col_status: 'Statut',
@@ -912,6 +914,8 @@ const I18N = {
     no_activity_yet: 'No activity yet.',
     no_orders_yet: 'No orders yet.',
     col_ref: 'Ref',
+    badge_physical_title: 'Contains a physical product (to be shipped)',
+    badge_digital_title: 'Contains a digital product (sent by email)',
     col_client: 'Customer',
     col_total: 'Total',
     col_status: 'Status',
@@ -1729,12 +1733,21 @@ function renderHome(bt) {
   });
 }
 
+// Badge visuel a cote de la reference - une commande peut melanger un
+// produit physique et un produit numerique dans le meme panier, d'ou deux
+// icones independantes plutot qu'un seul statut.
+function orderTypeBadge(o) {
+  const icons = [];
+  if (Number(o.has_physical) === 1) icons.push('<span title="'+t('badge_physical_title')+'">📦</span>');
+  if (Number(o.has_digital) === 1) icons.push('<span title="'+t('badge_digital_title')+'">📧</span>');
+  return icons.length ? ' <span style="margin-left:4px">'+icons.join('')+'</span>' : '';
+}
 function renderOrdersTable(rows, bt, compact) {
   if (!rows.length) return '<div class="empty"><div class="big">🛍️</div>'+t('no_orders_yet')+'</div>';
   return `<table><thead><tr>${compact?'':'<th><input type="checkbox" id="ordersSelectAll" onchange="toggleAllOrderChecks(this)"></th>'}<th>${t('col_ref')}</th><th>${t('col_client')}</th><th>${t('col_total')}</th><th>${t('col_status')}</th>${compact?'':'<th>'+t('col_date')+'</th><th></th><th></th>'}</tr></thead><tbody>
     ${rows.map(o => `<tr>
       ${compact?'':'<td><input type="checkbox" class="order-check" value="'+o.id+'"></td>'}
-      <td>${escapeHtml(o.ref)}</td><td>${escapeHtml(o.customer_name)}<br><span class="muted">${escapeHtml(o.customer_phone)}</span></td>
+      <td>${escapeHtml(o.ref)}${orderTypeBadge(o)}</td><td>${escapeHtml(o.customer_name)}<br><span class="muted">${escapeHtml(o.customer_phone)}</span></td>
       <td>${fmtMoney(o.total, bt.currency)}</td><td>${pill(o.status)}</td>
       ${compact?'':'<td>'+fmtDate(o.created_at)+'</td><td>'+orderStatusSelect(o)+'</td><td><button class="btn btn-ghost btn-sm" onclick="printOrderBordereau(\''+o.id+'\')">'+t('btn_bordereau')+'</button></td>'}
     </tr>`).join('')}

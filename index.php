@@ -2412,14 +2412,20 @@ function orders_list($pl) {
     $bt = require_boutique_owned($_GET['boutique_id'] ?? '', $pl['sub']);
     $status = $_GET['status'] ?? '';
     $qStr = trim($_GET['q'] ?? '');
-    $sql = "SELECT * FROM orders WHERE boutique_id=?";
+    // has_physical/has_digital : permettent d'afficher un badge par commande
+    // (une commande peut melanger les deux si le panier avait un produit de
+    // chaque sorte) sans avoir a rappeler orders_get() pour chaque ligne.
+    $sql = "SELECT o.*,
+              CAST(EXISTS(SELECT 1 FROM order_items oi JOIN products p ON p.id=oi.product_id WHERE oi.order_id=o.id AND p.is_physical=1) AS INT) AS has_physical,
+              CAST(EXISTS(SELECT 1 FROM order_items oi JOIN products p ON p.id=oi.product_id WHERE oi.order_id=o.id AND p.is_digital=1) AS INT) AS has_digital
+            FROM orders o WHERE o.boutique_id=?";
     $params = [$bt['id']];
-    if ($status !== '' && $status !== 'all') { $sql .= " AND status=?"; $params[] = $status; }
+    if ($status !== '' && $status !== 'all') { $sql .= " AND o.status=?"; $params[] = $status; }
     if ($qStr !== '') {
-        $sql .= " AND (ref ILIKE ? OR customer_name ILIKE ? OR customer_phone ILIKE ?)";
+        $sql .= " AND (o.ref ILIKE ? OR o.customer_name ILIKE ? OR o.customer_phone ILIKE ?)";
         $like = '%'.$qStr.'%'; array_push($params, $like, $like, $like);
     }
-    $sql .= " ORDER BY created_at DESC LIMIT 500";
+    $sql .= " ORDER BY o.created_at DESC LIMIT 500";
     $rows = q($sql, $params)->fetchAll();
     ok($rows);
 }
