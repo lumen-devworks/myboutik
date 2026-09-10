@@ -724,6 +724,16 @@ const I18N = {
     cod_enabled_note: 'Ne concerne que les commandes avec au moins un produit physique — désactiver ceci n\'empêche pas de vendre des produits numériques.',
     checkbox_public_listed: 'Lister ma boutique dans l\'annuaire public MYBOUTIK',
     public_listed_note: 'Désactivé par défaut. Si activé, votre boutique et vos produits actifs deviennent visibles par tout visiteur de l\'annuaire MYBOUTIK (recherche incluse) — pas seulement les personnes à qui vous partagez votre lien.',
+    label_directory_category: 'Catégorie (annuaire)',
+    label_directory_city: 'Ville (annuaire)',
+    placeholder_directory_city: 'Ex : Abidjan, Cocody…',
+    directory_cat_mode: 'Mode & Vêtements',
+    directory_cat_beaute: 'Beauté & Cosmétiques',
+    directory_cat_electronique: 'Électronique & Informatique',
+    directory_cat_alimentation: 'Alimentation',
+    directory_cat_maison: 'Maison & Décoration',
+    directory_cat_services: 'Services',
+    directory_cat_autre: 'Autre',
     order_notifications_title: 'Notifications de commande',
     checkbox_notify_email: 'Recevoir un email à chaque nouvelle commande',
     label_receiving_address: 'Adresse de réception (vide = email de votre compte)',
@@ -1334,6 +1344,16 @@ const I18N = {
     cod_enabled_note: 'Only applies to orders with at least one physical product — turning this off doesn\'t stop you from selling digital products.',
     checkbox_public_listed: 'List my shop in the public MYBOUTIK directory',
     public_listed_note: 'Off by default. If enabled, your shop and active products become visible to any visitor of the MYBOUTIK directory (search included) - not just people you share your link with.',
+    label_directory_category: 'Category (directory)',
+    label_directory_city: 'City (directory)',
+    placeholder_directory_city: 'E.g.: Abidjan, Cocody…',
+    directory_cat_mode: 'Fashion & Clothing',
+    directory_cat_beaute: 'Beauty & Cosmetics',
+    directory_cat_electronique: 'Electronics & Computing',
+    directory_cat_alimentation: 'Food',
+    directory_cat_maison: 'Home & Decor',
+    directory_cat_services: 'Services',
+    directory_cat_autre: 'Other',
     order_notifications_title: 'Order notifications',
     checkbox_notify_email: 'Receive an email for every new order',
     label_receiving_address: 'Receiving address (empty = your account email)',
@@ -1461,6 +1481,18 @@ function setLang(lang) {
   route();
 }
 
+// Liste fixe (pas de texte libre) pour que le filtre categorie de l'annuaire
+// public reste utile - un texte libre fragmenterait en variantes proches
+// ("Vetements", "Mode", "Habillement"...) impossibles a filtrer ensemble.
+function DIRECTORY_CATEGORIES_FN() { return [
+  {value:'mode', label:t('directory_cat_mode')},
+  {value:'beaute', label:t('directory_cat_beaute')},
+  {value:'electronique', label:t('directory_cat_electronique')},
+  {value:'alimentation', label:t('directory_cat_alimentation')},
+  {value:'maison', label:t('directory_cat_maison')},
+  {value:'services', label:t('directory_cat_services')},
+  {value:'autre', label:t('directory_cat_autre')},
+]; }
 function STATUS_LABELS_FN() { return {
   pending: t('order_status_pending'), processing: t('order_status_processing'), shipped: t('order_status_shipped'), delivered: t('order_status_delivered'),
   refused: t('order_status_refused'), cancelled: t('order_status_cancelled'),
@@ -3368,6 +3400,15 @@ function renderSettings(bt) {
       <div class="muted" style="margin:-2px 0 14px;font-size:12px">${t('cod_enabled_note')}</div>
       <label style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><input type="checkbox" id="setPublicListed" ${bt.public_listed?'checked':''}> ${t('checkbox_public_listed')}</label>
       <div class="muted" style="margin:-2px 0 14px;font-size:12px">${t('public_listed_note')}</div>
+      <div class="field-row">
+        <div class="field"><label>${t('label_directory_category')}</label>
+          <select id="setCategory">
+            <option value="">—</option>
+            ${DIRECTORY_CATEGORIES_FN().map(c => '<option value="'+c.value+'" '+(bt.category===c.value?'selected':'')+'>'+c.label+'</option>').join('')}
+          </select>
+        </div>
+        <div class="field"><label>${t('label_directory_city')}</label><input id="setCity" value="${escapeHtml(bt.city||'')}" placeholder="${t('placeholder_directory_city')}"></div>
+      </div>
       <button class="btn btn-primary" onclick="saveSettings('settingsMsg')">${t('btn_save')}</button>
     </div>
     <div class="card">
@@ -3407,6 +3448,8 @@ function saveSettings(targetMsgId) {
     logo_url:document.getElementById('setLogo').value.trim(),
     cod_enabled:document.getElementById('setCod').checked,
     public_listed:document.getElementById('setPublicListed').checked,
+    category:document.getElementById('setCategory').value,
+    city:document.getElementById('setCity').value.trim(),
     default_delivery_fee:Number(document.getElementById('setDeliveryFee').value||0),
     notify_order_email:document.getElementById('setNotifyEmail').checked,
     notify_email:document.getElementById('setNotifyAddr').value.trim(),

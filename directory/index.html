@@ -44,6 +44,10 @@
   .search-row{display:flex;gap:8px}
   .search-row input{flex:1;padding:12px 14px;border:1.5px solid var(--border);border-radius:11px;font-size:14px}
   .search-row input:focus{outline:none;border-color:var(--blue)}
+  #shopFilters input,#shopFilters select{padding:9px 12px;border:1.5px solid var(--border);border-radius:9px;font-size:13px;background:#fff}
+  #shopFilters input:focus,#shopFilters select:focus{outline:none;border-color:var(--blue)}
+  .stars{color:#f59e0b;font-size:13px;letter-spacing:1px}
+  .rating-count{color:var(--gray);font-size:12px;margin-left:4px}
   .search-row button{background:var(--blue);color:#fff;border:none;border-radius:11px;padding:0 20px;font-weight:700;font-size:14px;cursor:pointer}
 
   .section-title{font-size:14px;font-weight:700;color:var(--gray);text-transform:uppercase;letter-spacing:.03em;margin-bottom:14px}
@@ -107,6 +111,11 @@
       <input id="searchInput" oninput="onSearchInput()">
       <button type="button" onclick="runSearch()" id="searchBtnText"></button>
     </div>
+    <div id="shopFilters" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+      <select id="filterCategory" onchange="runSearch()" style="width:auto;flex:1 1 160px"></select>
+      <input id="filterCity" list="cityList" oninput="onSearchInput()" style="width:auto;flex:1 1 160px">
+      <datalist id="cityList"></datalist>
+    </div>
   </div>
 
   <div id="resultsArea"></div>
@@ -168,6 +177,16 @@ const I18N = {
     create_shop_btn: 'Créer ma boutique',
     guide_link: 'Consulter le guide d\'utilisation',
     server_unreachable: 'Impossible de contacter le serveur.',
+    filter_all_categories: 'Toutes les catégories',
+    filter_city_placeholder: 'Ville…',
+    directory_cat_mode: 'Mode & Vêtements',
+    directory_cat_beaute: 'Beauté & Cosmétiques',
+    directory_cat_electronique: 'Électronique & Informatique',
+    directory_cat_alimentation: 'Alimentation',
+    directory_cat_maison: 'Maison & Décoration',
+    directory_cat_services: 'Services',
+    directory_cat_autre: 'Autre',
+    reviews_count: 'avis',
   },
   en: {
     tagline: 'Shop directory',
@@ -193,6 +212,16 @@ const I18N = {
     create_shop_btn: 'Create my shop',
     guide_link: 'View the user guide',
     server_unreachable: 'Unable to reach the server.',
+    filter_all_categories: 'All categories',
+    filter_city_placeholder: 'City…',
+    directory_cat_mode: 'Fashion & Clothing',
+    directory_cat_beaute: 'Beauty & Cosmetics',
+    directory_cat_electronique: 'Electronics & Computing',
+    directory_cat_alimentation: 'Food',
+    directory_cat_maison: 'Home & Decor',
+    directory_cat_services: 'Services',
+    directory_cat_autre: 'Other',
+    reviews_count: 'reviews',
   },
 };
 let LANG = localStorage.getItem('myboutik_lang') || 'fr';
@@ -206,12 +235,30 @@ function setLang(lang) {
 }
 
 let MODE = 'shops'; // 'shops' | 'products'
+function DIRECTORY_CATEGORIES_FN() { return [
+  {value:'mode', label:t('directory_cat_mode')},
+  {value:'beaute', label:t('directory_cat_beaute')},
+  {value:'electronique', label:t('directory_cat_electronique')},
+  {value:'alimentation', label:t('directory_cat_alimentation')},
+  {value:'maison', label:t('directory_cat_maison')},
+  {value:'services', label:t('directory_cat_services')},
+  {value:'autre', label:t('directory_cat_autre')},
+]; }
+function fillCategoryOptions() {
+  const sel = document.getElementById('filterCategory');
+  const current = sel.value;
+  sel.innerHTML = '<option value="">'+t('filter_all_categories')+'</option>'
+    + DIRECTORY_CATEGORIES_FN().map(c => '<option value="'+c.value+'">'+c.label+'</option>').join('');
+  sel.value = current;
+  document.getElementById('filterCity').placeholder = t('filter_city_placeholder');
+}
 function setMode(mode) {
   MODE = mode;
   document.getElementById('modeShops').classList.toggle('active', mode === 'shops');
   document.getElementById('modeProducts').classList.toggle('active', mode === 'products');
   document.getElementById('searchInput').placeholder = mode === 'shops' ? t('search_placeholder_shops') : t('search_placeholder_products');
   document.getElementById('searchInput').value = '';
+  document.getElementById('shopFilters').style.display = mode === 'shops' ? 'flex' : 'none';
   runSearch();
 }
 
@@ -240,6 +287,7 @@ function applyStaticText() {
   document.getElementById('footerCta').textContent = t('footer_cta');
   document.getElementById('createShopBtn').textContent = t('create_shop_btn');
   document.getElementById('guideLink').textContent = t('guide_link');
+  fillCategoryOptions();
 }
 
 let searchTimer = null;
@@ -253,7 +301,12 @@ function runSearch() {
   const area = document.getElementById('resultsArea');
   area.innerHTML = '<div class="empty">'+t('loading')+'</div>';
   if (MODE === 'shops') {
-    api('/directory?action=boutiques&q='+encodeURIComponent(q)).then(({data}) => {
+    const category = document.getElementById('filterCategory').value;
+    const city = document.getElementById('filterCity').value.trim();
+    let url = '/directory?action=boutiques&q='+encodeURIComponent(q);
+    if (category) url += '&category='+encodeURIComponent(category);
+    if (city) url += '&city='+encodeURIComponent(city);
+    api(url).then(({data}) => {
       if (!data.success) { area.innerHTML = '<div class="empty">'+data.message+'</div>'; return; }
       renderShops(data.data || [], q);
     });
@@ -266,6 +319,12 @@ function runSearch() {
   }
 }
 
+function starsHtml(avg, count) {
+  if (!avg) return '';
+  const full = Math.round(Number(avg));
+  const stars = '★'.repeat(Math.max(0,Math.min(5,full))) + '☆'.repeat(5-Math.max(0,Math.min(5,full)));
+  return '<div><span class="stars">'+stars+'</span><span class="rating-count">'+avg+' · '+count+' '+t('reviews_count')+'</span></div>';
+}
 function renderShops(rows, q) {
   const area = document.getElementById('resultsArea');
   if (!rows.length) {
@@ -279,6 +338,7 @@ function renderShops(rows, q) {
         <div class="name">${escapeHtml(b.name)}</div>
       </div>
       ${b.description ? '<div class="desc">'+escapeHtml(b.description)+'</div>' : ''}
+      ${starsHtml(b.avg_rating, b.review_count)}
       <div class="visit">${t('visit_shop')}</div>
     </a>`).join('')+'</div>';
 }
@@ -321,9 +381,18 @@ if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => { navigator.serviceWorker.register('sw.js').catch(() => {}); });
 }
 
+function loadDirectoryFilters() {
+  api('/directory?action=filters').then(({data}) => {
+    if (!data.success) return;
+    const cities = (data.data && data.data.cities) || [];
+    document.getElementById('cityList').innerHTML = cities.map(c => '<option value="'+escapeHtml(c)+'">').join('');
+  });
+}
+
 document.documentElement.lang = LANG;
 applyStaticText();
 setMode('shops');
+loadDirectoryFilters();
 </script>
 </body>
 </html>

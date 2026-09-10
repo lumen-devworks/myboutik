@@ -723,6 +723,11 @@ function route_install() {
     // en clientele privee et ne veulent pas etre exposes publiquement a
     // cote d'autres boutiques.
     "ALTER TABLE boutiques ADD COLUMN IF NOT EXISTS public_listed SMALLINT DEFAULT 0",
+    // Categorie/ville optionnelles - uniquement utilisees pour filtrer dans
+    // l'annuaire public (route_directory()) ; sans objet pour une boutique
+    // qui n'y est pas listee.
+    "ALTER TABLE boutiques ADD COLUMN IF NOT EXISTS category VARCHAR(60)",
+    "ALTER TABLE boutiques ADD COLUMN IF NOT EXISTS city VARCHAR(80)",
     "ALTER TABLE boutiques ADD COLUMN IF NOT EXISTS notify_order_email SMALLINT DEFAULT 1",
     "ALTER TABLE boutiques ADD COLUMN IF NOT EXISTS notify_email VARCHAR(190)",
     // notify_whatsapp_enabled/number : colonnes conservees pour compatibilite
@@ -1458,10 +1463,12 @@ function boutiques_update($pl) {
     $notifyEmail = trim($b['notify_email'] ?? $row['notify_email']);
     $stockAlertEnabled = isset($b['stock_alert_enabled']) ? (int)!!$b['stock_alert_enabled'] : $row['stock_alert_enabled'];
     $publicListed = isset($b['public_listed']) ? (int)!!$b['public_listed'] : $row['public_listed'];
+    $category = trim($b['category'] ?? $row['category']);
+    $city = trim($b['city'] ?? $row['city']);
     q("UPDATE boutiques SET name=?, cod_enabled=?, currency=?, default_delivery_fee=?, description=?, logo_url=?,
-       notify_order_email=?, notify_email=?, stock_alert_enabled=?, public_listed=? WHERE id=?",
+       notify_order_email=?, notify_email=?, stock_alert_enabled=?, public_listed=?, category=?, city=? WHERE id=?",
       [$name, $codEnabled, $currency, $deliveryFee, $description, $logoUrl, $notifyOrderEmail, $notifyEmail,
-       $stockAlertEnabled, $publicListed, $id]);
+       $stockAlertEnabled, $publicListed, $category, $city, $id]);
     ok(q("SELECT * FROM boutiques WHERE id=?", [$id])->fetch(), 'Boutique mise a jour');
 }
 
@@ -1948,17 +1955,37 @@ function route_directory($action) {
     switch ($action) {
         case 'boutiques': directory_boutiques(); break;
         case 'products':  directory_products(); break;
+        case 'filters':   directory_filters(); break;
         default: fail('Action inconnue', 404);
     }
 }
 function directory_boutiques() {
     rate_limit_check('directory_boutiques', 60, 300);
     $q = trim($_GET['q'] ?? '');
-    $sql = "SELECT slug, name, description, logo_url, currency FROM boutiques WHERE status='active' AND public_listed=1";
+    $category = trim($_GET['category'] ?? '');
+    $city = trim($_GET['city'] ?? '');
+    // Note moyenne calculee a la volee a partir des avis produits deja
+    // approuves par le marchand (product_reviews.status='approved') -
+    // aucune nouvelle table, juste une agregation par boutique.
+    $sql = "SELECT b.slug, b.name, b.description, b.logo_url, b.currency, b.category, b.city,
+              (SELECT ROUND(AVG(r.rating)::numeric, 1) FROM product_reviews r WHERE r.boutique_id=b.id AND r.status='approved') AS avg_rating,
+              (SELECT COUNT(*) FROM product_reviews r WHERE r.boutique_id=b.id AND r.status='approved') AS review_count
+            FROM boutiques b WHERE b.status='active' AND b.public_listed=1";
     $params = [];
-    if ($q !== '') { $sql .= " AND name ILIKE ?"; $params[] = '%'.$q.'%'; }
-    $sql .= " ORDER BY created_at DESC LIMIT 60";
+    if ($q !== '') { $sql .= " AND b.name ILIKE ?"; $params[] = '%'.$q.'%'; }
+    if ($category !== '') { $sql .= " AND b.category=?"; $params[] = $category; }
+    if ($city !== '') { $sql .= " AND b.city ILIKE ?"; $params[] = '%'.$city.'%'; }
+    $sql .= " ORDER BY b.created_at DESC LIMIT 60";
     ok(q($sql, $params)->fetchAll());
+}
+// Categories et villes distinctes parmi les boutiques listees - alimente
+// les listes deroulantes de filtre de l'annuaire (evite de proposer un
+// filtre sur une valeur qu'aucune boutique n'utilise).
+function directory_filters() {
+    rate_limit_check('directory_filters', 60, 300);
+    $categories = q("SELECT DISTINCT category FROM boutiques WHERE status='active' AND public_listed=1 AND category IS NOT NULL AND category<>'' ORDER BY category")->fetchAll(PDO::FETCH_COLUMN);
+    $cities = q("SELECT DISTINCT city FROM boutiques WHERE status='active' AND public_listed=1 AND city IS NOT NULL AND city<>'' ORDER BY city")->fetchAll(PDO::FETCH_COLUMN);
+    ok(['categories' => $categories, 'cities' => $cities]);
 }
 // Recherche d'articles a travers TOUTES les boutiques listees publiquement -
 // le nom de la boutique est renvoye avec chaque article pour que le client
