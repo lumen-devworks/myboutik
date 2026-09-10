@@ -655,10 +655,10 @@ function renderCartSheet(step, prefill) {
       <h2>${t('checkout_title')}</h2>
       <div id="checkoutMsg"></div>
       <div class="field"><label>${t('checkout_fullname_label')}</label><input id="coName" value="${escapeHtml(prefill.name||'')}"></div>
-      <div class="field"><label>${t('checkout_phone_label')}</label><input id="coPhone" value="${escapeHtml(prefill.phone||'')}" oninput="onCheckoutPhoneInput()"></div>
+      <div class="field"><label>${t('checkout_phone_label')}</label><input id="coPhone" value="${escapeHtml(prefill.phone||'')}" oninput="onCheckoutPhoneInput()" onblur="trackAbandoned()"></div>
       <div id="personalPromoHint"></div>
       <div class="field"><label>${t('checkout_address_label')}</label><textarea id="coAddress" rows="2">${escapeHtml(prefill.address||'')}</textarea></div>
-      <div class="field"><label>${t('checkout_email_label')}</label><input id="coEmail" type="email" value="${escapeHtml(prefill.email||'')}" oninput="onCheckoutPhoneInput()"></div>
+      <div class="field"><label>${t('checkout_email_label')}</label><input id="coEmail" type="email" value="${escapeHtml(prefill.email||'')}" oninput="onCheckoutPhoneInput()" onblur="trackAbandoned()"></div>
       ${promoFieldHtml()}
       ${totalsHtml}
       <button class="btn btn-primary" id="coSubmitBtn" onclick="submitCheckout()">${t('confirm_order_btn')}</button>
