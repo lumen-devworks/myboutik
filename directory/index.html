@@ -75,6 +75,18 @@
   footer .cta{font-size:14px;color:var(--gray);margin-bottom:12px}
   footer .btn{display:inline-block;background:var(--blue);color:#fff;padding:11px 22px;border-radius:11px;font-weight:700;font-size:14px}
 
+  .overlay{display:none;position:fixed;inset:0;background:rgba(15,23,42,.45);z-index:150;align-items:center;justify-content:center;padding:16px}
+  .overlay.open{display:flex}
+  .sheet{background:#fff;border-radius:16px;padding:22px;max-width:420px;width:100%;max-height:90vh;overflow-y:auto;position:relative}
+  .sheet .close{position:absolute;top:14px;right:14px;border:none;background:none;font-size:18px;cursor:pointer;color:var(--gray)}
+  .sheet h2{font-size:17px;margin-bottom:4px}
+  .sheet .field{margin:12px 0}
+  .sheet .field label{display:block;font-size:12.5px;font-weight:700;color:var(--gray);margin-bottom:4px}
+  .sheet .field input{width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:9px;font-size:14px}
+  .sheet .field input:focus{outline:none;border-color:var(--blue)}
+  .sheet .btn-primary{width:100%;background:var(--blue);color:#fff;border:none;border-radius:10px;padding:12px;font-weight:700;font-size:14px;cursor:pointer;margin-top:4px}
+  .msg{padding:9px 12px;border-radius:9px;font-size:13px;margin:10px 0}
+  .msg-success{background:var(--green-bg);color:var(--green)}
   #toastContainer{position:fixed;top:18px;left:50%;transform:translateX(-50%);z-index:200;display:flex;flex-direction:column;gap:8px;align-items:center;pointer-events:none;max-width:90vw}
   .toast{pointer-events:auto;padding:12px 20px;border-radius:10px;font-size:14px;font-weight:600;box-shadow:0 6px 18px rgba(15,23,42,.15);max-width:440px;text-align:center;opacity:0;transform:translateY(-8px);transition:opacity .2s,transform .2s}
   .toast.show{opacity:1;transform:translateY(0)}
@@ -89,6 +101,7 @@
       <div><div class="name">MYBOUTIK</div><div class="tagline" id="taglineText"></div></div>
     </div>
     <div class="header-actions">
+      <button id="profileBtn" onclick="openCustomerProfile()" style="border:1px solid var(--border);background:#fff;border-radius:999px;padding:7px 14px;font-size:12px;font-weight:700;cursor:pointer">👤 <span id="profileBtnText"></span></button>
       <a id="accountLink" href="../index.html" style="border:1px solid var(--border);background:#fff;border-radius:999px;padding:7px 14px;font-size:12px;font-weight:700"></a>
       <button id="installBtn" onclick="installApp()">📲 <span id="installBtnText"></span></button>
       <div class="lang-switch"><button type="button" onclick="setLang('fr')" id="langFr">FR</button><button type="button" onclick="setLang('en')" id="langEn">EN</button></div>
@@ -129,6 +142,7 @@
   </div>
 </footer>
 
+<div class="overlay" id="profileOverlay"><div class="sheet" id="profileSheet"></div></div>
 <div id="toastContainer"></div>
 
 <script src="../config.js"></script>
@@ -187,6 +201,14 @@ const I18N = {
     directory_cat_services: 'Services',
     directory_cat_autre: 'Autre',
     reviews_count: 'avis',
+    profile_link: 'Mon profil',
+    profile_title: 'Mon profil',
+    profile_desc: 'Renseignez vos informations une fois : elles rempliront automatiquement le formulaire de commande dans n\'importe quelle boutique MYBOUTIK sur cet appareil.',
+    profile_name_label: 'Nom complet',
+    profile_phone_label: 'Téléphone',
+    profile_email_label: 'Email',
+    profile_save_btn: 'Enregistrer',
+    profile_saved: 'Profil enregistré sur cet appareil.',
   },
   en: {
     tagline: 'Shop directory',
@@ -222,6 +244,14 @@ const I18N = {
     directory_cat_services: 'Services',
     directory_cat_autre: 'Other',
     reviews_count: 'reviews',
+    profile_link: 'My profile',
+    profile_title: 'My profile',
+    profile_desc: 'Fill in your details once: they will automatically fill the order form in any MYBOUTIK shop on this device.',
+    profile_name_label: 'Full name',
+    profile_phone_label: 'Phone',
+    profile_email_label: 'Email',
+    profile_save_btn: 'Save',
+    profile_saved: 'Profile saved on this device.',
   },
 };
 let LANG = localStorage.getItem('myboutik_lang') || 'fr';
@@ -266,6 +296,37 @@ function setMode(mode) {
 // site (index.html, dashboard, ici) puisqu'il n'est pas lie a un chemin -
 // un marchand deja connecte via une autre page est donc deja reconnu ici,
 // sans avoir a se reconnecter juste pour changer de contexte.
+// Profil client local a cet appareil - meme localStorage que store/index.html
+// (partage entre toutes les pages du site, voir loadCustomerProfile() la-bas)
+// pour pre-remplir automatiquement le formulaire de commande sans compte.
+function loadCustomerProfile() {
+  try { return JSON.parse(localStorage.getItem('myboutik_customer_profile') || 'null') || {}; } catch (e) { return {}; }
+}
+function saveCustomerProfile(p) {
+  try { localStorage.setItem('myboutik_customer_profile', JSON.stringify(p)); } catch (e) {}
+}
+function openCustomerProfile() {
+  const p = loadCustomerProfile();
+  document.getElementById('profileSheet').innerHTML = `
+    <button class="close" onclick="closeCustomerProfile()">✕</button>
+    <h2>${t('profile_title')}</h2>
+    <p style="color:var(--gray);font-size:12.5px;margin-top:6px">${t('profile_desc')}</p>
+    <div id="profileMsg"></div>
+    <div class="field"><label>${t('profile_name_label')}</label><input id="cpName" value="${escapeHtml(p.name||'')}"></div>
+    <div class="field"><label>${t('profile_phone_label')}</label><input id="cpPhone" value="${escapeHtml(p.phone||'')}"></div>
+    <div class="field"><label>${t('profile_email_label')}</label><input id="cpEmail" type="email" value="${escapeHtml(p.email||'')}"></div>
+    <button class="btn-primary" onclick="submitCustomerProfile()">${t('profile_save_btn')}</button>
+  `;
+  document.getElementById('profileOverlay').classList.add('open');
+}
+function closeCustomerProfile() { document.getElementById('profileOverlay').classList.remove('open'); }
+function submitCustomerProfile() {
+  const name = document.getElementById('cpName').value.trim();
+  const phone = document.getElementById('cpPhone').value.trim();
+  const email = document.getElementById('cpEmail').value.trim();
+  saveCustomerProfile(Object.assign({}, loadCustomerProfile(), {name, phone, email}));
+  document.getElementById('profileMsg').innerHTML = '<div class="msg msg-success">'+t('profile_saved')+'</div>';
+}
 function applyAccountLink() {
   const link = document.getElementById('accountLink');
   const loggedIn = !!localStorage.getItem('myboutik_token');
@@ -276,6 +337,7 @@ function applyStaticText() {
   document.getElementById('langFr').classList.toggle('active', LANG === 'fr');
   document.getElementById('langEn').classList.toggle('active', LANG === 'en');
   document.getElementById('taglineText').textContent = t('tagline');
+  document.getElementById('profileBtnText').textContent = t('profile_link');
   applyAccountLink();
   document.getElementById('heroTitle').textContent = t('hero_title');
   document.getElementById('heroDesc').textContent = t('hero_desc');

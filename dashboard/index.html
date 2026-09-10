@@ -147,6 +147,7 @@
       <select id="boutiqueSwitch" onchange="switchBoutique(this.value)"></select>
     </div>
     <a class="side-back" href="#/boutiques" onclick="closeSidebar()" id="sideBackAll">← Toutes mes boutiques</a>
+    <a class="side-back" href="../directory/index.html" id="sideDirectoryLink">🏬 Annuaire des boutiques</a>
     <a class="side-back" href="../guide.html" target="_blank" id="sideGuideLink">📖 Guide d'utilisation</a>
     <nav class="side-nav" id="sideNav"></nav>
   </div>
@@ -226,6 +227,7 @@ const I18N = {
     topbar_default_title: 'Tableau de bord',
     btn_logout: 'Se déconnecter',
     side_back_all_boutiques: '← Toutes mes boutiques',
+    side_directory: '🏬 Annuaire des boutiques',
     side_guide: '📖 Guide d\'utilisation',
     no_boutique_option: 'Aucune boutique',
     my_boutiques_title: 'Mes boutiques',
@@ -849,6 +851,7 @@ const I18N = {
     topbar_default_title: 'Dashboard',
     btn_logout: 'Log out',
     side_back_all_boutiques: '← All my shops',
+    side_directory: '🏬 Shop directory',
     side_guide: '📖 User guide',
     no_boutique_option: 'No shop',
     my_boutiques_title: 'My shops',
@@ -1483,6 +1486,7 @@ function setLang(lang) {
   document.getElementById('langEn').classList.toggle('active', LANG === 'en');
   document.getElementById('logoutBtn').textContent = t('btn_logout');
   document.getElementById('sideBackAll').textContent = t('side_back_all_boutiques');
+  document.getElementById('sideDirectoryLink').textContent = t('side_directory');
   document.getElementById('sideGuideLink').textContent = t('side_guide');
   route();
 }

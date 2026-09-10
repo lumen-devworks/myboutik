@@ -679,6 +679,16 @@ function checkoutFieldValues() {
     email: (document.getElementById('coEmail')||{}).value || '',
   };
 }
+// Profil client local a cet appareil (meme localStorage que l'annuaire et
+// toutes les boutiques, puisqu'il n'est pas lie a un chemin - voir
+// applyAccountLink() dans directory/index.html pour le meme principe) :
+// permet de pre-remplir le formulaire de commande sans compte/connexion.
+function loadCustomerProfile() {
+  try { return JSON.parse(localStorage.getItem('myboutik_customer_profile') || 'null') || {}; } catch (e) { return {}; }
+}
+function saveCustomerProfile(p) {
+  try { localStorage.setItem('myboutik_customer_profile', JSON.stringify(p)); } catch (e) {}
+}
 function applyPromoCode() {
   const code = document.getElementById('promoInput').value.trim();
   if (!code) return;
@@ -706,7 +716,7 @@ function renderCartSheet(step, prefill) {
       <h2>${t('cart_title')}</h2>
       ${CART.length ? CART.map(l => `<div class="cart-line"><div>${escapeHtml(l.name)} × ${l.qty}<br><span style="color:var(--gray)">${fmtMoney(l.price,BOUTIQUE.currency)}</span></div><button onclick="removeFromCart('${l.key}')">✕</button></div>`).join('')
         : '<div class="empty" style="padding:30px 0"><div class="big">🛒</div>'+t('cart_empty')+'</div>'}
-      ${CART.length ? totalsHtml+'<button class="btn btn-primary" onclick="renderCartSheet(\'checkout\')">'+(cartHasPhysicalItem() ? t('order_cod_btn') : t('order_digital_btn'))+'</button>' : ''}
+      ${CART.length ? totalsHtml+'<button class="btn btn-primary" onclick="renderCartSheet(\'checkout\', loadCustomerProfile())">'+(cartHasPhysicalItem() ? t('order_cod_btn') : t('order_digital_btn'))+'</button>' : ''}
     `;
     if (CART.length) trackAbandoned();
   } else if (step === 'checkout') {
@@ -817,6 +827,7 @@ function submitCheckout() {
     btn.disabled = false; btn.textContent = window.__lastOrderHasPhysical ? t('confirm_order_btn') : t('confirm_order_digital_btn');
     if (!data.success) { showCheckoutError(data.message); return; }
     window.__lastOrderRef = data.data.ref;
+    saveCustomerProfile({name, phone, email, address});
     CART = []; saveCart(); APPLIED_PROMO = null;
     renderCartSheet('confirm');
   });
