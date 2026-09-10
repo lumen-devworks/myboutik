@@ -2698,22 +2698,21 @@ function addOptionRow() {
   renderOptionRows();
 }
 // Etiquettes (tags) plutot qu'un champ texte libre "separe par des virgules"
-// - ambigu et source d'erreur (un merchant qui tape des espaces ou des
-// points-virgules se retrouvait avec une seule "valeur" fourre-tout au lieu
-// de plusieurs tailles/couleurs distinctes, ex: "S M XL" ou "Rouge ;Vert;
-// Orange" comme UNE seule valeur, donc une seule variante generee). Entree,
-// virgule, point-virgule OU espace valident une/des etiquette(s) - et si
-// plusieurs valeurs separees par , ; ou un espace ont ete tapees/collees
-// d'un coup, chacune devient sa propre etiquette au lieu d'une seule
-// fourre-tout. Compromis assume : une valeur "legitimement" composee de
-// plusieurs mots (ex: "Vert fonce") sera aussi coupee en deux etiquettes -
-// choix explicite du marchand pour prioriser la rapidite de saisie.
+// - ambigu et source d'erreur (un merchant qui tape des points-virgules se
+// retrouvait avec une seule "valeur" fourre-tout au lieu de plusieurs
+// tailles/couleurs distinctes, ex: "Rouge ;Vert; Orange" comme UNE seule
+// valeur, donc une seule variante generee). Entree, virgule OU point-virgule
+// valident une/des etiquette(s) - et si plusieurs valeurs separees par , ou
+// ; ont ete tapees/collees d'un coup, chacune devient sa propre etiquette.
+// L'espace n'est PAS un separateur (essaye puis retire sur demande) : des
+// valeurs legitimes en contiennent (ex: "Vert fonce") et il n'y a pas de
+// syntaxe d'echappement pour les distinguer sans complexifier la saisie.
 // Retour arriere sur un champ vide supprime la derniere etiquette.
 function handleOptionTagInput(e, rowIndex) {
-  if (e.key === 'Enter' || e.key === ',' || e.key === ';' || e.key === ' ') {
+  if (e.key === 'Enter' || e.key === ',' || e.key === ';') {
     e.preventDefault();
-    const raw = e.target.value.replace(/[,;\s]$/, '');
-    const parts = raw.split(/[,;\s]+/).map(v => v.trim()).filter(Boolean);
+    const raw = e.target.value.replace(/[,;]$/, '');
+    const parts = raw.split(/[,;]+/).map(v => v.trim()).filter(Boolean);
     if (parts.length) {
       if (!window.__optionRows[rowIndex].values) window.__optionRows[rowIndex].values = [];
       parts.forEach((val) => {
