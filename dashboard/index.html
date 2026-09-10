@@ -555,6 +555,16 @@ const I18N = {
     label_digital_delivery_content: 'Contenu envoyé automatiquement au client (lien, code, instructions...)',
     placeholder_digital_delivery: 'Ex : Lien de téléchargement : https://... ou code de licence : XXXX-XXXX',
     digital_delivery_note: 'Envoyé par email automatiquement dès que la commande passe au statut "Livrée" — uniquement si le client a renseigné son email à la commande.',
+    label_digital_delivery_mode: 'Type de contenu numérique',
+    digital_mode_link: 'Lien partagé (même contenu pour tous les acheteurs)',
+    digital_mode_codes: 'Codes uniques (un code différent par vente — licences, codes cadeaux...)',
+    placeholder_digital_codes: 'Un code par ligne, ex :\nABCD-1234-EFGH\nWXYZ-5678-IJKL',
+    btn_add_codes: '+ Ajouter ces codes au stock',
+    save_product_first_for_codes: 'Enregistrez d\'abord le produit pour pouvoir ajouter des codes.',
+    codes_available_label: 'code(s) disponible(s)',
+    codes_total_label: 'au total',
+    code_used_label: 'Utilisé',
+    no_codes_yet: 'Aucun code ajouté pour l\'instant.',
     label_photos: 'Photos',
     label_primary_photo: 'Principale',
     btn_set_primary: 'Définir',
@@ -1148,6 +1158,16 @@ const I18N = {
     label_digital_delivery_content: 'Content sent automatically to the customer (link, code, instructions...)',
     placeholder_digital_delivery: 'E.g.: Download link: https://... or license code: XXXX-XXXX',
     digital_delivery_note: 'Sent by email automatically as soon as the order status becomes "Delivered" — only if the customer entered their email at checkout.',
+    label_digital_delivery_mode: 'Digital content type',
+    digital_mode_link: 'Shared link (same content for every buyer)',
+    digital_mode_codes: 'Unique codes (a different code per sale — licenses, gift codes...)',
+    placeholder_digital_codes: 'One code per line, e.g.:\nABCD-1234-EFGH\nWXYZ-5678-IJKL',
+    btn_add_codes: '+ Add these codes to stock',
+    save_product_first_for_codes: 'Save the product first to be able to add codes.',
+    codes_available_label: 'code(s) available',
+    codes_total_label: 'total',
+    code_used_label: 'Used',
+    no_codes_yet: 'No codes added yet.',
     label_photos: 'Photos',
     label_primary_photo: 'Primary',
     btn_set_primary: 'Set',
@@ -2571,9 +2591,24 @@ function renderProductFormModal(p, allProducts, categories) {
     <label style="display:flex;align-items:center;gap:8px;margin-bottom:14px"><input type="checkbox" id="prodPhysical" onchange="toggleDigitalDeliveryField()" ${p.is_physical!=0?'checked':''}> ${t('checkbox_physical_product')}</label>
     <div class="muted" style="margin:-6px 0 14px;font-size:12px">${t('product_form_stock_note')}</div>
     <div class="field" id="digitalDeliveryField" style="${p.is_physical!=0?'display:none':''}">
-      <label>${t('label_digital_delivery_content')}</label>
-      <textarea id="prodDigitalContent" rows="4" placeholder="${t('placeholder_digital_delivery')}">${escapeHtml(p.digital_delivery_content||'')}</textarea>
-      <div class="muted" style="font-size:12px;margin-top:-6px">${t('digital_delivery_note')}</div>
+      <label>${t('label_digital_delivery_mode')}</label>
+      <select id="prodDigitalMode" onchange="toggleDigitalModeFields()">
+        <option value="link" ${(p.digital_delivery_mode||'link')==='link'?'selected':''}>${t('digital_mode_link')}</option>
+        <option value="codes" ${p.digital_delivery_mode==='codes'?'selected':''}>${t('digital_mode_codes')}</option>
+      </select>
+      <div id="digitalLinkField" style="${p.digital_delivery_mode==='codes'?'display:none':''}">
+        <label>${t('label_digital_delivery_content')}</label>
+        <textarea id="prodDigitalContent" rows="4" placeholder="${t('placeholder_digital_delivery')}">${escapeHtml(p.digital_delivery_content||'')}</textarea>
+        <div class="muted" style="font-size:12px;margin-top:-6px">${t('digital_delivery_note')}</div>
+      </div>
+      <div id="digitalCodesField" style="${p.digital_delivery_mode==='codes'?'':'display:none'}">
+        ${p.id ? `
+          <div class="muted" style="font-size:12px;margin-bottom:8px" id="digitalCodesCount">${t('loading')}</div>
+          <textarea id="prodNewCodes" rows="4" placeholder="${t('placeholder_digital_codes')}"></textarea>
+          <button type="button" class="btn btn-ghost btn-sm" style="margin:8px 0" onclick="addDigitalCodes('${p.id}')">${t('btn_add_codes')}</button>
+          <div id="digitalCodesList" style="max-height:180px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;padding:8px;font-size:12px"></div>
+        ` : `<div class="muted" style="font-size:12px">${t('save_product_first_for_codes')}</div>`}
+      </div>
     </div>
     <div class="field">
       <label>${t('label_photos')}${p.id?' ('+images.length+'/12)':''}</label>
@@ -2621,6 +2656,7 @@ function renderProductFormModal(p, allProducts, categories) {
   window.__productVariants = (p.variants || []).map(v => ({name:v.name, price:v.price, stock_qty:v.stock_qty}));
   renderOptionRows();
   renderVariantsTable();
+  if (p.id) loadDigitalCodes(p.id);
 }
 function OPTION_NAME_PLACEHOLDERS_FN() { return [t('option_placeholder_size'), t('option_placeholder_color'), t('option_placeholder_shoe_size')]; }
 function renderOptionRows() {
@@ -2760,6 +2796,37 @@ function setPrimaryProductImage(imgId) {
 function toggleDigitalDeliveryField() {
   document.getElementById('digitalDeliveryField').style.display = document.getElementById('prodPhysical').checked ? 'none' : '';
 }
+function toggleDigitalModeFields() {
+  const codes = document.getElementById('prodDigitalMode').value === 'codes';
+  document.getElementById('digitalLinkField').style.display = codes ? 'none' : '';
+  document.getElementById('digitalCodesField').style.display = codes ? '' : 'none';
+}
+function loadDigitalCodes(productId) {
+  const list = document.getElementById('digitalCodesList');
+  if (!list) return;
+  api('/products?action=digital_codes_list&boutique_id='+CURRENT.id+'&product_id='+productId).then(({data}) => {
+    if (!data.success) return;
+    const rows = data.data.codes || [];
+    document.getElementById('digitalCodesCount').textContent = data.data.available_count+' '+t('codes_available_label')+' / '+rows.length+' '+t('codes_total_label');
+    list.innerHTML = rows.length ? rows.map(c => `<div style="display:flex;justify-content:space-between;align-items:center;padding:3px 0;gap:8px">
+        <span style="${c.status==='used'?'text-decoration:line-through;color:var(--gray)':''}">${escapeHtml(c.code)}</span>
+        ${c.status==='available' ? '<button type="button" class="btn btn-ghost btn-sm" style="padding:2px 8px" onclick="deleteDigitalCode(\''+productId+'\',\''+c.id+'\')">✕</button>' : '<span class="muted" style="font-size:11px">'+t('code_used_label')+'</span>'}
+      </div>`).join('') : '<div class="muted">'+t('no_codes_yet')+'</div>';
+  });
+}
+function addDigitalCodes(productId) {
+  const codes = document.getElementById('prodNewCodes').value;
+  if (!codes.trim()) return;
+  post('/products?action=digital_codes_add', {boutique_id:CURRENT.id, product_id:productId, codes}).then(({data}) => {
+    showToast(data.message, data.success ? 'success' : 'error');
+    if (data.success) { document.getElementById('prodNewCodes').value = ''; loadDigitalCodes(productId); }
+  });
+}
+function deleteDigitalCode(productId, id) {
+  post('/products?action=digital_codes_delete', {boutique_id:CURRENT.id, product_id:productId, id}).then(({data}) => {
+    if (data.success) loadDigitalCodes(productId);
+  });
+}
 function submitProductForm(id) {
   const name = document.getElementById('prodName').value.trim();
   if (!name) { document.getElementById('prodMsg').innerHTML = '<div class="msg error">'+t('err_name_required')+'</div>'; return; }
@@ -2776,6 +2843,7 @@ function submitProductForm(id) {
     track_inventory: document.getElementById('prodTrackInv').checked,
     is_physical: document.getElementById('prodPhysical').checked,
     digital_delivery_content: document.getElementById('prodDigitalContent').value.trim(),
+    digital_delivery_mode: document.getElementById('prodDigitalMode').value,
     low_stock_threshold: document.getElementById('prodLowStock').value,
     options_json: JSON.stringify((window.__optionRows||[]).filter(r => r.name && r.name.trim() && r.values && r.values.length)),
     variants: window.__productVariants || [],

@@ -135,6 +135,7 @@ const EN_DICT = [
     'Code promo invalide, expire, ou reserve a un autre client' => 'Promo code invalid, expired, or reserved for another customer',
     'Code promo mis a jour' => 'Promo code updated',
     'Code promo supprime' => 'Promo code deleted',
+    'Code supprime' => 'Code deleted',
     'Commande assignee' => 'Order assigned',
     'Commande creee' => 'Order created',
     'Commande enregistree' => 'Order recorded',
@@ -775,10 +776,24 @@ function route_install() {
     "ALTER TABLE products ADD COLUMN IF NOT EXISTS is_physical SMALLINT DEFAULT 1",
     "ALTER TABLE products ADD COLUMN IF NOT EXISTS delivery_fee DECIMAL(14,2)",
     // Produit numerique (is_physical=0) : contenu envoye automatiquement par
-    // email au client quand la commande passe au statut "livree" (lien de
-    // telechargement, code, instructions...). Vide = rien n'est envoye.
+    // email au client quand la commande passe au statut "livree". Deux modes
+    // (digital_delivery_mode) : 'link' = un contenu unique reutilise pour
+    // toutes les ventes (lien de telechargement, instructions...) ; 'codes'
+    // = un pool de codes a usage unique (licences, codes cadeaux...), un
+    // code different pioche a chaque vente dans product_digital_codes.
     "ALTER TABLE products ADD COLUMN IF NOT EXISTS digital_delivery_content TEXT",
+    "ALTER TABLE products ADD COLUMN IF NOT EXISTS digital_delivery_mode VARCHAR(20) DEFAULT 'link'",
     "ALTER TABLE orders ADD COLUMN IF NOT EXISTS digital_delivery_sent_at TIMESTAMP",
+    "CREATE TABLE IF NOT EXISTS product_digital_codes (
+        id VARCHAR(36) PRIMARY KEY,
+        product_id VARCHAR(36) NOT NULL,
+        code TEXT NOT NULL,
+        status VARCHAR(20) DEFAULT 'available',
+        used_by_order_id VARCHAR(36),
+        used_at TIMESTAMP,
+        created_at TIMESTAMP DEFAULT NOW()
+    )",
+    "CREATE INDEX IF NOT EXISTS idx_digital_codes_product ON product_digital_codes(product_id, status)",
     // Definition des options (Taille, Couleur...) ayant servi a generer les
     // variantes - stockee telle quelle (JSON) pour pouvoir rouvrir le
     // generateur avec les memes lignes plutot que de les reconstruire a
@@ -1463,6 +1478,9 @@ function route_products($action) {
         case 'category_create':  category_create($pl); break;
         case 'category_update':  category_update($pl); break;
         case 'category_delete':  category_delete($pl); break;
+        case 'digital_codes_list':   digital_codes_list($pl); break;
+        case 'digital_codes_add':    digital_codes_add($pl); break;
+        case 'digital_codes_delete': digital_codes_delete($pl); break;
         default: fail('Action inconnue', 404);
     }
 }
@@ -1576,9 +1594,10 @@ function products_create($pl) {
     if ($optionsJson !== '' && json_decode($optionsJson) === null) $optionsJson = '';
     $relatedJson = related_product_ids_json($bt['id'], $b['related_product_ids'] ?? [], null);
     $categoryId = !empty($b['category_id']) ? category_owned($b['category_id'], $bt['id'])['id'] : null;
+    $digitalMode = ($b['digital_delivery_mode'] ?? '') === 'codes' ? 'codes' : 'link';
     q("INSERT INTO products (id,boutique_id,name,description,price,compare_at_price,cost_price,stock_qty,
-       image_url,status,sku,barcode,slug,track_inventory,allow_backorder,is_physical,delivery_fee,digital_delivery_content,options_json,low_stock_threshold,related_product_ids,category_id)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+       image_url,status,sku,barcode,slug,track_inventory,allow_backorder,is_physical,delivery_fee,digital_delivery_content,digital_delivery_mode,options_json,low_stock_threshold,related_product_ids,category_id)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
       [$id, $bt['id'], $name, trim($b['description'] ?? ''), (float)($b['price'] ?? 0),
        isset($b['compare_at_price']) && $b['compare_at_price'] !== '' ? (float)$b['compare_at_price'] : null,
        isset($b['cost_price']) && $b['cost_price'] !== '' ? (float)$b['cost_price'] : null,
@@ -1587,6 +1606,7 @@ function products_create($pl) {
        (int)!!($b['track_inventory'] ?? 1), (int)!!($b['allow_backorder'] ?? 0), (int)!!($b['is_physical'] ?? 1),
        isset($b['delivery_fee']) && $b['delivery_fee'] !== '' ? (float)$b['delivery_fee'] : null,
        trim($b['digital_delivery_content'] ?? '') !== '' ? trim($b['digital_delivery_content']) : null,
+       $digitalMode,
        $optionsJson !== '' ? $optionsJson : null,
        (int)($b['low_stock_threshold'] ?? 5), $relatedJson, $categoryId]);
     foreach (($b['variants'] ?? []) as $v) {
@@ -1632,7 +1652,7 @@ function products_update($pl) {
         $categoryId = !empty($b['category_id']) ? category_owned($b['category_id'], $bt['id'])['id'] : null;
     }
     q("UPDATE products SET name=?, description=?, price=?, compare_at_price=?, cost_price=?, stock_qty=?,
-       image_url=?, status=?, sku=?, barcode=?, slug=?, track_inventory=?, allow_backorder=?, is_physical=?, delivery_fee=?, digital_delivery_content=?, options_json=?, low_stock_threshold=?, related_product_ids=?, category_id=?
+       image_url=?, status=?, sku=?, barcode=?, slug=?, track_inventory=?, allow_backorder=?, is_physical=?, delivery_fee=?, digital_delivery_content=?, digital_delivery_mode=?, options_json=?, low_stock_threshold=?, related_product_ids=?, category_id=?
        WHERE id=?",
       [$name, trim($b['description'] ?? $p['description']), (float)($b['price'] ?? $p['price']),
        isset($b['compare_at_price']) && $b['compare_at_price'] !== '' ? (float)$b['compare_at_price'] : $p['compare_at_price'],
@@ -1644,6 +1664,7 @@ function products_update($pl) {
        isset($b['is_physical']) ? (int)!!$b['is_physical'] : $p['is_physical'],
        isset($b['delivery_fee']) && $b['delivery_fee'] !== '' ? (float)$b['delivery_fee'] : null,
        array_key_exists('digital_delivery_content', $b) ? (trim($b['digital_delivery_content']) !== '' ? trim($b['digital_delivery_content']) : null) : $p['digital_delivery_content'],
+       isset($b['digital_delivery_mode']) ? ($b['digital_delivery_mode'] === 'codes' ? 'codes' : 'link') : $p['digital_delivery_mode'],
        $optionsJson, isset($b['low_stock_threshold']) && $b['low_stock_threshold'] !== '' ? (int)$b['low_stock_threshold'] : $p['low_stock_threshold'],
        $relatedJson, $categoryId, $p['id']]);
     // Remplacement complet des variantes si le champ est fourni (le
@@ -1717,6 +1738,7 @@ function products_delete($pl) {
     $p = product_owned($b['id'] ?? '', $bt['id']);
     q("DELETE FROM product_variants WHERE product_id=?", [$p['id']]);
     q("DELETE FROM product_images WHERE product_id=?", [$p['id']]);
+    q("DELETE FROM product_digital_codes WHERE product_id=?", [$p['id']]);
     q("DELETE FROM products WHERE id=?", [$p['id']]);
     ok(null, 'Produit supprime');
 }
@@ -1728,6 +1750,54 @@ function products_stock_adjust($pl) {
     $delta = (int)($b['delta'] ?? 0);
     q("UPDATE products SET stock_qty = stock_qty + ? WHERE id=?", [$delta, $p['id']]);
     ok(q("SELECT * FROM products WHERE id=?", [$p['id']])->fetch(), 'Stock ajuste');
+}
+
+// ============================================================
+// CODES NUMERIQUES A USAGE UNIQUE (licences, codes cadeaux...)
+// Alternative a digital_delivery_content pour un produit numerique quand
+// chaque acheteur doit recevoir un code DIFFERENT plutot que le meme
+// contenu partage - voir maybe_send_digital_delivery() qui pioche dedans.
+// ============================================================
+function digital_codes_list($pl) {
+    $b = body() ?: [];
+    $boutiqueId = $_GET['boutique_id'] ?? ($b['boutique_id'] ?? '');
+    $productId = $_GET['product_id'] ?? ($b['product_id'] ?? '');
+    $bt = require_boutique_owned($boutiqueId, $pl['sub']);
+    $p = product_owned($productId, $bt['id']);
+    $rows = q("SELECT id, code, status, used_at, created_at FROM product_digital_codes
+               WHERE product_id=? ORDER BY (status='available') DESC, created_at DESC LIMIT 500", [$p['id']])->fetchAll();
+    $available = q("SELECT COUNT(*) c FROM product_digital_codes WHERE product_id=? AND status='available'", [$p['id']])->fetch()['c'];
+    ok(['codes' => $rows, 'available_count' => (int)$available]);
+}
+// Un code par ligne - les lignes vides sont ignorees, les doublons exacts
+// deja presents dans le pool de ce produit ne sont pas rajoutes (evite les
+// codes en double si le marchand colle deux fois la meme liste par erreur).
+function digital_codes_add($pl) {
+    $b = body();
+    $bt = require_boutique_owned($b['boutique_id'] ?? '', $pl['sub']);
+    $p = product_owned($b['product_id'] ?? '', $bt['id']);
+    $raw = (string)($b['codes'] ?? '');
+    $lines = array_values(array_unique(array_filter(array_map('trim', explode("\n", $raw)))));
+    if (!$lines) fail('Le code est requis');
+    $existing = q("SELECT code FROM product_digital_codes WHERE product_id=?", [$p['id']])->fetchAll(PDO::FETCH_COLUMN);
+    $existingSet = array_flip($existing);
+    $added = 0;
+    foreach ($lines as $code) {
+        if (isset($existingSet[$code])) continue;
+        q("INSERT INTO product_digital_codes (id,product_id,code) VALUES (?,?,?)", [uid(), $p['id'], $code]);
+        $existingSet[$code] = true;
+        $added++;
+    }
+    ok(['added' => $added], $added.' code(s) ajoute(s)');
+}
+function digital_codes_delete($pl) {
+    $b = body();
+    $bt = require_boutique_owned($b['boutique_id'] ?? '', $pl['sub']);
+    $p = product_owned($b['product_id'] ?? '', $bt['id']);
+    // Un code deja utilise reste rattache a sa commande (support client) -
+    // seul un code encore disponible peut etre retire du pool.
+    q("DELETE FROM product_digital_codes WHERE id=? AND product_id=? AND status='available'", [$b['id'] ?? '', $p['id']]);
+    ok(null, 'Code supprime');
 }
 
 function suppliers_list($pl) {
@@ -2409,14 +2479,32 @@ function maybe_send_digital_delivery($bt, $o) {
     if (empty($o['customer_id'])) return;
     $email = trim((string)(q("SELECT email FROM customers WHERE id=?", [$o['customer_id']])->fetchColumn() ?: ''));
     if ($email === '') return;
-    $items = q("SELECT oi.product_name, p.is_physical, p.digital_delivery_content
+    $items = q("SELECT oi.product_id, oi.product_name, oi.qty, p.is_physical, p.digital_delivery_content, p.digital_delivery_mode
                 FROM order_items oi LEFT JOIN products p ON p.id = oi.product_id
                 WHERE oi.order_id=?", [$o['id']])->fetchAll();
     $parts = [];
     foreach ($items as $it) {
-        $content = trim((string)($it['digital_delivery_content'] ?? ''));
-        if ((int)($it['is_physical'] ?? 1) === 0 && $content !== '') {
-            $parts[] = $it['product_name'].":\n".$content;
+        if ((int)($it['is_physical'] ?? 1) !== 0) continue;
+        if (($it['digital_delivery_mode'] ?? 'link') === 'codes') {
+            // Pioche atomique d'un code disponible par unite commandee : le
+            // SELECT ... FOR UPDATE SKIP LOCKED evite que deux commandes du
+            // meme produit livrees en meme temps ne recuperent le meme code.
+            $codes = [];
+            for ($i = 0; $i < (int)$it['qty']; $i++) {
+                $code = q("UPDATE product_digital_codes SET status='used', used_by_order_id=?, used_at=NOW()
+                           WHERE id = (SELECT id FROM product_digital_codes WHERE product_id=? AND status='available'
+                                       ORDER BY created_at LIMIT 1 FOR UPDATE SKIP LOCKED)
+                           RETURNING code", [$o['id'], $it['product_id']])->fetchColumn();
+                if ($code === false) break;
+                $codes[] = $code;
+            }
+            if ($codes) $parts[] = $it['product_name'].":\n".implode("\n", $codes);
+            if (count($codes) < (int)$it['qty']) {
+                log_activity($bt['id'], 'Stock de codes numeriques epuise pour '.$it['product_name'].' (commande '.$o['ref'].')');
+            }
+        } else {
+            $content = trim((string)($it['digital_delivery_content'] ?? ''));
+            if ($content !== '') $parts[] = $it['product_name'].":\n".$content;
         }
     }
     if (!$parts) return;
