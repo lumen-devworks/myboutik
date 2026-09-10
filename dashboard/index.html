@@ -3254,11 +3254,12 @@ function renderMarketing(bt) {
       </div>
       <div class="card">
         <h3>${t('reviews_title_prefix')}${R.length})</h3>
-        ${R.length ? `<table><thead><tr><th>${t('col_product')}</th><th>${t('col_client')}</th><th>${t('col_rating')}</th><th>${t('col_comment')}</th><th>${t('col_status')}</th><th></th></tr></thead><tbody>
+        ${R.length ? `<table><thead><tr><th>${t('col_product')}</th><th>${t('col_client')}</th><th>${t('col_rating')}</th><th>${t('col_comment')}</th><th>${t('col_date')}</th><th>${t('col_status')}</th><th></th></tr></thead><tbody>
           ${R.map(r=>`<tr>
             <td>${escapeHtml(r.product_name||'—')}</td><td>${escapeHtml(r.customer_name)}</td>
-            <td>${'★'.repeat(r.rating)}${'☆'.repeat(5-r.rating)}</td>
+            <td style="color:#f59e0b;white-space:nowrap">${'★'.repeat(r.rating)}${'☆'.repeat(5-r.rating)}</td>
             <td>${escapeHtml(r.comment||'')}</td>
+            <td>${fmtDate(r.created_at)}</td>
             <td>${r.status==='approved'?'<span class="pill pill-delivered">'+t('status_published')+'</span>':r.status==='rejected'?'<span class="pill pill-refused">'+t('status_rejected')+'</span>':'<span class="pill pill-pending">'+t('status_pending')+'</span>'}</td>
             <td>${r.status!=='approved'?'<button class="btn btn-ghost btn-sm" onclick="moderateReview(\''+r.id+'\',\'approved\')">'+t('btn_publish')+'</button>':''}
               ${r.status!=='rejected'?'<button class="btn btn-ghost btn-sm" onclick="moderateReview(\''+r.id+'\',\'rejected\')">'+t('btn_reject')+'</button>':''}

@@ -118,6 +118,7 @@ function api(path, opts) {
 }
 function post(path, body) { return api(path, {method:'POST', body:JSON.stringify(body||{})}); }
 function fmtMoney(n, currency) { return Math.round(n||0).toLocaleString(LANG === 'en' ? 'en-US' : 'fr-FR') + ' ' + (currency||'FCFA'); }
+function fmtDateTime(iso) { if (!iso) return ''; const d = new Date(iso); const loc = LANG === 'en' ? 'en-US' : 'fr-FR'; return d.toLocaleDateString(loc) + ' ' + d.toLocaleTimeString(loc, {hour:'2-digit', minute:'2-digit'}); }
 function escapeHtml(s){ return (s==null?'':String(s)).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
 // ============================================================
@@ -517,10 +518,11 @@ function loadReviews(productId) {
     const el = document.getElementById('pdReviewsSection');
     if (!el) return;
     el.innerHTML = `<h3 style="margin-top:18px;font-size:15px">${t('reviews_title')} ${rows.length?'('+rows.length+')':''}</h3>
-      ${rows.length ? '<div style="color:var(--gray);font-size:13px;margin-bottom:6px">'+'★'.repeat(Math.round(avg))+'☆'.repeat(5-Math.round(avg))+' '+avg.toFixed(1)+'/5</div>' : ''}
+      ${rows.length ? '<div style="color:var(--gray);font-size:13px;margin-bottom:6px"><span style="color:#f59e0b">'+'★'.repeat(Math.round(avg))+'☆'.repeat(5-Math.round(avg))+'</span> '+avg.toFixed(1)+'/5</div>' : ''}
       <div style="max-height:160px;overflow-y:auto">
         ${rows.length ? rows.map(r => `<div style="border-bottom:1px solid var(--border);padding:8px 0">
-            <div style="font-weight:600;font-size:13px">${escapeHtml(r.customer_name)} — ${'★'.repeat(r.rating)}${'☆'.repeat(5-r.rating)}</div>
+            <div style="font-weight:600;font-size:13px">${escapeHtml(r.customer_name)} — <span style="color:#f59e0b">${'★'.repeat(r.rating)}${'☆'.repeat(5-r.rating)}</span></div>
+            <div style="font-size:11px;color:var(--gray)">${fmtDateTime(r.created_at)}</div>
             ${r.comment ? '<div style="font-size:13px;color:var(--gray)">'+escapeHtml(r.comment)+'</div>' : ''}
           </div>`).join('') : '<div class="empty" style="padding:10px 0">'+t('no_reviews_yet')+'</div>'}
       </div>
