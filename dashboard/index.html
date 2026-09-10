@@ -3640,8 +3640,14 @@ function copyInput(id) {
   input.select();
   navigator.clipboard && navigator.clipboard.writeText(input.value);
 }
+// Lien de PARTAGE (pas le lien direct) : passe par le backend qui genere
+// une page avec les vraies balises Open Graph (nom, logo) avant de
+// rediriger instantanement vers la vraie boutique - sans ca, un lien
+// partage sur WhatsApp/Facebook n'affiche aucun apercu correct (le site
+// est 100% en JavaScript, les robots de previsualisation ne l'executent
+// pas). Voir route_preview() cote serveur.
 function storeLink() {
-  return window.location.origin + window.location.pathname.replace(/dashboard\/.*/, '') + 'store/index.html?b=' + encodeURIComponent(CURRENT.slug);
+  return API_URL + '/preview?action=shop&slug=' + encodeURIComponent(CURRENT.slug);
 }
 // Chaque reseau a sa propre URL de partage "toute prete" (le fameux
 // "intent" web) - pas d'API a appeler, juste ouvrir ce lien suffit a

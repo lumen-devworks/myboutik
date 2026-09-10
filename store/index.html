@@ -468,10 +468,14 @@ function openProduct(id) {
 // Lien direct vers cette fiche produit (le meme format que le deep-link
 // ?p=slug deja gere au chargement de la page) glisse dans un message
 // WhatsApp pre-rempli - tres courant comme canal de vente sur ce marche.
+// Le lien de PARTAGE passe par le backend (route_preview()) qui genere une
+// page avec les vraies balises Open Graph (nom, prix, photo) avant de
+// rediriger instantanement vers la fiche produit - un lien direct vers
+// cette page 100% JavaScript n'affiche aucun apercu correct sur WhatsApp.
 function shareProductOnWhatsApp(productId) {
   const p = PRODUCTS.find(x => x.id === productId);
   if (!p) return;
-  const link = window.location.origin + window.location.pathname + '?b=' + encodeURIComponent(SLUG) + '&p=' + encodeURIComponent(p.slug || '');
+  const link = API_URL + '/preview?action=product&slug=' + encodeURIComponent(SLUG) + '&p=' + encodeURIComponent(p.slug || '');
   const text = p.name + ' — ' + fmtMoney(p.price, BOUTIQUE.currency) + '\n' + link;
   window.open('https://wa.me/?text=' + encodeURIComponent(text), '_blank');
 }

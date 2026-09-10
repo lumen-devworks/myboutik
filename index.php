@@ -60,6 +60,11 @@ define('ADMIN_PASSWORD', getenv('ADMIN_PASSWORD') ?: null);
 define('BREVO_API_KEY',     getenv('BREVO_API_KEY')     ?: null);
 define('BREVO_SENDER_EMAIL',getenv('BREVO_SENDER_EMAIL')?: null);
 define('BREVO_SENDER_NAME', getenv('BREVO_SENDER_NAME') ?: 'MYBOUTIK');
+// Origine du frontend statique (GitHub Pages) - utilisee pour construire les
+// liens de redirection dans les pages d'apercu (voir route_preview()) et
+// pour le CTA de l'annuaire. Configurable par env var pour ne pas casser au
+// prochain demenagement d'hebergement (deja arrive une fois cette session).
+define('FRONTEND_BASE_URL', rtrim(getenv('FRONTEND_BASE_URL') ?: 'https://lumen-devworks.github.io/myboutik', '/'));
 // CORS restreint : seules les origines listees ici peuvent appeler l'API
 // directement depuis un navigateur. A completer avec le(s) domaine(s) ou
 // sont hebergees index.html / dashboard / store une fois deployees.
@@ -587,6 +592,8 @@ try {
         case 'feedback':  route_feedback($action); break;
         case 'admin':     route_admin($action); break;
         case 'directory': route_directory($action); break;
+        case 'preview':   route_preview($action); break;
+        case 'image':     route_image($action); break;
         case 'integrations': route_integrations($action); break;
         case 'cron':      route_cron($action); break;
         case 'health':    ok(['status'=>'up','time'=>date('c')]); break;
@@ -1967,6 +1974,123 @@ function directory_products() {
                WHERE b.status='active' AND b.public_listed=1 AND p.status='active' AND p.name ILIKE ?
                ORDER BY p.created_at DESC LIMIT 60", ['%'.$q.'%'])->fetchAll();
     ok($rows);
+}
+
+// ============================================================
+// IMAGES SERVIES DEPUIS UNE URL STABLE (image?action=...) - les photos sont
+// stockees en base64 directement en base (jamais comme fichiers a part),
+// ce qui les rend inutilisables telles quelles pour un og:image : les
+// robots WhatsApp/Facebook qui generisent les apercus de lien exigent une
+// vraie URL http(s) a recuperer, pas une data: URI. Cette route decode et
+// resert l'image existante sous une URL classique, sans dupliquer le
+// stockage.
+// ============================================================
+function route_image($action) {
+    switch ($action) {
+        case 'boutique_logo': image_boutique_logo(); break;
+        case 'product_photo': image_product_photo(); break;
+        default: fail('Action inconnue', 404);
+    }
+}
+function output_data_uri_image($dataUri) {
+    if (!$dataUri || !preg_match('#^data:(image/[a-zA-Z0-9.+-]+);base64,(.+)$#', $dataUri, $m)) {
+        http_response_code(404);
+        header('Content-Type: text/plain; charset=utf-8');
+        echo 'Image introuvable';
+        exit;
+    }
+    header('Content-Type: '.$m[1]);
+    header('Cache-Control: public, max-age=3600');
+    echo base64_decode($m[2]);
+    exit;
+}
+function image_boutique_logo() {
+    $slug = trim($_GET['slug'] ?? '');
+    $bt = q("SELECT logo_url FROM boutiques WHERE slug=? AND status='active'", [$slug])->fetch();
+    output_data_uri_image($bt['logo_url'] ?? null);
+}
+function image_product_photo() {
+    $slug = trim($_GET['slug'] ?? '');
+    $productSlug = trim($_GET['p'] ?? '');
+    $row = q("SELECT p.image_url FROM products p JOIN boutiques b ON b.id=p.boutique_id
+              WHERE b.slug=? AND p.slug=? AND b.status='active' AND p.status='active'", [$slug, $productSlug])->fetch();
+    output_data_uri_image($row['image_url'] ?? null);
+}
+
+// ============================================================
+// PAGES D'APERCU POUR LE PARTAGE (preview?action=...) - le frontend est un
+// site 100% statique dont le contenu se charge en JavaScript ; les robots
+// qui generent les apercus de lien WhatsApp/Facebook ne l'executent
+// generalement pas et ne verraient donc que le HTML generique, identique
+// pour toutes les boutiques. Cette route, servie par le backend PHP, genere
+// a la volee une page HTML minimale avec les vraies balises Open Graph
+// (nom, description, image) puis redirige immediatement le visiteur humain
+// vers la vraie page interactive - le robot lit les balises sans suivre la
+// redirection, l'humain ne voit quasiment rien (redirection instantanee).
+// C'est cette URL de "preview", pas le lien direct, qui doit etre partagee.
+// ============================================================
+function route_preview($action) {
+    switch ($action) {
+        case 'shop':    preview_shop(); break;
+        case 'product': preview_product(); break;
+        default: fail('Action inconnue', 404);
+    }
+}
+function preview_not_found() {
+    http_response_code(404);
+    header('Content-Type: text/plain; charset=utf-8');
+    echo 'Introuvable';
+    exit;
+}
+function preview_html($title, $description, $imageUrl, $redirectUrl) {
+    header('Content-Type: text/html; charset=utf-8');
+    $title = htmlspecialchars($title, ENT_QUOTES, 'UTF-8');
+    $description = htmlspecialchars($description, ENT_QUOTES, 'UTF-8');
+    $imageAttr = $imageUrl ? '<meta property="og:image" content="'.htmlspecialchars($imageUrl, ENT_QUOTES, 'UTF-8').'">' : '';
+    $redirectUrl = htmlspecialchars($redirectUrl, ENT_QUOTES, 'UTF-8');
+    echo '<!doctype html><html lang="fr"><head><meta charset="utf-8">'
+        .'<title>'.$title.'</title>'
+        .'<meta property="og:title" content="'.$title.'">'
+        .'<meta property="og:description" content="'.$description.'">'
+        .$imageAttr
+        .'<meta property="og:type" content="website">'
+        .'<meta name="twitter:card" content="summary_large_image">'
+        .'<meta http-equiv="refresh" content="0; url='.$redirectUrl.'">'
+        .'<style>body{font-family:Arial,sans-serif;padding:40px;text-align:center;color:#0f172a}a{color:#ea580c;font-weight:700}</style>'
+        .'</head><body>'
+        .'<p>Redirection vers '.$title.'…</p>'
+        .'<p><a href="'.$redirectUrl.'">Cliquez ici si la redirection ne fonctionne pas</a></p>'
+        .'<script>window.location.replace('.json_encode($redirectUrl).');</script>'
+        .'</body></html>';
+    exit;
+}
+function preview_self_base() {
+    $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+    return $scheme.'://'.$_SERVER['HTTP_HOST'];
+}
+function preview_shop() {
+    $slug = trim($_GET['slug'] ?? '');
+    $bt = q("SELECT name, description, logo_url FROM boutiques WHERE slug=? AND status='active'", [$slug])->fetch();
+    if (!$bt) preview_not_found();
+    $title = $bt['name'].' — MYBOUTIK';
+    $desc = trim($bt['description'] ?? '') !== '' ? $bt['description'] : 'Decouvrez '.$bt['name'].' sur MYBOUTIK - paiement a la livraison.';
+    $image = $bt['logo_url'] ? preview_self_base().'/image?action=boutique_logo&slug='.urlencode($slug) : null;
+    $redirect = FRONTEND_BASE_URL.'/store/index.html?b='.urlencode($slug);
+    preview_html($title, $desc, $image, $redirect);
+}
+function preview_product() {
+    $slug = trim($_GET['slug'] ?? '');
+    $productSlug = trim($_GET['p'] ?? '');
+    $row = q("SELECT p.name, p.description, p.price, p.image_url, b.name AS boutique_name, b.currency
+              FROM products p JOIN boutiques b ON b.id=p.boutique_id
+              WHERE b.slug=? AND p.slug=? AND b.status='active' AND p.status='active'", [$slug, $productSlug])->fetch();
+    if (!$row) preview_not_found();
+    $title = $row['name'].' — '.$row['boutique_name'];
+    $price = number_format((float)$row['price'], 0, ',', ' ').' '.($row['currency'] ?: 'XOF');
+    $desc = trim($row['description'] ?? '') !== '' ? $row['description'] : ($row['name'].' a '.$price.' chez '.$row['boutique_name'].' sur MYBOUTIK.');
+    $image = $row['image_url'] ? preview_self_base().'/image?action=product_photo&slug='.urlencode($slug).'&p='.urlencode($productSlug) : null;
+    $redirect = FRONTEND_BASE_URL.'/store/index.html?b='.urlencode($slug).'&p='.urlencode($productSlug);
+    preview_html($title, $desc, $image, $redirect);
 }
 
 function public_boutique_by_slug($slug) {
