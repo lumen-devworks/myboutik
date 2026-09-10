@@ -149,6 +149,7 @@ const I18N = {
     no_products_match: 'Aucun produit ne correspond à votre recherche.',
     no_products_yet: "Cette boutique n'a pas encore de produits en ligne.",
     add_to_cart_btn: 'Ajouter au panier',
+    added_to_cart_toast: 'Ajouté au panier !',
     share_whatsapp_btn: '📲 Partager sur WhatsApp',
     related_products_title: 'Vous aimerez aussi',
     reviews_title: 'Avis clients',
@@ -232,6 +233,7 @@ const I18N = {
     no_products_match: 'No product matches your search.',
     no_products_yet: 'This shop has no products online yet.',
     add_to_cart_btn: 'Add to cart',
+    added_to_cart_toast: 'Added to cart!',
     share_whatsapp_btn: '📲 Share on WhatsApp',
     related_products_title: 'You may also like',
     reviews_title: 'Customer reviews',
@@ -614,8 +616,7 @@ function addToCart(productId) {
   if (existing) { existing.qty += qty; }
   else { CART.push({key, product_id:productId, variant_id:variantId||null, name:p.name+(variant?' - '+variant.name:''), price:variant?(variant.price??p.price):p.price, qty}); }
   saveCart();
-  closeOverlay('productOverlay');
-  openCart();
+  showToast(t('added_to_cart_toast'), 'success');
 }
 function closeOverlay(id) { document.getElementById(id).classList.remove('open'); }
 
