@@ -583,13 +583,14 @@ function openCart() {
 // donc on retient le plus eleve plutot que de les additionner. Purement
 // pour l'affichage avant validation - le total facture reste toujours
 // recalcule cote serveur a la commande.
-// Vrai si le panier contient au moins un produit non physique (numerique) -
+// Vrai si le panier contient au moins un produit numerique (is_digital,
+// independant de is_physical - un produit peut etre les deux a la fois) -
 // utilise pour rendre l'email obligatoire uniquement dans ce cas (voir
 // maybe_send_digital_delivery() cote serveur, qui en a besoin pour livrer).
 function cartHasDigitalItem() {
   return CART.some(l => {
     const p = PRODUCTS.find(x => x.id === l.product_id);
-    return p && Number(p.is_physical) === 0;
+    return p && Number(p.is_digital) === 1;
   });
 }
 function computeDeliveryFee() {

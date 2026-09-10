@@ -775,6 +775,13 @@ function route_install() {
     "ALTER TABLE products ADD COLUMN IF NOT EXISTS allow_backorder SMALLINT DEFAULT 0",
     "ALTER TABLE products ADD COLUMN IF NOT EXISTS is_physical SMALLINT DEFAULT 1",
     "ALTER TABLE products ADD COLUMN IF NOT EXISTS delivery_fee DECIMAL(14,2)",
+    // Independant de is_physical : un produit peut etre physique ET
+    // numerique a la fois (ex: une boite livree qui contient aussi un code
+    // d'activation envoye par email), l'un n'exclut pas l'autre. is_physical
+    // controle uniquement les frais de livraison (voir shop_checkout()) ;
+    // is_digital controle uniquement l'envoi automatique du contenu
+    // numerique (voir maybe_send_digital_delivery()).
+    "ALTER TABLE products ADD COLUMN IF NOT EXISTS is_digital SMALLINT DEFAULT 0",
     // Produit numerique (is_physical=0) : contenu envoye automatiquement par
     // email au client quand la commande passe au statut "livree". Deux
     // sources cumulables : digital_delivery_content (meme contenu partage
@@ -1351,7 +1358,7 @@ function boutiques_export_backup($pl) {
     $data = [
         'exported_at' => date('c'),
         'boutique' => q("SELECT id,slug,name,description,currency,cod_enabled,default_delivery_fee,status,created_at FROM boutiques WHERE id=?", [$bid])->fetch(),
-        'products' => q("SELECT id,name,description,price,compare_at_price,cost_price,stock_qty,status,sku,barcode,slug,track_inventory,is_physical,delivery_fee,low_stock_threshold,category_id,created_at FROM products WHERE boutique_id=?", [$bid])->fetchAll(),
+        'products' => q("SELECT id,name,description,price,compare_at_price,cost_price,stock_qty,status,sku,barcode,slug,track_inventory,is_physical,is_digital,delivery_fee,low_stock_threshold,category_id,created_at FROM products WHERE boutique_id=?", [$bid])->fetchAll(),
         'product_variants' => q("SELECT v.* FROM product_variants v JOIN products p ON p.id=v.product_id WHERE p.boutique_id=?", [$bid])->fetchAll(),
         'product_categories' => q("SELECT * FROM product_categories WHERE boutique_id=?", [$bid])->fetchAll(),
         'customers' => q("SELECT * FROM customers WHERE boutique_id=?", [$bid])->fetchAll(),
@@ -1535,7 +1542,7 @@ function products_list($pl) {
     // meme celles qui ne montrent qu'un menu deroulant sans photo). Elle
     // reste disponible via products_get() pour la fiche d'un seul produit.
     $rows = q("SELECT p.id,p.boutique_id,p.name,p.description,p.price,p.compare_at_price,p.cost_price,p.stock_qty,p.status,
-               p.sku,p.barcode,p.slug,p.track_inventory,p.allow_backorder,p.is_physical,p.delivery_fee,p.low_stock_threshold,
+               p.sku,p.barcode,p.slug,p.track_inventory,p.allow_backorder,p.is_physical,p.is_digital,p.delivery_fee,p.low_stock_threshold,
                p.options_json,p.created_at,p.category_id, c.name AS category_name,
                (p.image_url IS NOT NULL AND p.image_url<>'') AS has_image
                FROM products p LEFT JOIN product_categories c ON c.id = p.category_id
@@ -1600,14 +1607,15 @@ function products_create($pl) {
     $relatedJson = related_product_ids_json($bt['id'], $b['related_product_ids'] ?? [], null);
     $categoryId = !empty($b['category_id']) ? category_owned($b['category_id'], $bt['id'])['id'] : null;
     q("INSERT INTO products (id,boutique_id,name,description,price,compare_at_price,cost_price,stock_qty,
-       image_url,status,sku,barcode,slug,track_inventory,allow_backorder,is_physical,delivery_fee,digital_delivery_content,options_json,low_stock_threshold,related_product_ids,category_id)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+       image_url,status,sku,barcode,slug,track_inventory,allow_backorder,is_physical,is_digital,delivery_fee,digital_delivery_content,options_json,low_stock_threshold,related_product_ids,category_id)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
       [$id, $bt['id'], $name, trim($b['description'] ?? ''), (float)($b['price'] ?? 0),
        isset($b['compare_at_price']) && $b['compare_at_price'] !== '' ? (float)$b['compare_at_price'] : null,
        isset($b['cost_price']) && $b['cost_price'] !== '' ? (float)$b['cost_price'] : null,
        (int)($b['stock_qty'] ?? 0), trim($b['image_url'] ?? ''), $b['status'] ?? 'draft',
        trim($b['sku'] ?? ''), trim($b['barcode'] ?? ''), $slug,
        (int)!!($b['track_inventory'] ?? 1), (int)!!($b['allow_backorder'] ?? 0), (int)!!($b['is_physical'] ?? 1),
+       (int)!!($b['is_digital'] ?? 0),
        isset($b['delivery_fee']) && $b['delivery_fee'] !== '' ? (float)$b['delivery_fee'] : null,
        trim($b['digital_delivery_content'] ?? '') !== '' ? trim($b['digital_delivery_content']) : null,
        $optionsJson !== '' ? $optionsJson : null,
@@ -1655,7 +1663,7 @@ function products_update($pl) {
         $categoryId = !empty($b['category_id']) ? category_owned($b['category_id'], $bt['id'])['id'] : null;
     }
     q("UPDATE products SET name=?, description=?, price=?, compare_at_price=?, cost_price=?, stock_qty=?,
-       image_url=?, status=?, sku=?, barcode=?, slug=?, track_inventory=?, allow_backorder=?, is_physical=?, delivery_fee=?, digital_delivery_content=?, options_json=?, low_stock_threshold=?, related_product_ids=?, category_id=?
+       image_url=?, status=?, sku=?, barcode=?, slug=?, track_inventory=?, allow_backorder=?, is_physical=?, is_digital=?, delivery_fee=?, digital_delivery_content=?, options_json=?, low_stock_threshold=?, related_product_ids=?, category_id=?
        WHERE id=?",
       [$name, trim($b['description'] ?? $p['description']), (float)($b['price'] ?? $p['price']),
        isset($b['compare_at_price']) && $b['compare_at_price'] !== '' ? (float)$b['compare_at_price'] : $p['compare_at_price'],
@@ -1665,6 +1673,7 @@ function products_update($pl) {
        isset($b['track_inventory']) ? (int)!!$b['track_inventory'] : $p['track_inventory'],
        isset($b['allow_backorder']) ? (int)!!$b['allow_backorder'] : $p['allow_backorder'],
        isset($b['is_physical']) ? (int)!!$b['is_physical'] : $p['is_physical'],
+       isset($b['is_digital']) ? (int)!!$b['is_digital'] : $p['is_digital'],
        isset($b['delivery_fee']) && $b['delivery_fee'] !== '' ? (float)$b['delivery_fee'] : null,
        array_key_exists('digital_delivery_content', $b) ? (trim($b['digital_delivery_content']) !== '' ? trim($b['digital_delivery_content']) : null) : $p['digital_delivery_content'],
        $optionsJson, isset($b['low_stock_threshold']) && $b['low_stock_threshold'] !== '' ? (int)$b['low_stock_threshold'] : $p['low_stock_threshold'],
@@ -1951,7 +1960,7 @@ function shop_categories() {
 
 function shop_products() {
     $bt = public_boutique_by_slug($_GET['slug'] ?? '');
-    $sql = "SELECT id,name,description,price,compare_at_price,stock_qty,image_url,slug,track_inventory,allow_backorder,is_physical,delivery_fee,options_json,category_id
+    $sql = "SELECT id,name,description,price,compare_at_price,stock_qty,image_url,slug,track_inventory,allow_backorder,is_physical,is_digital,delivery_fee,options_json,category_id
             FROM products WHERE boutique_id=? AND status='active'";
     $params = [$bt['id']];
     if (!empty($_GET['category_id'])) { $sql .= " AND category_id=?"; $params[] = $_GET['category_id']; }
@@ -1967,7 +1976,7 @@ function shop_products() {
 
 function shop_product() {
     $bt = public_boutique_by_slug($_GET['slug'] ?? '');
-    $p = q("SELECT id,name,description,price,compare_at_price,stock_qty,image_url,slug,track_inventory,allow_backorder,is_physical,delivery_fee,options_json,related_product_ids
+    $p = q("SELECT id,name,description,price,compare_at_price,stock_qty,image_url,slug,track_inventory,allow_backorder,is_physical,is_digital,delivery_fee,options_json,related_product_ids
             FROM products WHERE id=? AND boutique_id=? AND status='active'", [$_GET['id'] ?? '', $bt['id']])->fetch();
     if (!$p) fail('Produit introuvable', 404);
     $p['variants'] = q("SELECT id,name,price,stock_qty FROM product_variants WHERE product_id=? ORDER BY name", [$p['id']])->fetchAll();
@@ -2120,11 +2129,12 @@ function shop_checkout() {
             ];
         }
         // L'email n'est obligatoire que si le panier contient au moins un
-        // produit non physique - c'est le seul moyen de lui faire parvenir
-        // sa livraison numerique plus tard (voir maybe_send_digital_delivery()).
-        // Pour un panier 100% physique, il reste optionnel comme avant.
+        // produit numerique (is_digital) - c'est le seul moyen de lui faire
+        // parvenir sa livraison numerique plus tard (voir
+        // maybe_send_digital_delivery()). Independant de is_physical : un
+        // produit peut etre physique ET numerique a la fois.
         foreach ($lineData as $l) {
-            if (!$l['product']['is_physical'] && $customerEmail === '') {
+            if (!empty($l['product']['is_digital']) && $customerEmail === '') {
                 throw new Exception('Un email est requis pour recevoir un produit numerique');
             }
         }
@@ -2481,12 +2491,12 @@ function maybe_send_digital_delivery($bt, $o) {
     if (empty($o['customer_id'])) return;
     $email = trim((string)(q("SELECT email FROM customers WHERE id=?", [$o['customer_id']])->fetchColumn() ?: ''));
     if ($email === '') return;
-    $items = q("SELECT oi.product_id, oi.product_name, oi.qty, p.is_physical, p.digital_delivery_content
+    $items = q("SELECT oi.product_id, oi.product_name, oi.qty, p.is_digital, p.digital_delivery_content
                 FROM order_items oi LEFT JOIN products p ON p.id = oi.product_id
                 WHERE oi.order_id=?", [$o['id']])->fetchAll();
     $parts = [];
     foreach ($items as $it) {
-        if ((int)($it['is_physical'] ?? 1) !== 0) continue;
+        if (empty($it['is_digital'])) continue;
         // Les deux sources sont independantes et se cumulent : le contenu
         // partage (meme lien/instructions pour tout le monde) ET un code
         // unique pioche dans le pool, si le produit en a un - utile pour un
