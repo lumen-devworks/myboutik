@@ -224,7 +224,6 @@ function escapeHtml(s){ return (s==null?'':String(s)).replace(/[&<>"']/g, c => (
 let LANG = localStorage.getItem('myboutik_dash_lang') === 'en' ? 'en' : 'fr';
 const I18N = {
   fr: {
-    topbar_default_title: 'Tableau de bord',
     btn_logout: 'Se déconnecter',
     side_back_all_boutiques: '← Toutes mes boutiques',
     side_directory: '🏬 Annuaire des boutiques',
@@ -782,7 +781,7 @@ const I18N = {
     feedback_message_label: 'Votre message',
     feedback_message_placeholder: 'Écrivez votre avis ici…',
     feedback_submit_btn: 'Envoyer mon avis',
-    feedback_rating_required: 'Choisissez une note (1 à 5 étoiles)',
+    feedback_message_required: 'Votre message est requis',
     rating_5: '★★★★★ Excellent', rating_4: '★★★★☆ Très bien', rating_3: '★★★☆☆ Correct',
     rating_2: '★★☆☆☆ Moyen', rating_1: '★☆☆☆☆ Décevant',
     billing_title: 'Abonnement',
@@ -848,7 +847,6 @@ const I18N = {
     order_status_in_delivery: 'En livraison',
   },
   en: {
-    topbar_default_title: 'Dashboard',
     btn_logout: 'Log out',
     side_back_all_boutiques: '← All my shops',
     side_directory: '🏬 Shop directory',
@@ -1406,7 +1404,7 @@ const I18N = {
     feedback_message_label: 'Your message',
     feedback_message_placeholder: 'Write your feedback here…',
     feedback_submit_btn: 'Send my feedback',
-    feedback_rating_required: 'Choose a rating (1 to 5 stars)',
+    feedback_message_required: 'Your message is required',
     rating_5: '★★★★★ Excellent', rating_4: '★★★★☆ Very good', rating_3: '★★★☆☆ Okay',
     rating_2: '★★☆☆☆ Below average', rating_1: '★☆☆☆☆ Disappointing',
     billing_title: 'Subscription',
@@ -3574,7 +3572,7 @@ function renderProfile() {
 function submitFeedback() {
   const rating = Number(document.getElementById('fbRating').value);
   const message = document.getElementById('fbMessage').value.trim();
-  if (!message) { document.getElementById('feedbackMsg').innerHTML = '<div class="msg error">'+t('feedback_message_label')+'</div>'; return; }
+  if (!message) { document.getElementById('feedbackMsg').innerHTML = '<div class="msg error">'+t('feedback_message_required')+'</div>'; return; }
   post('/feedback?action=submit', {rating, message}).then(({data}) => {
     document.getElementById('feedbackMsg').innerHTML = '<div class="msg '+(data.success?'success':'error')+'">'+data.message+'</div>';
     if (data.success) document.getElementById('fbMessage').value = '';
