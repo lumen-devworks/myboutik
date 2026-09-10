@@ -2584,6 +2584,16 @@ function shop_orders_for_phone() {
 function shop_reviews() {
     $bt = public_boutique_by_slug($_GET['slug'] ?? '');
     $productId = $_GET['product_id'] ?? '';
+    if ($productId === '') {
+        // Pas de product_id : vue "tous les avis de la boutique" (page Avis),
+        // on joint le nom du produit pour que chaque avis reste identifiable.
+        $rows = q("SELECT r.customer_name, r.rating, r.comment, r.created_at, p.name AS product_name
+                   FROM product_reviews r JOIN products p ON p.id = r.product_id
+                   WHERE r.boutique_id=? AND r.status='approved' ORDER BY r.created_at DESC LIMIT 200",
+                  [$bt['id']])->fetchAll();
+        ok($rows);
+        return;
+    }
     $rows = q("SELECT customer_name,rating,comment,created_at FROM product_reviews
                WHERE boutique_id=? AND product_id=? AND status='approved' ORDER BY created_at DESC LIMIT 100",
               [$bt['id'], $productId])->fetchAll();
