@@ -385,7 +385,7 @@ function starsHtml(avg, count) {
   if (!avg) return '';
   const full = Math.round(Number(avg));
   const stars = '★'.repeat(Math.max(0,Math.min(5,full))) + '☆'.repeat(5-Math.max(0,Math.min(5,full)));
-  return '<div><span class="stars">'+stars+'</span><span class="rating-count">'+avg+' · '+count+' '+t('reviews_count')+'</span></div>';
+  return '<div><span class="stars">'+stars+'</span><span class="rating-count">'+avg+'/5 · '+count+' '+t('reviews_count')+'</span></div>';
 }
 function renderShops(rows, q) {
   const area = document.getElementById('resultsArea');
