@@ -270,7 +270,7 @@ const I18N = {
     stat_boutiques_suspended: 'Suspendues', stat_boutiques_listed: 'Listées (annuaire)',
     no_history_to_export: 'Aucun historique à exporter.',
     export_title_history: 'Historique des paiements MYBOUTIK',
-    session_expired_toast: 'Session terminée après 5 minutes d\'inactivité.',
+    session_expired_toast: 'SESSION TERMINÉE. RECONNECTEZ-VOUS.',
   },
   en: {
     subtitle: 'Admin panel — Platform management',
@@ -347,7 +347,7 @@ const I18N = {
     stat_boutiques_suspended: 'Suspended', stat_boutiques_listed: 'Listed (directory)',
     no_history_to_export: 'No history to export.',
     export_title_history: 'MYBOUTIK payment history',
-    session_expired_toast: 'Session ended after 5 minutes of inactivity.',
+    session_expired_toast: 'SESSION ENDED. PLEASE LOG IN AGAIN.',
   },
 };
 function t(key) { return (I18N[LANG] && I18N[LANG][key]) ?? I18N.fr[key] ?? key; }
@@ -872,7 +872,7 @@ function adminLogout(reason) {
   document.getElementById('adminPassword').value = '';
   document.getElementById('dataCards').style.display = 'none';
   document.getElementById('loginCard').style.display = 'block';
-  if (reason === 'inactivity') showToast(t('session_expired_toast'), 'info');
+  document.getElementById('loginMsg').innerHTML = reason === 'inactivity' ? '<div class="msg">'+t('session_expired_toast')+'</div>' : '';
 }
 // Deconnexion automatique apres 5 minutes sans interaction - le mot de
 // passe admin donne acces aux paiements/clients de toute la plateforme,
