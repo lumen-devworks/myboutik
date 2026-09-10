@@ -2093,7 +2093,6 @@ function shop_checkout() {
     rate_limit_check('shop_checkout', 20, 300);
     $b = body();
     $bt = public_boutique_by_slug($b['slug'] ?? '');
-    if (!$bt['cod_enabled']) fail('Le paiement a la livraison n\'est pas active pour cette boutique', 400);
     $customer = $b['customer'] ?? [];
     $name = trim($customer['name'] ?? '');
     $phone = trim($customer['phone'] ?? '');
@@ -2143,6 +2142,16 @@ function shop_checkout() {
             $lineData[] = [
                 'product' => $product, 'variant' => $variant, 'qty' => $qty, 'unit_price' => $unitPrice,
             ];
+        }
+        // "Paiement a la livraison" n'a de sens que pour un panier contenant
+        // au moins un produit physique - un panier 100% numerique n'a rien a
+        // livrer, donc ne doit pas etre bloque si le marchand a desactive le
+        // COD (un marchand qui ne vend que du numerique n'a aucune raison de
+        // l'activer).
+        $hasPhysical = false;
+        foreach ($lineData as $l) { if (!empty($l['product']['is_physical'])) { $hasPhysical = true; break; } }
+        if ($hasPhysical && !$bt['cod_enabled']) {
+            throw new Exception('Le paiement a la livraison n\'est pas active pour cette boutique');
         }
         // L'email n'est obligatoire que si le panier contient au moins un
         // produit numerique (is_digital) - c'est le seul moyen de lui faire
@@ -2252,6 +2261,23 @@ function notify_customer_order_confirmation($bt, $ref, $email, $customerName, $l
         $label = $l['product']['name'].($l['variant'] ? ' - '.$l['variant']['name'] : '');
         return '- '.$l['qty'].' x '.$label.' ('.number_format($l['unit_price'],0,',',' ').' '.$currency.')';
     }, $lineData);
+    // Le mot "livraison" (adresse, "vous serez contacte pour la livraison")
+    // n'a de sens que si la commande contient au moins un produit physique -
+    // pour un panier 100% numerique, rien n'est jamais livre.
+    $hasPhysical = false; $hasDigital = false;
+    foreach ($lineData as $l) {
+        if (!empty($l['product']['is_physical'])) $hasPhysical = true;
+        if (!empty($l['product']['is_digital'])) $hasDigital = true;
+    }
+    $totalLabel = $hasPhysical ? 'Total a payer a la livraison' : 'Total';
+    $footer = '';
+    if ($hasPhysical) {
+        $footer .= "Adresse de livraison : $address\n\n".
+            "Vous serez contacte(e) pour la livraison. Paiement a la reception (paiement a la livraison).\n";
+    }
+    if ($hasDigital) {
+        $footer .= "Votre produit numerique vous sera envoye par email des que ".$bt['name']." aura confirme votre paiement.\n";
+    }
     $body = "Bonjour $customerName,\n\n".
         "Merci pour votre commande chez ".$bt['name']." !\n\n".
         "Reference : $ref\n\n".
@@ -2259,9 +2285,8 @@ function notify_customer_order_confirmation($bt, $ref, $email, $customerName, $l
         "Sous-total : ".number_format($subtotal,0,',',' ')." $currency\n".
         ($deliveryFee > 0 ? "Frais de livraison : ".number_format($deliveryFee,0,',',' ')." $currency\n" : '').
         ($discountAmount > 0 ? "Remise : -".number_format($discountAmount,0,',',' ')." $currency\n" : '').
-        "Total a payer a la livraison : ".number_format($total,0,',',' ')." $currency\n\n".
-        "Adresse de livraison : $address\n\n".
-        "Vous serez contacte(e) pour la livraison. Paiement a la reception (paiement a la livraison).\n".
+        "$totalLabel : ".number_format($total,0,',',' ')." $currency\n\n".
+        $footer.
         "Pour suivre votre commande, retournez sur la boutique et utilisez \"Suivre ma commande\" avec cette reference et votre telephone.";
     send_email($email, 'Confirmation de votre commande '.$ref.' - '.$bt['name'], $body);
 }

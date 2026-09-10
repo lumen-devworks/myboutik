@@ -719,6 +719,7 @@ const I18N = {
     share_note: 'Chaque bouton ouvre le réseau avec le lien déjà rempli — plus besoin de le recopier à la main. Instagram et TikTok ne permettent pas ce pré-remplissage depuis un site : le lien est copié automatiquement, il ne reste qu\'à le coller dans votre bio ou une story/vidéo.',
     label_default_delivery_fee: 'Frais de livraison par défaut (facturé au client)',
     checkbox_cod_enabled: 'Paiement à la livraison activé',
+    cod_enabled_note: 'Ne concerne que les commandes avec au moins un produit physique — désactiver ceci n\'empêche pas de vendre des produits numériques.',
     order_notifications_title: 'Notifications de commande',
     checkbox_notify_email: 'Recevoir un email à chaque nouvelle commande',
     label_receiving_address: 'Adresse de réception (vide = email de votre compte)',
@@ -1324,6 +1325,7 @@ const I18N = {
     share_note: 'Each button opens the network with the link already filled in — no need to copy it by hand. Instagram and TikTok don\'t allow this pre-filling from a website: the link is copied automatically, just paste it into your bio or a story/video.',
     label_default_delivery_fee: 'Default delivery fee (charged to the customer)',
     checkbox_cod_enabled: 'Cash on delivery enabled',
+    cod_enabled_note: 'Only applies to orders with at least one physical product — turning this off doesn\'t stop you from selling digital products.',
     order_notifications_title: 'Order notifications',
     checkbox_notify_email: 'Receive an email for every new order',
     label_receiving_address: 'Receiving address (empty = your account email)',
@@ -3336,7 +3338,8 @@ function renderSettings(bt) {
         <div class="muted" style="font-size:12px;margin-top:6px">${t('share_note')}</div>
       </div>
       <div class="field"><label>${t('label_default_delivery_fee')}</label><input id="setDeliveryFee" type="number" min="0" value="${bt.default_delivery_fee||0}"></div>
-      <label style="display:flex;align-items:center;gap:8px;margin-bottom:14px"><input type="checkbox" id="setCod" ${bt.cod_enabled?'checked':''}> ${t('checkbox_cod_enabled')}</label>
+      <label style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><input type="checkbox" id="setCod" ${bt.cod_enabled?'checked':''}> ${t('checkbox_cod_enabled')}</label>
+      <div class="muted" style="margin:-2px 0 14px;font-size:12px">${t('cod_enabled_note')}</div>
       <button class="btn btn-primary" onclick="saveSettings('settingsMsg')">${t('btn_save')}</button>
     </div>
     <div class="card">

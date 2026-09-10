@@ -163,6 +163,7 @@ const I18N = {
     cart_title: 'Votre panier',
     cart_empty: 'Votre panier est vide.',
     order_cod_btn: 'Commander (paiement à la livraison)',
+    order_digital_btn: 'Commander',
     checkout_title: 'Vos informations',
     checkout_fullname_label: 'Nom complet',
     checkout_phone_label: 'Téléphone',
@@ -174,10 +175,12 @@ const I18N = {
     promo_remove_btn: 'Retirer',
     promo_apply_btn: 'Appliquer',
     confirm_order_btn: 'Confirmer la commande (paiement à la livraison)',
+    confirm_order_digital_btn: 'Confirmer la commande',
     back_to_cart_btn: '← Retour au panier',
     order_confirmed_title: 'Commande confirmée',
     order_ref_label: 'Référence : ',
     order_confirmed_note: 'Vous serez contacté(e) pour la livraison. Paiement à la réception.',
+    order_confirmed_digital_note: 'Votre produit numérique vous sera envoyé par email dès confirmation du paiement.',
     close_btn: 'Fermer',
     subtotal_label: 'Sous-total',
     delivery_fee_label: 'Frais de livraison',
@@ -239,6 +242,7 @@ const I18N = {
     cart_title: 'Your cart',
     cart_empty: 'Your cart is empty.',
     order_cod_btn: 'Order (cash on delivery)',
+    order_digital_btn: 'Order',
     checkout_title: 'Your information',
     checkout_fullname_label: 'Full name',
     checkout_phone_label: 'Phone',
@@ -250,10 +254,12 @@ const I18N = {
     promo_remove_btn: 'Remove',
     promo_apply_btn: 'Apply',
     confirm_order_btn: 'Confirm order (cash on delivery)',
+    confirm_order_digital_btn: 'Confirm order',
     back_to_cart_btn: '← Back to cart',
     order_confirmed_title: 'Order confirmed',
     order_ref_label: 'Reference: ',
     order_confirmed_note: "You'll be contacted for delivery. Payment on receipt.",
+    order_confirmed_digital_note: "Your digital product will be emailed to you once payment is confirmed.",
     close_btn: 'Close',
     subtotal_label: 'Subtotal',
     delivery_fee_label: 'Delivery fee',
@@ -613,6 +619,15 @@ function cartHasDigitalItem() {
     return p && Number(p.is_digital) === 1;
   });
 }
+// Vrai si le panier contient au moins un produit physique - utilise pour ne
+// mentionner "paiement a la livraison" que quand quelque chose est reellement
+// livre (un panier 100% numerique n'a rien a voir avec une livraison).
+function cartHasPhysicalItem() {
+  return CART.some(l => {
+    const p = PRODUCTS.find(x => x.id === l.product_id);
+    return p && Number(p.is_physical) === 1;
+  });
+}
 function computeDeliveryFee() {
   let fee = 0;
   CART.forEach(l => {
@@ -680,7 +695,7 @@ function renderCartSheet(step, prefill) {
       <h2>${t('cart_title')}</h2>
       ${CART.length ? CART.map(l => `<div class="cart-line"><div>${escapeHtml(l.name)} × ${l.qty}<br><span style="color:var(--gray)">${fmtMoney(l.price,BOUTIQUE.currency)}</span></div><button onclick="removeFromCart('${l.key}')">✕</button></div>`).join('')
         : '<div class="empty" style="padding:30px 0"><div class="big">🛒</div>'+t('cart_empty')+'</div>'}
-      ${CART.length ? totalsHtml+'<button class="btn btn-primary" onclick="renderCartSheet(\'checkout\')">'+t('order_cod_btn')+'</button>' : ''}
+      ${CART.length ? totalsHtml+'<button class="btn btn-primary" onclick="renderCartSheet(\'checkout\')">'+(cartHasPhysicalItem() ? t('order_cod_btn') : t('order_digital_btn'))+'</button>' : ''}
     `;
     if (CART.length) trackAbandoned();
   } else if (step === 'checkout') {
@@ -695,7 +710,7 @@ function renderCartSheet(step, prefill) {
       <div class="field"><label>${cartHasDigitalItem() ? '<span style="color:#dc2626;font-weight:800">★ </span>'+t('checkout_email_label_required') : t('checkout_email_label')}</label><input id="coEmail" type="email" value="${escapeHtml(prefill.email||'')}" oninput="onCheckoutPhoneInput()" onblur="trackAbandoned()" style="${cartHasDigitalItem()?'border-color:#dc2626':''}"></div>
       ${promoFieldHtml()}
       ${totalsHtml}
-      <button class="btn btn-primary" id="coSubmitBtn" onclick="submitCheckout()">${t('confirm_order_btn')}</button>
+      <button class="btn btn-primary" id="coSubmitBtn" onclick="submitCheckout()">${cartHasPhysicalItem() ? t('confirm_order_btn') : t('confirm_order_digital_btn')}</button>
       <button class="btn btn-ghost" style="margin-top:8px" onclick="renderCartSheet('cart')">${t('back_to_cart_btn')}</button>
     `;
   } else if (step === 'confirm') {
@@ -705,7 +720,7 @@ function renderCartSheet(step, prefill) {
         <div class="ic">✓</div>
         <h2>${t('order_confirmed_title')}</h2>
         <p style="color:var(--gray);margin-top:8px">${t('order_ref_label')}<strong>${escapeHtml(window.__lastOrderRef||'')}</strong></p>
-        <p style="color:var(--gray)">${t('order_confirmed_note')}</p>
+        <p style="color:var(--gray)">${window.__lastOrderHasPhysical ? t('order_confirmed_note') : t('order_confirmed_digital_note')}</p>
         <button class="btn btn-primary" style="margin-top:16px" onclick="closeOverlay('cartOverlay')">${t('close_btn')}</button>
       </div>
     `;
@@ -775,6 +790,10 @@ function submitCheckout() {
   if (!name || !phone) { showCheckoutError(t('name_phone_required')); return; }
   if (CART.length === 0) { showCheckoutError(t('cart_empty_error')); return; }
   if (cartHasDigitalItem() && !email) { showCheckoutError(t('digital_email_required_error')); return; }
+  // Capture avant le vidage du panier plus bas - sinon un panier vide au
+  // moment de rendre l'ecran de confirmation ferait toujours croire a une
+  // commande numerique (cartHasPhysicalItem() renverrait faux a tort).
+  window.__lastOrderHasPhysical = cartHasPhysicalItem();
   const btn = document.getElementById('coSubmitBtn'); btn.disabled = true; btn.textContent = t('sending_in_progress');
   const params = new URLSearchParams(window.location.search);
   post('/shop?action=checkout', {
@@ -784,7 +803,7 @@ function submitCheckout() {
     utm_source: params.get('utm_source')||'', utm_campaign: params.get('utm_campaign')||'',
     promo_code: APPLIED_PROMO ? APPLIED_PROMO.code : '',
   }).then(({data}) => {
-    btn.disabled = false; btn.textContent = t('confirm_order_btn');
+    btn.disabled = false; btn.textContent = window.__lastOrderHasPhysical ? t('confirm_order_btn') : t('confirm_order_digital_btn');
     if (!data.success) { showCheckoutError(data.message); return; }
     window.__lastOrderRef = data.data.ref;
     CART = []; saveCart(); APPLIED_PROMO = null;
