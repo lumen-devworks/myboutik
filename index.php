@@ -1787,6 +1787,7 @@ function products_delete($pl) {
     q("DELETE FROM product_variants WHERE product_id=?", [$p['id']]);
     q("DELETE FROM product_images WHERE product_id=?", [$p['id']]);
     q("DELETE FROM product_digital_codes WHERE product_id=?", [$p['id']]);
+    q("DELETE FROM product_reviews WHERE product_id=?", [$p['id']]);
     q("DELETE FROM products WHERE id=?", [$p['id']]);
     ok(null, 'Produit supprime');
 }
