@@ -208,7 +208,7 @@ const EN_DICT = [
     'Livreur mis a jour' => 'Delivery person updated',
     'Marque comme lu' => 'Marked as read',
     'Membre retire' => 'Member removed',
-    'Merci pour votre avis ! Il sera visible apres validation par la boutique.' => 'Thank you for your review! It will be visible after approval by the shop.',
+    'Merci pour votre avis !' => 'Thank you for your review!',
     'Message envoye' => 'Message sent',
     'Mis a jour' => 'Updated',
     'Module inconnu' => 'Unknown module',
@@ -2602,9 +2602,12 @@ function shop_review_add() {
     $rating = (int)($b['rating'] ?? 0);
     if ($name === '') fail('Votre nom est requis');
     if ($rating < 1 || $rating > 5) fail('Note invalide (1 a 5)');
-    q("INSERT INTO product_reviews (id,boutique_id,product_id,customer_name,rating,comment) VALUES (?,?,?,?,?,?)",
+    // Publie immediatement (status='approved') : le marchand n'a plus a valider
+    // avant affichage, mais garde la main pour supprimer un avis apres coup
+    // depuis Marketing > Avis (voir marketing_review_delete()).
+    q("INSERT INTO product_reviews (id,boutique_id,product_id,customer_name,rating,comment,status) VALUES (?,?,?,?,?,?,'approved')",
       [uid(), $bt['id'], $product['id'], $name, $rating, trim($b['comment'] ?? '')]);
-    ok(null, 'Merci pour votre avis ! Il sera visible apres validation par la boutique.');
+    ok(null, 'Merci pour votre avis !');
 }
 
 // ============================================================
