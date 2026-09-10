@@ -773,6 +773,11 @@ function route_install() {
     "ALTER TABLE products ADD COLUMN IF NOT EXISTS allow_backorder SMALLINT DEFAULT 0",
     "ALTER TABLE products ADD COLUMN IF NOT EXISTS is_physical SMALLINT DEFAULT 1",
     "ALTER TABLE products ADD COLUMN IF NOT EXISTS delivery_fee DECIMAL(14,2)",
+    // Produit numerique (is_physical=0) : contenu envoye automatiquement par
+    // email au client quand la commande passe au statut "livree" (lien de
+    // telechargement, code, instructions...). Vide = rien n'est envoye.
+    "ALTER TABLE products ADD COLUMN IF NOT EXISTS digital_delivery_content TEXT",
+    "ALTER TABLE orders ADD COLUMN IF NOT EXISTS digital_delivery_sent_at TIMESTAMP",
     // Definition des options (Taille, Couleur...) ayant servi a generer les
     // variantes - stockee telle quelle (JSON) pour pouvoir rouvrir le
     // generateur avec les memes lignes plutot que de les reconstruire a
@@ -1571,8 +1576,8 @@ function products_create($pl) {
     $relatedJson = related_product_ids_json($bt['id'], $b['related_product_ids'] ?? [], null);
     $categoryId = !empty($b['category_id']) ? category_owned($b['category_id'], $bt['id'])['id'] : null;
     q("INSERT INTO products (id,boutique_id,name,description,price,compare_at_price,cost_price,stock_qty,
-       image_url,status,sku,barcode,slug,track_inventory,allow_backorder,is_physical,delivery_fee,options_json,low_stock_threshold,related_product_ids,category_id)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+       image_url,status,sku,barcode,slug,track_inventory,allow_backorder,is_physical,delivery_fee,digital_delivery_content,options_json,low_stock_threshold,related_product_ids,category_id)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
       [$id, $bt['id'], $name, trim($b['description'] ?? ''), (float)($b['price'] ?? 0),
        isset($b['compare_at_price']) && $b['compare_at_price'] !== '' ? (float)$b['compare_at_price'] : null,
        isset($b['cost_price']) && $b['cost_price'] !== '' ? (float)$b['cost_price'] : null,
@@ -1580,6 +1585,7 @@ function products_create($pl) {
        trim($b['sku'] ?? ''), trim($b['barcode'] ?? ''), $slug,
        (int)!!($b['track_inventory'] ?? 1), (int)!!($b['allow_backorder'] ?? 0), (int)!!($b['is_physical'] ?? 1),
        isset($b['delivery_fee']) && $b['delivery_fee'] !== '' ? (float)$b['delivery_fee'] : null,
+       trim($b['digital_delivery_content'] ?? '') !== '' ? trim($b['digital_delivery_content']) : null,
        $optionsJson !== '' ? $optionsJson : null,
        (int)($b['low_stock_threshold'] ?? 5), $relatedJson, $categoryId]);
     foreach (($b['variants'] ?? []) as $v) {
@@ -1625,7 +1631,7 @@ function products_update($pl) {
         $categoryId = !empty($b['category_id']) ? category_owned($b['category_id'], $bt['id'])['id'] : null;
     }
     q("UPDATE products SET name=?, description=?, price=?, compare_at_price=?, cost_price=?, stock_qty=?,
-       image_url=?, status=?, sku=?, barcode=?, slug=?, track_inventory=?, allow_backorder=?, is_physical=?, delivery_fee=?, options_json=?, low_stock_threshold=?, related_product_ids=?, category_id=?
+       image_url=?, status=?, sku=?, barcode=?, slug=?, track_inventory=?, allow_backorder=?, is_physical=?, delivery_fee=?, digital_delivery_content=?, options_json=?, low_stock_threshold=?, related_product_ids=?, category_id=?
        WHERE id=?",
       [$name, trim($b['description'] ?? $p['description']), (float)($b['price'] ?? $p['price']),
        isset($b['compare_at_price']) && $b['compare_at_price'] !== '' ? (float)$b['compare_at_price'] : $p['compare_at_price'],
@@ -1636,6 +1642,7 @@ function products_update($pl) {
        isset($b['allow_backorder']) ? (int)!!$b['allow_backorder'] : $p['allow_backorder'],
        isset($b['is_physical']) ? (int)!!$b['is_physical'] : $p['is_physical'],
        isset($b['delivery_fee']) && $b['delivery_fee'] !== '' ? (float)$b['delivery_fee'] : null,
+       array_key_exists('digital_delivery_content', $b) ? (trim($b['digital_delivery_content']) !== '' ? trim($b['digital_delivery_content']) : null) : $p['digital_delivery_content'],
        $optionsJson, isset($b['low_stock_threshold']) && $b['low_stock_threshold'] !== '' ? (int)$b['low_stock_threshold'] : $p['low_stock_threshold'],
        $relatedJson, $categoryId, $p['id']]);
     // Remplacement complet des variantes si le champ est fourni (le
@@ -2372,11 +2379,42 @@ function orders_update_status($pl) {
     if (!in_array($status, $allowed, true)) fail('Statut invalide');
     if ($status === 'delivered') {
         q("UPDATE orders SET status=?, delivered_at=NOW() WHERE id=?", [$status, $o['id']]);
+        maybe_send_digital_delivery($bt, $o);
     } else {
         q("UPDATE orders SET status=? WHERE id=?", [$status, $o['id']]);
     }
     log_activity($bt['id'], 'Commande '.$o['ref'].' -> '.$status, $pl['sub']);
     ok(q("SELECT * FROM orders WHERE id=?", [$o['id']])->fetch(), 'Statut mis a jour');
+}
+
+// Envoie automatiquement, par email, le contenu numerique (lien, code,
+// instructions...) des produits non physiques de la commande, des qu'elle
+// passe au statut "livree" - c'est ce statut qui represente pour un produit
+// numerique le moment ou le client recoit vraiment ce qu'il a paye. Ne fait
+// rien si : deja envoye pour cette commande (digital_delivery_sent_at),
+// aucun email client connu, ou aucun article non physique n'a de contenu
+// renseigne par le marchand.
+function maybe_send_digital_delivery($bt, $o) {
+    if (!empty($o['digital_delivery_sent_at'])) return;
+    if (empty($o['customer_id'])) return;
+    $email = trim((string)(q("SELECT email FROM customers WHERE id=?", [$o['customer_id']])->fetchColumn() ?: ''));
+    if ($email === '') return;
+    $items = q("SELECT oi.product_name, p.is_physical, p.digital_delivery_content
+                FROM order_items oi LEFT JOIN products p ON p.id = oi.product_id
+                WHERE oi.order_id=?", [$o['id']])->fetchAll();
+    $parts = [];
+    foreach ($items as $it) {
+        $content = trim((string)($it['digital_delivery_content'] ?? ''));
+        if ((int)($it['is_physical'] ?? 1) === 0 && $content !== '') {
+            $parts[] = $it['product_name'].":\n".$content;
+        }
+    }
+    if (!$parts) return;
+    $body = "Bonjour,\n\nMerci pour votre commande ".$o['ref']." chez ".$bt['name'].
+        " ! Voici votre/vos produit(s) numerique(s) :\n\n".implode("\n\n", $parts).
+        "\n\nBonne utilisation !";
+    send_email($email, 'Votre produit numerique - commande '.$o['ref'].' - '.$bt['name'], $body);
+    q("UPDATE orders SET digital_delivery_sent_at=NOW() WHERE id=?", [$o['id']]);
 }
 
 function abandoned_list($pl) {

@@ -552,6 +552,9 @@ const I18N = {
     checkbox_track_stock: 'Suivre la quantité en stock',
     checkbox_physical_product: 'Produit physique (nécessite une livraison)',
     product_form_stock_note: 'Une commande est toujours acceptée, même si le stock est insuffisant — c\'est à vous de gérer la suite. L\'alerte ci-dessus sert juste à repérer les produits à réapprovisionner.',
+    label_digital_delivery_content: 'Contenu envoyé automatiquement au client (lien, code, instructions...)',
+    placeholder_digital_delivery: 'Ex : Lien de téléchargement : https://... ou code de licence : XXXX-XXXX',
+    digital_delivery_note: 'Envoyé par email automatiquement dès que la commande passe au statut "Livrée" — uniquement si le client a renseigné son email à la commande.',
     label_photos: 'Photos',
     label_primary_photo: 'Principale',
     btn_set_primary: 'Définir',
@@ -1142,6 +1145,9 @@ const I18N = {
     checkbox_track_stock: 'Track stock quantity',
     checkbox_physical_product: 'Physical product (requires delivery)',
     product_form_stock_note: 'An order is always accepted, even if stock is insufficient — it\'s up to you to handle it. The alert above is just to spot products that need restocking.',
+    label_digital_delivery_content: 'Content sent automatically to the customer (link, code, instructions...)',
+    placeholder_digital_delivery: 'E.g.: Download link: https://... or license code: XXXX-XXXX',
+    digital_delivery_note: 'Sent by email automatically as soon as the order status becomes "Delivered" — only if the customer entered their email at checkout.',
     label_photos: 'Photos',
     label_primary_photo: 'Primary',
     btn_set_primary: 'Set',
@@ -2562,8 +2568,13 @@ function renderProductFormModal(p, allProducts, categories) {
       </select></div>
     </div>
     <label style="display:flex;align-items:center;gap:8px;margin-bottom:10px"><input type="checkbox" id="prodTrackInv" ${p.track_inventory!=0?'checked':''}> ${t('checkbox_track_stock')}</label>
-    <label style="display:flex;align-items:center;gap:8px;margin-bottom:14px"><input type="checkbox" id="prodPhysical" ${p.is_physical!=0?'checked':''}> ${t('checkbox_physical_product')}</label>
+    <label style="display:flex;align-items:center;gap:8px;margin-bottom:14px"><input type="checkbox" id="prodPhysical" onchange="toggleDigitalDeliveryField()" ${p.is_physical!=0?'checked':''}> ${t('checkbox_physical_product')}</label>
     <div class="muted" style="margin:-6px 0 14px;font-size:12px">${t('product_form_stock_note')}</div>
+    <div class="field" id="digitalDeliveryField" style="${p.is_physical!=0?'display:none':''}">
+      <label>${t('label_digital_delivery_content')}</label>
+      <textarea id="prodDigitalContent" rows="4" placeholder="${t('placeholder_digital_delivery')}">${escapeHtml(p.digital_delivery_content||'')}</textarea>
+      <div class="muted" style="font-size:12px;margin-top:-6px">${t('digital_delivery_note')}</div>
+    </div>
     <div class="field">
       <label>${t('label_photos')}${p.id?' ('+images.length+'/12)':''}</label>
       ${p.id ? `
@@ -2746,6 +2757,9 @@ function deleteProductImage(imgId) {
 function setPrimaryProductImage(imgId) {
   post('/products?action=image_set_primary', {boutique_id:CURRENT.id, id:imgId}).then(() => openProductForm(window.__editingProductId));
 }
+function toggleDigitalDeliveryField() {
+  document.getElementById('digitalDeliveryField').style.display = document.getElementById('prodPhysical').checked ? 'none' : '';
+}
 function submitProductForm(id) {
   const name = document.getElementById('prodName').value.trim();
   if (!name) { document.getElementById('prodMsg').innerHTML = '<div class="msg error">'+t('err_name_required')+'</div>'; return; }
@@ -2761,6 +2775,7 @@ function submitProductForm(id) {
     stock_qty: Number(document.getElementById('prodStock').value||0), status: document.getElementById('prodStatus').value,
     track_inventory: document.getElementById('prodTrackInv').checked,
     is_physical: document.getElementById('prodPhysical').checked,
+    digital_delivery_content: document.getElementById('prodDigitalContent').value.trim(),
     low_stock_threshold: document.getElementById('prodLowStock').value,
     options_json: JSON.stringify((window.__optionRows||[]).filter(r => r.name && r.name.trim() && r.values && r.values.length)),
     variants: window.__productVariants || [],
