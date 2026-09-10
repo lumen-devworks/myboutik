@@ -76,7 +76,6 @@
 <div class="overlay" id="productOverlay"><div class="sheet" id="productSheet"></div></div>
 <div class="overlay" id="cartOverlay"><div class="sheet" id="cartSheet"></div></div>
 <div class="overlay" id="trackOverlay"><div class="sheet" id="trackSheet"></div></div>
-<div class="overlay" id="reviewsOverlay"><div class="sheet" id="reviewsSheet"></div></div>
 <div id="toastContainer"></div>
 
 <script src="../config.js"></script>
@@ -152,7 +151,6 @@ const I18N = {
     share_whatsapp_btn: '📲 Partager sur WhatsApp',
     related_products_title: 'Vous aimerez aussi',
     reviews_title: 'Avis clients',
-    see_all_reviews: 'Voir tous les avis de la boutique',
     no_reviews_yet: 'Aucun avis pour le moment.',
     leave_review_btn: 'Laisser un avis',
     review_name_label: 'Votre nom',
@@ -233,7 +231,6 @@ const I18N = {
     share_whatsapp_btn: '📲 Share on WhatsApp',
     related_products_title: 'You may also like',
     reviews_title: 'Customer reviews',
-    see_all_reviews: 'See all shop reviews',
     no_reviews_yet: 'No reviews yet.',
     leave_review_btn: 'Leave a review',
     review_name_label: 'Your name',
@@ -360,7 +357,6 @@ function renderShop() {
     </div>` : ''}
     <div class="wrap">
       ${BOUTIQUE.description ? '<p style="color:var(--gray);margin:16px 0 0">'+escapeHtml(BOUTIQUE.description)+'</p>' : ''}
-      <div style="margin:10px 0"><a href="#" onclick="openShopReviews();return false" style="font-size:13px;font-weight:700;color:var(--blue)">${t('see_all_reviews')}</a></div>
       ${PRODUCTS.length ? `
       <div style="margin:16px 0 8px">
         <input id="catalogSearch" placeholder="${t('search_placeholder')}" oninput="onCatalogSearchInput(this.value)" style="width:100%;padding:10px 14px;border:1px solid var(--border);border-radius:10px;font-size:14px">
@@ -827,31 +823,6 @@ function trackStatusLabels() {
 }
 function trackDeliveryLabels() {
   return {to_assign:t('delivery_to_assign'), assigned:t('delivery_assigned'), in_delivery:t('delivery_in_delivery'), delivered:t('delivery_delivered'), refused:t('delivery_refused')};
-}
-// Rassemble tous les avis approuves de la boutique (tous produits confondus)
-// en une seule liste, chacun gardant le nom du produit concerne - contrairement
-// a loadReviews() (fiche produit) qui ne montre que les avis d'un seul produit.
-function openShopReviews() {
-  document.getElementById('reviewsSheet').innerHTML = `
-    <button class="close" onclick="closeOverlay('reviewsOverlay')">✕</button>
-    <h2>${t('reviews_title')}</h2>
-    <div id="allReviewsList" class="empty" style="padding:20px 0">${t('loading')}</div>
-  `;
-  document.getElementById('reviewsOverlay').classList.add('open');
-  api('/shop?action=reviews&slug='+encodeURIComponent(SLUG)).then(({data}) => {
-    const rows = (data.success && data.data) || [];
-    const list = document.getElementById('allReviewsList');
-    if (!list) return;
-    if (!rows.length) { list.className = 'empty'; list.innerHTML = t('no_reviews_yet'); return; }
-    const avg = (rows.reduce((s,r)=>s+Number(r.rating),0)/rows.length).toFixed(1);
-    list.className = '';
-    list.innerHTML = `<div style="font-weight:700;margin-bottom:12px">★ ${avg} — ${rows.length} ${t('reviews_title').toLowerCase()}</div>` +
-      rows.map(r => `<div style="border-bottom:1px solid var(--border);padding:10px 0">
-          <div style="font-weight:600;font-size:13px">${escapeHtml(r.customer_name)} — ${'★'.repeat(r.rating)}${'☆'.repeat(5-r.rating)}</div>
-          <div style="font-size:12px;color:var(--gray);margin:2px 0">${escapeHtml(r.product_name)}</div>
-          ${r.comment ? '<div style="font-size:13px;margin-top:4px">'+escapeHtml(r.comment)+'</div>' : ''}
-        </div>`).join('');
-  });
 }
 function openTrackOrder() {
   document.getElementById('trackSheet').innerHTML = `

@@ -280,6 +280,9 @@ const I18N = {
     modal_create_boutique_title: 'Créer une boutique',
     label_boutique_name: 'Nom de la boutique',
     placeholder_boutique_name: 'Ex: Boutik de Rom',
+    label_boutique_city: 'Ville de la boutique',
+    placeholder_boutique_city: 'Ex: Abidjan',
+    boutique_city_required: 'La ville de la boutique est requise',
     btn_cancel: 'Annuler',
     btn_create: 'Créer',
     btn_save: 'Enregistrer',
@@ -900,6 +903,9 @@ const I18N = {
     modal_create_boutique_title: 'Create a shop',
     label_boutique_name: 'Shop name',
     placeholder_boutique_name: 'E.g.: Rom\'s Shop',
+    label_boutique_city: 'Shop city',
+    placeholder_boutique_city: 'E.g.: Abidjan',
+    boutique_city_required: 'The shop city is required',
     btn_cancel: 'Cancel',
     btn_create: 'Create',
     btn_save: 'Save',
@@ -1690,6 +1696,7 @@ function openCreateBoutique() {
     <h2>${t('modal_create_boutique_title')}</h2>
     <div id="createBoutiqueMsg"></div>
     <div class="field"><label>${t('label_boutique_name')}</label><input id="newBoutiqueName" placeholder="${t('placeholder_boutique_name')}"></div>
+    <div class="field"><label>${t('label_boutique_city')}</label><input id="newBoutiqueCity" placeholder="${t('placeholder_boutique_city')}"></div>
     <div class="modal-actions">
       <button class="btn btn-ghost" onclick="closeModal()">${t('btn_cancel')}</button>
       <button class="btn btn-primary" onclick="submitCreateBoutique()">${t('btn_create')}</button>
@@ -1698,8 +1705,10 @@ function openCreateBoutique() {
 }
 function submitCreateBoutique() {
   const name = document.getElementById('newBoutiqueName').value.trim();
+  const city = document.getElementById('newBoutiqueCity').value.trim();
   if (!name) return;
-  post('/boutiques?action=create', {name}).then(({data}) => {
+  if (!city) { document.getElementById('createBoutiqueMsg').innerHTML = '<div class="msg error">'+t('boutique_city_required')+'</div>'; return; }
+  post('/boutiques?action=create', {name, city}).then(({data}) => {
     if (!data.success) { document.getElementById('createBoutiqueMsg').innerHTML = '<div class="msg error">'+data.message+'</div>'; return; }
     closeModal();
     loadBoutiques().then(() => { window.location.hash = '#/'+data.data.slug+'/home'; });

@@ -1429,7 +1429,9 @@ function boutique_quick_stats($boutiqueId) {
 function boutiques_create($pl) {
     $b = body();
     $name = trim($b['name'] ?? '');
+    $city = trim($b['city'] ?? '');
     if ($name === '') fail('Le nom de la boutique est requis');
+    if ($city === '') fail('La ville de la boutique est requise');
     $user = q("SELECT plan FROM users WHERE id=?", [$pl['sub']])->fetch();
     $limit = PLANS[$user['plan']]['boutique_limit'] ?? 1;
     $count = (int)q("SELECT COUNT(*) c FROM boutiques WHERE owner_user_id=?", [$pl['sub']])->fetch()['c'];
@@ -1438,7 +1440,7 @@ function boutiques_create($pl) {
     }
     $slug = unique_boutique_slug(slugify($name));
     $id = uid();
-    q("INSERT INTO boutiques (id,owner_user_id,slug,name) VALUES (?,?,?,?)", [$id, $pl['sub'], $slug, $name]);
+    q("INSERT INTO boutiques (id,owner_user_id,slug,name,city) VALUES (?,?,?,?,?)", [$id, $pl['sub'], $slug, $name, $city]);
     // Compte caisse par defaut, pour que le Livre de Compte ne soit pas vide
     // des la creation (l'utilisateur peut le renommer/en ajouter d'autres).
     q("INSERT INTO accounts (id,boutique_id,name,type) VALUES (?,?,?,?)", [uid(), $id, 'Caisse', 'caisse']);
@@ -2585,16 +2587,6 @@ function shop_orders_for_phone() {
 function shop_reviews() {
     $bt = public_boutique_by_slug($_GET['slug'] ?? '');
     $productId = $_GET['product_id'] ?? '';
-    if ($productId === '') {
-        // Pas de product_id : vue "tous les avis de la boutique" (page Avis),
-        // on joint le nom du produit pour que chaque avis reste identifiable.
-        $rows = q("SELECT r.customer_name, r.rating, r.comment, r.created_at, p.name AS product_name
-                   FROM product_reviews r JOIN products p ON p.id = r.product_id
-                   WHERE r.boutique_id=? AND r.status='approved' ORDER BY r.created_at DESC LIMIT 200",
-                  [$bt['id']])->fetchAll();
-        ok($rows);
-        return;
-    }
     $rows = q("SELECT customer_name,rating,comment,created_at FROM product_reviews
                WHERE boutique_id=? AND product_id=? AND status='approved' ORDER BY created_at DESC LIMIT 100",
               [$bt['id'], $productId])->fetchAll();
