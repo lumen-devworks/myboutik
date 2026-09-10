@@ -1931,7 +1931,9 @@ function loadOrdersView(bt, status, q) {
     const rows = data.data || [];
     document.getElementById('content').innerHTML = `
       <div class="row-between">
-        <div><h2 class="page-title">${t('orders_title')}</h2><div class="page-sub">${t('orders_subtitle')}</div></div>
+        <div><h2 class="page-title">${t('orders_title')}</h2><div class="page-sub">${t('orders_subtitle')}</div>
+          <div class="muted" style="font-size:12px;margin-top:4px">📦 ${t('badge_physical_title')} &nbsp;·&nbsp; 📧 ${t('badge_digital_title')}</div>
+        </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
           <button class="btn btn-ghost" onclick="printSelectedBordereaux()">${t('btn_print_selected')}</button>
           <button class="btn btn-primary" onclick="openNewOrder()">${t('btn_new_order')}</button>
