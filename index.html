@@ -76,6 +76,7 @@
     <div class="logo"><div class="mark">MB</div> MYBOUTIK</div>
     <nav>
       <div class="lang-switch"><button type="button" id="langFr" onclick="setLang('fr')">FR</button><button type="button" id="langEn" onclick="setLang('en')">EN</button></div>
+      <a class="btn btn-ghost" href="directory/index.html" id="navDirectoryBtn">Découvrir les boutiques</a>
       <button class="btn btn-ghost" onclick="openAuth('login')" id="navLoginBtn">Se connecter</button>
       <button class="btn btn-primary" onclick="openAuth('register')" id="navRegisterBtn">Démarrer gratuitement</button>
     </nav>
@@ -170,7 +171,7 @@ const API_URL = window.MYBOUTIK_API_URL || 'http://localhost:8000';
 let LANG = localStorage.getItem('myboutik_marketing_lang') === 'en' ? 'en' : 'fr';
 const I18N = {
   fr: {
-    nav_login: 'Se connecter', nav_register: 'Démarrer gratuitement',
+    nav_login: 'Se connecter', nav_register: 'Démarrer gratuitement', nav_directory: 'Découvrir les boutiques',
     hero_badge: 'Vendre en ligne, simplement',
     hero_title: 'Lancez votre boutique,', hero_title_span: 'vendez dès aujourd\'hui.',
     hero_desc: 'Créez votre boutique en ligne, ajoutez vos produits et recevez vos commandes en paiement à la livraison — plusieurs boutiques, un seul compte.',
@@ -200,7 +201,7 @@ const I18N = {
     team_invite_message: 'Vous avez ete invite(e) a rejoindre une boutique. Connectez-vous (ou creez un compte avec la meme adresse email) pour la rejoindre automatiquement.',
   },
   en: {
-    nav_login: 'Log in', nav_register: 'Start for free',
+    nav_login: 'Log in', nav_register: 'Start for free', nav_directory: 'Discover shops',
     hero_badge: 'Sell online, simply',
     hero_title: 'Launch your shop,', hero_title_span: 'sell starting today.',
     hero_desc: 'Create your online shop, add your products, and receive orders with cash on delivery — several shops, one account.',
@@ -240,6 +241,7 @@ function applyStaticTranslations() {
   document.documentElement.lang = LANG;
   document.getElementById('langFr').classList.toggle('active', LANG === 'fr');
   document.getElementById('langEn').classList.toggle('active', LANG === 'en');
+  document.getElementById('navDirectoryBtn').textContent = t('nav_directory');
   document.getElementById('navLoginBtn').textContent = t('nav_login');
   document.getElementById('navRegisterBtn').textContent = t('nav_register');
   document.getElementById('heroBadge').textContent = t('hero_badge');

@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MYBOUTIK — Annuaire des boutiques</title>
+<meta name="theme-color" content="#ea580c">
+<meta name="description" content="Découvrez des boutiques en ligne locales et leurs articles, paiement à la livraison.">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon.svg">
+<style>
+  :root{ --blue:#ea580c; --blue-dark:#c2410c; --ink:#0f172a; --gray:#64748b; --border:#e2e8f0; --bg:#f8fafc; --green:#16a34a; --green-bg:#ecfdf5; }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,'Segoe UI',Roboto,Arial,sans-serif;color:var(--ink);background:var(--bg)}
+  a{color:inherit;text-decoration:none}
+  button,input{font-family:inherit}
+  .wrap{max-width:1080px;margin:0 auto;padding:0 20px}
+  header{border-bottom:1px solid var(--border);padding:16px 0;position:sticky;top:0;background:#fff;z-index:10}
+  header .bar{display:flex;align-items:center;justify-content:space-between;gap:12px}
+  .brand{display:flex;align-items:center;gap:10px}
+  .brand .mark{width:36px;height:36px;border-radius:10px;background:linear-gradient(145deg,var(--blue),var(--blue-dark));display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:13px;flex-shrink:0}
+  .brand .name{font-weight:800;font-size:17px}
+  .brand .tagline{font-size:11px;color:var(--gray);font-weight:600}
+  .header-actions{display:flex;align-items:center;gap:8px}
+  .lang-switch{display:flex;gap:3px;background:var(--bg);border:1px solid var(--border);border-radius:999px;padding:3px}
+  .lang-switch button{background:none;color:var(--gray);border:none;padding:6px 10px;font-size:11px;font-weight:700;border-radius:999px;cursor:pointer}
+  .lang-switch button.active{background:var(--blue);color:#fff}
+  #installBtn{display:none;border:1px solid var(--border);background:#fff;border-radius:999px;padding:7px 14px;font-size:12px;font-weight:700;cursor:pointer}
+
+  .hero{padding:34px 0 22px;text-align:center}
+  .hero h1{font-size:26px;font-weight:800;letter-spacing:-.5px;margin-bottom:6px}
+  .hero p{color:var(--gray);font-size:14px;max-width:520px;margin:0 auto}
+
+  .search-card{background:#fff;border:1px solid var(--border);border-radius:16px;padding:16px;box-shadow:0 8px 24px -12px rgba(15,23,42,.12);margin-bottom:24px}
+  .mode-switch{display:flex;gap:6px;background:var(--bg);border-radius:999px;padding:4px;margin-bottom:12px;width:fit-content}
+  .mode-switch button{border:none;background:none;padding:8px 16px;border-radius:999px;font-size:13px;font-weight:700;color:var(--gray);cursor:pointer}
+  .mode-switch button.active{background:var(--blue);color:#fff}
+  .search-row{display:flex;gap:8px}
+  .search-row input{flex:1;padding:12px 14px;border:1.5px solid var(--border);border-radius:11px;font-size:14px}
+  .search-row input:focus{outline:none;border-color:var(--blue)}
+  .search-row button{background:var(--blue);color:#fff;border:none;border-radius:11px;padding:0 20px;font-weight:700;font-size:14px;cursor:pointer}
+
+  .section-title{font-size:14px;font-weight:700;color:var(--gray);text-transform:uppercase;letter-spacing:.03em;margin-bottom:14px}
+  .shops-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:16px;margin-bottom:32px}
+  .shop-card{background:#fff;border:1px solid var(--border);border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:10px;transition:box-shadow .15s,transform .15s}
+  .shop-card:hover{box-shadow:0 10px 26px -14px rgba(15,23,42,.25);transform:translateY(-2px)}
+  .shop-card .top{display:flex;align-items:center;gap:10px}
+  .shop-card .logo{width:48px;height:48px;border-radius:10px;object-fit:cover;background:var(--bg);flex-shrink:0}
+  .shop-card .ph{width:48px;height:48px;border-radius:10px;background:var(--bg);display:flex;align-items:center;justify-content:center;font-size:20px;color:var(--gray);flex-shrink:0}
+  .shop-card .name{font-weight:700;font-size:15px}
+  .shop-card .desc{font-size:12.5px;color:var(--gray);line-height:1.4;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+  .shop-card .visit{margin-top:auto;background:var(--bg);border-radius:8px;padding:8px;text-align:center;font-size:12.5px;font-weight:700;color:var(--blue)}
+
+  .products-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:14px;margin-bottom:32px}
+  .product-card{background:#fff;border:1px solid var(--border);border-radius:14px;padding:14px;transition:box-shadow .15s,transform .15s}
+  .product-card:hover{box-shadow:0 10px 26px -14px rgba(15,23,42,.25);transform:translateY(-2px)}
+  .product-card .pname{font-weight:700;font-size:14px;margin-bottom:2px}
+  .product-card .price{font-weight:800;color:var(--blue);font-size:15px;margin:4px 0}
+  .product-card .shop{font-size:12px;color:var(--gray)}
+
+  .empty{text-align:center;padding:50px 20px;color:var(--gray)}
+  .empty .big{font-size:38px;margin-bottom:10px}
+
+  footer{background:#fff;border-top:1px solid var(--border);padding:26px 0;text-align:center;margin-top:20px}
+  footer .cta{font-size:14px;color:var(--gray);margin-bottom:12px}
+  footer .btn{display:inline-block;background:var(--blue);color:#fff;padding:11px 22px;border-radius:11px;font-weight:700;font-size:14px}
+
+  #toastContainer{position:fixed;top:18px;left:50%;transform:translateX(-50%);z-index:200;display:flex;flex-direction:column;gap:8px;align-items:center;pointer-events:none;max-width:90vw}
+  .toast{pointer-events:auto;padding:12px 20px;border-radius:10px;font-size:14px;font-weight:600;box-shadow:0 6px 18px rgba(15,23,42,.15);max-width:440px;text-align:center;opacity:0;transform:translateY(-8px);transition:opacity .2s,transform .2s}
+  .toast.show{opacity:1;transform:translateY(0)}
+  .toast-info{background:#eff6ff;color:#1e40af;border:1px solid #bfdbfe}
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap bar">
+    <div class="brand">
+      <div class="mark">MB</div>
+      <div><div class="name">MYBOUTIK</div><div class="tagline" id="taglineText"></div></div>
+    </div>
+    <div class="header-actions">
+      <button id="installBtn" onclick="installApp()">📲 <span id="installBtnText"></span></button>
+      <div class="lang-switch"><button type="button" onclick="setLang('fr')" id="langFr">FR</button><button type="button" onclick="setLang('en')" id="langEn">EN</button></div>
+    </div>
+  </div>
+</header>
+
+<div class="hero wrap">
+  <h1 id="heroTitle"></h1>
+  <p id="heroDesc"></p>
+</div>
+
+<div class="wrap">
+  <div class="search-card">
+    <div class="mode-switch">
+      <button type="button" id="modeShops" onclick="setMode('shops')"></button>
+      <button type="button" id="modeProducts" onclick="setMode('products')"></button>
+    </div>
+    <div class="search-row">
+      <input id="searchInput" oninput="onSearchInput()">
+      <button type="button" onclick="runSearch()" id="searchBtnText"></button>
+    </div>
+  </div>
+
+  <div id="resultsArea"></div>
+</div>
+
+<footer>
+  <div class="wrap">
+    <div class="cta" id="footerCta"></div>
+    <a class="btn" id="createShopBtn" href="../index.html"></a>
+  </div>
+</footer>
+
+<div id="toastContainer"></div>
+
+<script src="../config.js"></script>
+<script>
+const API_URL = window.MYBOUTIK_API_URL || 'http://localhost:8000';
+function api(path, opts) {
+  return fetch(API_URL+path, Object.assign({headers:{'Content-Type':'application/json'}}, opts||{}))
+    .then(r => r.json().then(data => ({status:r.status, data})))
+    .catch(() => ({status:0, data:{success:false, message:t('server_unreachable')}}));
+}
+function showToast(message, type) {
+  const container = document.getElementById('toastContainer');
+  if (!container) { window.alert(message); return; }
+  const el = document.createElement('div');
+  el.className = 'toast toast-' + (type || 'info');
+  el.textContent = message;
+  container.appendChild(el);
+  requestAnimationFrame(() => el.classList.add('show'));
+  setTimeout(() => { el.classList.remove('show'); setTimeout(() => el.remove(), 300); }, 4000);
+}
+function escapeHtml(s) { return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function fmtMoney(n, currency) { return Math.round(Number(n)||0).toLocaleString('fr-FR') + ' ' + (currency||'XOF'); }
+
+const I18N = {
+  fr: {
+    tagline: 'Annuaire des boutiques',
+    hero_title: 'Trouvez votre prochaine boutique',
+    hero_desc: 'Parcourez les boutiques MYBOUTIK qui ont choisi d\'être visibles ici, ou cherchez directement un article.',
+    mode_shops: '🏬 Boutiques',
+    mode_products: '🔎 Articles',
+    search_placeholder_shops: 'Rechercher une boutique par son nom…',
+    search_placeholder_products: 'Rechercher un article (ex: chemise, licence...)…',
+    search_btn: 'Rechercher',
+    install_btn: 'Installer l\'application',
+    installed_toast: 'MYBOUTIK est maintenant installé sur votre appareil !',
+    loading: 'Chargement…',
+    no_shops: 'Aucune boutique ne correspond à votre recherche.',
+    no_shops_empty: 'Aucune boutique n\'est encore listée publiquement — revenez bientôt !',
+    no_products_hint: 'Tapez le nom d\'un article pour chercher parmi toutes les boutiques.',
+    no_products: 'Aucun article ne correspond à votre recherche.',
+    visit_shop: 'Voir la boutique →',
+    sold_by: 'Chez ',
+    footer_cta: 'Vous vendez en ligne ? Créez votre boutique gratuitement sur MYBOUTIK.',
+    create_shop_btn: 'Créer ma boutique',
+    server_unreachable: 'Impossible de contacter le serveur.',
+  },
+  en: {
+    tagline: 'Shop directory',
+    hero_title: 'Find your next shop',
+    hero_desc: 'Browse MYBOUTIK shops that chose to be visible here, or search directly for a product.',
+    mode_shops: '🏬 Shops',
+    mode_products: '🔎 Products',
+    search_placeholder_shops: 'Search a shop by name…',
+    search_placeholder_products: 'Search a product (e.g. shirt, license...)…',
+    search_btn: 'Search',
+    install_btn: 'Install the app',
+    installed_toast: 'MYBOUTIK is now installed on your device!',
+    loading: 'Loading…',
+    no_shops: 'No shop matches your search.',
+    no_shops_empty: 'No shop is publicly listed yet — check back soon!',
+    no_products_hint: 'Type a product name to search across every shop.',
+    no_products: 'No product matches your search.',
+    visit_shop: 'Visit shop →',
+    sold_by: 'At ',
+    footer_cta: 'Selling online? Create your shop for free on MYBOUTIK.',
+    create_shop_btn: 'Create my shop',
+    server_unreachable: 'Unable to reach the server.',
+  },
+};
+let LANG = localStorage.getItem('myboutik_lang') || 'fr';
+function t(key) { return (I18N[LANG] && I18N[LANG][key]) ?? I18N.fr[key] ?? key; }
+function setLang(lang) {
+  LANG = lang === 'en' ? 'en' : 'fr';
+  localStorage.setItem('myboutik_lang', LANG);
+  document.documentElement.lang = LANG;
+  applyStaticText();
+  runSearch();
+}
+
+let MODE = 'shops'; // 'shops' | 'products'
+function setMode(mode) {
+  MODE = mode;
+  document.getElementById('modeShops').classList.toggle('active', mode === 'shops');
+  document.getElementById('modeProducts').classList.toggle('active', mode === 'products');
+  document.getElementById('searchInput').placeholder = mode === 'shops' ? t('search_placeholder_shops') : t('search_placeholder_products');
+  document.getElementById('searchInput').value = '';
+  runSearch();
+}
+
+function applyStaticText() {
+  document.getElementById('langFr').classList.toggle('active', LANG === 'fr');
+  document.getElementById('langEn').classList.toggle('active', LANG === 'en');
+  document.getElementById('taglineText').textContent = t('tagline');
+  document.getElementById('heroTitle').textContent = t('hero_title');
+  document.getElementById('heroDesc').textContent = t('hero_desc');
+  document.getElementById('modeShops').textContent = t('mode_shops');
+  document.getElementById('modeProducts').textContent = t('mode_products');
+  document.getElementById('searchInput').placeholder = MODE === 'shops' ? t('search_placeholder_shops') : t('search_placeholder_products');
+  document.getElementById('searchBtnText').textContent = t('search_btn');
+  document.getElementById('installBtnText').textContent = t('install_btn');
+  document.getElementById('footerCta').textContent = t('footer_cta');
+  document.getElementById('createShopBtn').textContent = t('create_shop_btn');
+}
+
+let searchTimer = null;
+function onSearchInput() {
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(runSearch, 400);
+}
+
+function runSearch() {
+  const q = document.getElementById('searchInput').value.trim();
+  const area = document.getElementById('resultsArea');
+  area.innerHTML = '<div class="empty">'+t('loading')+'</div>';
+  if (MODE === 'shops') {
+    api('/directory?action=boutiques&q='+encodeURIComponent(q)).then(({data}) => {
+      if (!data.success) { area.innerHTML = '<div class="empty">'+data.message+'</div>'; return; }
+      renderShops(data.data || [], q);
+    });
+  } else {
+    if (!q) { area.innerHTML = '<div class="empty"><div class="big">🔎</div>'+t('no_products_hint')+'</div>'; return; }
+    api('/directory?action=products&q='+encodeURIComponent(q)).then(({data}) => {
+      if (!data.success) { area.innerHTML = '<div class="empty">'+data.message+'</div>'; return; }
+      renderProducts(data.data || []);
+    });
+  }
+}
+
+function renderShops(rows, q) {
+  const area = document.getElementById('resultsArea');
+  if (!rows.length) {
+    area.innerHTML = '<div class="empty"><div class="big">🏬</div>'+(q ? t('no_shops') : t('no_shops_empty'))+'</div>';
+    return;
+  }
+  area.innerHTML = '<div class="shops-grid">'+rows.map(b => `
+    <a class="shop-card" href="../store/index.html?b=${encodeURIComponent(b.slug)}">
+      <div class="top">
+        ${b.logo_url ? '<img class="logo" src="'+b.logo_url+'">' : '<div class="ph">🏬</div>'}
+        <div class="name">${escapeHtml(b.name)}</div>
+      </div>
+      ${b.description ? '<div class="desc">'+escapeHtml(b.description)+'</div>' : ''}
+      <div class="visit">${t('visit_shop')}</div>
+    </a>`).join('')+'</div>';
+}
+
+function renderProducts(rows) {
+  const area = document.getElementById('resultsArea');
+  if (!rows.length) {
+    area.innerHTML = '<div class="empty"><div class="big">🔎</div>'+t('no_products')+'</div>';
+    return;
+  }
+  area.innerHTML = '<div class="products-grid">'+rows.map(p => `
+    <a class="product-card" href="../store/index.html?b=${encodeURIComponent(p.boutique_slug)}&p=${encodeURIComponent(p.product_slug||'')}">
+      <div class="pname">${escapeHtml(p.name)}</div>
+      <div class="price">${fmtMoney(p.price, p.currency)}</div>
+      <div class="shop">${t('sold_by')}${escapeHtml(p.boutique_name)}</div>
+    </a>`).join('')+'</div>';
+}
+
+// Installation PWA : Chrome/Edge/Android declenchent beforeinstallprompt
+// quand les criteres (manifest + service worker + https) sont remplis -
+// on garde l'evenement pour le rejouer au clic sur notre propre bouton
+// plutot que de compter sur le mini-infobar natif du navigateur.
+let deferredInstallPrompt = null;
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  deferredInstallPrompt = e;
+  document.getElementById('installBtn').style.display = 'inline-flex';
+});
+function installApp() {
+  if (!deferredInstallPrompt) return;
+  deferredInstallPrompt.prompt();
+  deferredInstallPrompt.userChoice.then((choice) => {
+    if (choice.outcome === 'accepted') showToast(t('installed_toast'), 'info');
+    deferredInstallPrompt = null;
+    document.getElementById('installBtn').style.display = 'none';
+  });
+}
+window.addEventListener('appinstalled', () => { document.getElementById('installBtn').style.display = 'none'; });
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => { navigator.serviceWorker.register('sw.js').catch(() => {}); });
+}
+
+document.documentElement.lang = LANG;
+applyStaticText();
+setMode('shops');
+</script>
+</body>
+</html>
