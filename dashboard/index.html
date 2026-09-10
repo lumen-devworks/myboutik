@@ -720,6 +720,8 @@ const I18N = {
     label_default_delivery_fee: 'Frais de livraison par défaut (facturé au client)',
     checkbox_cod_enabled: 'Paiement à la livraison activé',
     cod_enabled_note: 'Ne concerne que les commandes avec au moins un produit physique — désactiver ceci n\'empêche pas de vendre des produits numériques.',
+    checkbox_public_listed: 'Lister ma boutique dans l\'annuaire public MYBOUTIK',
+    public_listed_note: 'Désactivé par défaut. Si activé, votre boutique et vos produits actifs deviennent visibles par tout visiteur de l\'annuaire MYBOUTIK (recherche incluse) — pas seulement les personnes à qui vous partagez votre lien.',
     order_notifications_title: 'Notifications de commande',
     checkbox_notify_email: 'Recevoir un email à chaque nouvelle commande',
     label_receiving_address: 'Adresse de réception (vide = email de votre compte)',
@@ -1326,6 +1328,8 @@ const I18N = {
     label_default_delivery_fee: 'Default delivery fee (charged to the customer)',
     checkbox_cod_enabled: 'Cash on delivery enabled',
     cod_enabled_note: 'Only applies to orders with at least one physical product — turning this off doesn\'t stop you from selling digital products.',
+    checkbox_public_listed: 'List my shop in the public MYBOUTIK directory',
+    public_listed_note: 'Off by default. If enabled, your shop and active products become visible to any visitor of the MYBOUTIK directory (search included) - not just people you share your link with.',
     order_notifications_title: 'Order notifications',
     checkbox_notify_email: 'Receive an email for every new order',
     label_receiving_address: 'Receiving address (empty = your account email)',
@@ -3340,6 +3344,8 @@ function renderSettings(bt) {
       <div class="field"><label>${t('label_default_delivery_fee')}</label><input id="setDeliveryFee" type="number" min="0" value="${bt.default_delivery_fee||0}"></div>
       <label style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><input type="checkbox" id="setCod" ${bt.cod_enabled?'checked':''}> ${t('checkbox_cod_enabled')}</label>
       <div class="muted" style="margin:-2px 0 14px;font-size:12px">${t('cod_enabled_note')}</div>
+      <label style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><input type="checkbox" id="setPublicListed" ${bt.public_listed?'checked':''}> ${t('checkbox_public_listed')}</label>
+      <div class="muted" style="margin:-2px 0 14px;font-size:12px">${t('public_listed_note')}</div>
       <button class="btn btn-primary" onclick="saveSettings('settingsMsg')">${t('btn_save')}</button>
     </div>
     <div class="card">
@@ -3378,6 +3384,7 @@ function saveSettings(targetMsgId) {
     description:document.getElementById('setDescription').value.trim(),
     logo_url:document.getElementById('setLogo').value.trim(),
     cod_enabled:document.getElementById('setCod').checked,
+    public_listed:document.getElementById('setPublicListed').checked,
     default_delivery_fee:Number(document.getElementById('setDeliveryFee').value||0),
     notify_order_email:document.getElementById('setNotifyEmail').checked,
     notify_email:document.getElementById('setNotifyAddr').value.trim(),

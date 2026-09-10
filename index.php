@@ -586,6 +586,7 @@ try {
         case 'billing':   route_billing($action); break;
         case 'feedback':  route_feedback($action); break;
         case 'admin':     route_admin($action); break;
+        case 'directory': route_directory($action); break;
         case 'integrations': route_integrations($action); break;
         case 'cron':      route_cron($action); break;
         case 'health':    ok(['status'=>'up','time'=>date('c')]); break;
@@ -710,6 +711,11 @@ function route_install() {
     "ALTER TABLE boutiques ADD COLUMN IF NOT EXISTS default_delivery_fee DECIMAL(14,2) DEFAULT 0",
     "ALTER TABLE boutiques ADD COLUMN IF NOT EXISTS description TEXT",
     "ALTER TABLE boutiques ADD COLUMN IF NOT EXISTS logo_url TEXT",
+    // Opt-in explicite (jamais automatique) pour apparaitre dans l'annuaire
+    // public MYBOUTIK (voir route_directory()) - certains marchands vendent
+    // en clientele privee et ne veulent pas etre exposes publiquement a
+    // cote d'autres boutiques.
+    "ALTER TABLE boutiques ADD COLUMN IF NOT EXISTS public_listed SMALLINT DEFAULT 0",
     "ALTER TABLE boutiques ADD COLUMN IF NOT EXISTS notify_order_email SMALLINT DEFAULT 1",
     "ALTER TABLE boutiques ADD COLUMN IF NOT EXISTS notify_email VARCHAR(190)",
     // notify_whatsapp_enabled/number : colonnes conservees pour compatibilite
@@ -1444,10 +1450,11 @@ function boutiques_update($pl) {
     $notifyOrderEmail = isset($b['notify_order_email']) ? (int)!!$b['notify_order_email'] : $row['notify_order_email'];
     $notifyEmail = trim($b['notify_email'] ?? $row['notify_email']);
     $stockAlertEnabled = isset($b['stock_alert_enabled']) ? (int)!!$b['stock_alert_enabled'] : $row['stock_alert_enabled'];
+    $publicListed = isset($b['public_listed']) ? (int)!!$b['public_listed'] : $row['public_listed'];
     q("UPDATE boutiques SET name=?, cod_enabled=?, currency=?, default_delivery_fee=?, description=?, logo_url=?,
-       notify_order_email=?, notify_email=?, stock_alert_enabled=? WHERE id=?",
+       notify_order_email=?, notify_email=?, stock_alert_enabled=?, public_listed=? WHERE id=?",
       [$name, $codEnabled, $currency, $deliveryFee, $description, $logoUrl, $notifyOrderEmail, $notifyEmail,
-       $stockAlertEnabled, $id]);
+       $stockAlertEnabled, $publicListed, $id]);
     ok(q("SELECT * FROM boutiques WHERE id=?", [$id])->fetch(), 'Boutique mise a jour');
 }
 
@@ -1921,6 +1928,45 @@ function route_shop($action) {
         case 'review_add':       shop_review_add(); break;
         default: fail('Action inconnue', 404);
     }
+}
+
+// ============================================================
+// ANNUAIRE PUBLIC (directory/index.html) - navigation/recherche parmi les
+// boutiques qui ont explicitement choisi d'y apparaitre (public_listed=1,
+// jamais automatique - voir boutiques_update()). Aucune authentification :
+// c'est une vitrine de decouverte, comme store/index.html mais a l'echelle
+// de toute la plateforme plutot que d'une seule boutique.
+// ============================================================
+function route_directory($action) {
+    switch ($action) {
+        case 'boutiques': directory_boutiques(); break;
+        case 'products':  directory_products(); break;
+        default: fail('Action inconnue', 404);
+    }
+}
+function directory_boutiques() {
+    rate_limit_check('directory_boutiques', 60, 300);
+    $q = trim($_GET['q'] ?? '');
+    $sql = "SELECT slug, name, description, logo_url, currency FROM boutiques WHERE status='active' AND public_listed=1";
+    $params = [];
+    if ($q !== '') { $sql .= " AND name ILIKE ?"; $params[] = '%'.$q.'%'; }
+    $sql .= " ORDER BY created_at DESC LIMIT 60";
+    ok(q($sql, $params)->fetchAll());
+}
+// Recherche d'articles a travers TOUTES les boutiques listees publiquement -
+// le nom de la boutique est renvoye avec chaque article pour que le client
+// sache chez qui il achete avant de cliquer (le lien pointe directement vers
+// la fiche produit dans cette boutique).
+function directory_products() {
+    rate_limit_check('directory_products', 60, 300);
+    $q = trim($_GET['q'] ?? '');
+    if ($q === '') ok([]);
+    $rows = q("SELECT p.id AS product_id, p.name, p.price, p.slug AS product_slug,
+                      b.slug AS boutique_slug, b.name AS boutique_name, b.currency
+               FROM products p JOIN boutiques b ON b.id = p.boutique_id
+               WHERE b.status='active' AND b.public_listed=1 AND p.status='active' AND p.name ILIKE ?
+               ORDER BY p.created_at DESC LIMIT 60", ['%'.$q.'%'])->fetchAll();
+    ok($rows);
 }
 
 function public_boutique_by_slug($slug) {
