@@ -350,6 +350,7 @@ const I18N = {
     invoice_title_prefix: 'Facture ',
     invoice_subtitle: 'Facture / Bordereau de livraison',
     label_client_box: 'Client',
+    label_customer_country: 'Pays de destination :',
     label_delivery_person_box: 'Livreur',
     col_article: 'Article',
     col_qty_short: 'Qté',
@@ -558,6 +559,8 @@ const I18N = {
     label_cost_price: 'Prix de revient (interne)',
     label_delivery_fee_empty_hint: 'Frais de livraison (vide = frais par défaut de la boutique)',
     label_shipping_fee_empty_hint: 'Frais d\'expédition (vide = frais par défaut de la boutique)',
+    label_shipping_fee_empty_hint_country: 'Frais d\'expédition {country} (vide = frais par défaut de la boutique)',
+    label_shipping_fee_other_country_empty_hint: 'Frais d\'expédition autre pays (vide = frais par défaut de la boutique)',
     label_sku: 'Référence (SKU)',
     label_barcode: 'Code-barres (UPC, EAN)',
     label_stock: 'Stock',
@@ -734,6 +737,8 @@ const I18N = {
     share_note: 'Chaque bouton ouvre le réseau avec le lien déjà rempli — plus besoin de le recopier à la main. Instagram et TikTok ne permettent pas ce pré-remplissage depuis un site : le lien est copié automatiquement, il ne reste qu\'à le coller dans votre bio ou une story/vidéo.',
     label_default_delivery_fee: 'Frais de livraison par défaut (facturé au client)',
     label_default_shipping_fee: 'Frais d\'expédition par défaut (facturé au client)',
+    label_default_shipping_fee_country: 'Frais d\'expédition par défaut {country} (facturé au client)',
+    label_default_shipping_fee_other_country: 'Frais d\'expédition par défaut autre pays (facturé au client)',
     checkbox_cod_enabled: 'Paiement à la livraison activé',
     cod_enabled_note: 'Ne concerne que les commandes avec au moins un produit physique — désactiver ceci n\'empêche pas de vendre des produits numériques.',
     checkbox_public_listed: 'Lister ma boutique dans l\'annuaire public MYBOUTIK',
@@ -982,6 +987,7 @@ const I18N = {
     invoice_title_prefix: 'Invoice ',
     invoice_subtitle: 'Invoice / Delivery waybill',
     label_client_box: 'Customer',
+    label_customer_country: 'Destination country:',
     label_delivery_person_box: 'Delivery person',
     col_article: 'Item',
     col_qty_short: 'Qty',
@@ -1190,6 +1196,8 @@ const I18N = {
     label_cost_price: 'Cost price (internal)',
     label_delivery_fee_empty_hint: 'Delivery fee (empty = shop\'s default fee)',
     label_shipping_fee_empty_hint: 'Shipping fee (empty = shop\'s default fee)',
+    label_shipping_fee_empty_hint_country: 'Shipping fee to {country} (empty = shop\'s default fee)',
+    label_shipping_fee_other_country_empty_hint: 'Shipping fee to other countries (empty = shop\'s default fee)',
     label_sku: 'SKU',
     label_barcode: 'Barcode (UPC, EAN)',
     label_stock: 'Stock',
@@ -1366,6 +1374,8 @@ const I18N = {
     share_note: 'Each button opens the network with the link already filled in — no need to copy it by hand. Instagram and TikTok don\'t allow this pre-filling from a website: the link is copied automatically, just paste it into your bio or a story/video.',
     label_default_delivery_fee: 'Default delivery fee (charged to the customer)',
     label_default_shipping_fee: 'Default shipping fee (charged to the customer)',
+    label_default_shipping_fee_country: 'Default shipping fee to {country} (charged to the customer)',
+    label_default_shipping_fee_other_country: 'Default shipping fee to other countries (charged to the customer)',
     checkbox_cod_enabled: 'Cash on delivery enabled',
     cod_enabled_note: 'Only applies to orders with at least one physical product — turning this off doesn\'t stop you from selling digital products.',
     checkbox_public_listed: 'List my shop in the public MYBOUTIK directory',
@@ -1537,6 +1547,16 @@ function countryDatalistHtml(datalistId) {
   return '<datalist id="'+datalistId+'">' + COUNTRIES_FR.map(c => '<option value="'+c+'">').join('') + '</datalist>';
 }
 function isValidCountryValue(value) { return COUNTRIES_FR.includes(value); }
+// Le libelle du tarif d'expedition "meme pays" nomme le pays de LA
+// BOUTIQUE (CURRENT) pour lever toute ambiguite avec le tarif "autre pays"
+// juste a cote - sans pays configure (vieille boutique creee avant ce
+// champ), on retombe sur un libelle generique.
+function shippingFeeSameCountryLabel(isDefault) {
+  if (isDefault) {
+    return CURRENT && CURRENT.country ? tf('label_default_shipping_fee_country', {country: CURRENT.country}) : t('label_default_shipping_fee');
+  }
+  return CURRENT && CURRENT.country ? tf('label_shipping_fee_empty_hint_country', {country: CURRENT.country}) : t('label_shipping_fee_empty_hint');
+}
 function STATUS_LABELS_FN() { return {
   pending: t('order_status_pending'), processing: t('order_status_processing'), shipped: t('order_status_shipped'), delivered: t('order_status_delivered'),
   refused: t('order_status_refused'), cancelled: t('order_status_cancelled'),
@@ -1912,6 +1932,7 @@ function bordereauBodyHtml(o) {
       <div><strong>${escapeHtml(o.customer_name)}</strong></div>
       <div>${escapeHtml(o.customer_phone)}</div>
       <div>${escapeHtml(o.customer_address||'')}</div>
+      ${o.delivery_method === 'shipping' && o.customer_country ? '<div>'+t('label_customer_country')+' '+escapeHtml(o.customer_country)+'</div>' : ''}
     </div>
     ${d.delivery_person_name ? `<div class="box"><div class="label">${t('label_delivery_person_box')}</div><div>${escapeHtml(d.delivery_person_name)}</div><div>${escapeHtml(d.delivery_person_phone||'')}</div></div>` : ''}
     <table>
@@ -2715,7 +2736,8 @@ function renderProductFormModal(p, allProducts, categories) {
     <div class="field-row">
       <div class="field"><label>${t('label_cost_price')}</label><input id="prodCost" type="number" min="0" value="${p.cost_price??''}"></div>
       <div class="field"><label>${t('label_delivery_fee_empty_hint')}</label><input id="prodDeliveryFee" type="number" min="0" value="${p.delivery_fee??''}"></div>
-      <div class="field"><label>${t('label_shipping_fee_empty_hint')}</label><input id="prodShippingFee" type="number" min="0" value="${p.shipping_fee??''}"></div>
+      <div class="field"><label>${shippingFeeSameCountryLabel()}</label><input id="prodShippingFee" type="number" min="0" value="${p.shipping_fee??''}"></div>
+      <div class="field"><label>${t('label_shipping_fee_other_country_empty_hint')}</label><input id="prodShippingFeeOther" type="number" min="0" value="${p.shipping_fee_other_country??''}"></div>
     </div>
     <div class="field-row">
       <div class="field"><label>${t('label_sku')}</label><input id="prodSku" value="${escapeHtml(p.sku||'')}"></div>
@@ -3044,6 +3066,7 @@ function submitProductForm(id) {
     cost_price: document.getElementById('prodCost').value,
     delivery_fee: document.getElementById('prodDeliveryFee').value,
     shipping_fee: document.getElementById('prodShippingFee').value,
+    shipping_fee_other_country: document.getElementById('prodShippingFeeOther').value,
     sku: document.getElementById('prodSku').value.trim(),
     barcode: document.getElementById('prodBarcode').value.trim(),
     slug: document.getElementById('prodSlug').value.trim(),
@@ -3481,7 +3504,8 @@ function renderSettings(bt) {
       </div>
       <div class="field-row">
         <div class="field"><label>${t('label_default_delivery_fee')}</label><input id="setDeliveryFee" type="number" min="0" value="${bt.default_delivery_fee||0}"></div>
-        <div class="field"><label>${t('label_default_shipping_fee')}</label><input id="setShippingFee" type="number" min="0" value="${bt.default_shipping_fee||0}"></div>
+        <div class="field"><label>${shippingFeeSameCountryLabel(true)}</label><input id="setShippingFee" type="number" min="0" value="${bt.default_shipping_fee||0}"></div>
+        <div class="field"><label>${t('label_default_shipping_fee_other_country')}</label><input id="setShippingFeeOther" type="number" min="0" value="${bt.default_shipping_fee_other_country||0}"></div>
       </div>
       <label style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><input type="checkbox" id="setCod" ${bt.cod_enabled?'checked':''}> ${t('checkbox_cod_enabled')}</label>
       <div class="muted" style="margin:-2px 0 14px;font-size:12px">${t('cod_enabled_note')}</div>
@@ -3543,6 +3567,7 @@ function saveSettings(targetMsgId) {
     country:countryInput,
     default_delivery_fee:Number(document.getElementById('setDeliveryFee').value||0),
     default_shipping_fee:Number(document.getElementById('setShippingFee').value||0),
+    default_shipping_fee_other_country:Number(document.getElementById('setShippingFeeOther').value||0),
     notify_order_email:document.getElementById('setNotifyEmail').checked,
     notify_email:document.getElementById('setNotifyAddr').value.trim(),
     stock_alert_enabled:document.getElementById('setStockAlert').checked,

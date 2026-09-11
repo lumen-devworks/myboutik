@@ -130,6 +130,10 @@ function countryFlag(name) {
   if (!code) return '';
   return String.fromCodePoint(...[...code].map(c => 0x1F1E6 + c.charCodeAt(0) - 65));
 }
+// Meme liste que le tableau de bord (COUNTRIES_FR), derivee de COUNTRY_ISO
+// plutot que recopiee, pour le champ "pays de destination" en mode
+// Expedition (voir shippingCountryFieldHtml()).
+const COUNTRIES_FR = Object.keys(COUNTRY_ISO);
 
 // ============================================================
 // TRADUCTION (FR/EN) - textes fixes de la vitrine publique. Les messages
@@ -206,6 +210,10 @@ const I18N = {
     delivery_method_delivery: 'Livraison',
     delivery_method_shipping: 'Expédition',
     delivery_method_free: 'Gratuit',
+    shipping_country_label: 'Pays de destination',
+    select_country_placeholder: 'Choisir un pays…',
+    shipping_country_required: 'Le pays de destination est requis pour une expédition',
+    shipping_country_invalid: 'Veuillez choisir un pays dans la liste proposée',
     total_label: 'Total',
     sending_in_progress: 'Envoi en cours…',
     personal_promo_prefix: '🎁 Code personnel ',
@@ -296,6 +304,10 @@ const I18N = {
     delivery_method_delivery: 'Delivery',
     delivery_method_shipping: 'Shipping',
     delivery_method_free: 'Free',
+    shipping_country_label: 'Destination country',
+    select_country_placeholder: 'Choose a country…',
+    shipping_country_required: 'The destination country is required for shipping',
+    shipping_country_invalid: 'Please choose a country from the suggested list',
     total_label: 'Total',
     sending_in_progress: 'Sending…',
     personal_promo_prefix: '🎁 Personal code ',
@@ -679,9 +691,21 @@ function cartHasPhysicalItem() {
 // plutot que de les additionner (voir shop_checkout() cote serveur, qui
 // recalcule exactement la meme chose a partir du champ delivery_method).
 let SELECTED_DELIVERY_METHOD = 'delivery';
+// Destination saisie par le client en mode "Expedition" - determine si le
+// tarif "meme pays" ou "autre pays" s'applique (voir shop_checkout() cote
+// serveur, qui refait exactement la meme comparaison a partir de
+// customer_country). Vide => tarif "meme pays" par defaut, cote client
+// comme cote serveur, tant que la destination n'est pas encore saisie.
+let SELECTED_SHIPPING_COUNTRY = '';
 function computeFeeForMethod(method) {
-  const feeField = method === 'shipping' ? 'shipping_fee' : 'delivery_fee';
-  const defaultField = method === 'shipping' ? 'default_shipping_fee' : 'default_delivery_fee';
+  let feeField, defaultField;
+  if (method === 'shipping') {
+    const isOther = SELECTED_SHIPPING_COUNTRY && BOUTIQUE.country && SELECTED_SHIPPING_COUNTRY !== BOUTIQUE.country;
+    feeField = isOther ? 'shipping_fee_other_country' : 'shipping_fee';
+    defaultField = isOther ? 'default_shipping_fee_other_country' : 'default_shipping_fee';
+  } else {
+    feeField = 'delivery_fee'; defaultField = 'default_delivery_fee';
+  }
   let fee = 0;
   CART.forEach(l => {
     const p = PRODUCTS.find(x => x.id === l.product_id);
@@ -692,8 +716,7 @@ function computeFeeForMethod(method) {
   });
   return fee;
 }
-function deliveryMethodChoiceHtml() {
-  if (!cartHasPhysicalItem()) return '';
+function deliveryMethodRadiosInnerHtml() {
   const deliveryFee = computeFeeForMethod('delivery');
   const shippingFee = computeFeeForMethod('shipping');
   const opt = (method, icon, label, fee) => `
@@ -702,14 +725,44 @@ function deliveryMethodChoiceHtml() {
       <span style="flex:1">${icon} ${label}</span>
       <span style="font-weight:700">${fee>0?fmtMoney(fee,BOUTIQUE.currency):t('delivery_method_free')}</span>
     </label>`;
+  return opt('delivery','🚚',t('delivery_method_delivery'),deliveryFee) + opt('shipping','📮',t('delivery_method_shipping'),shippingFee);
+}
+// Champ pays de destination affiche uniquement en mode "Expedition" - dans
+// un <div> stable a part (jamais recree pendant la frappe, voir
+// onShippingCountryInput()) pour ne pas perdre le focus/curseur a chaque
+// caractere tape.
+function shippingCountryFieldHtml() {
+  if (SELECTED_DELIVERY_METHOD !== 'shipping') return '';
+  return `<div class="field"><label>${t('shipping_country_label')}</label>
+      <input id="coShippingCountry" list="shipCountryList" value="${escapeHtml(SELECTED_SHIPPING_COUNTRY)}" oninput="onShippingCountryInput()" placeholder="${t('select_country_placeholder')}">
+    </div>
+    <datalist id="shipCountryList">${COUNTRIES_FR.map(c => '<option value="'+escapeHtml(c)+'">').join('')}</datalist>`;
+}
+function deliveryMethodChoiceHtml() {
+  if (!cartHasPhysicalItem()) return '';
   return `<div class="field"><label>${t('delivery_method_label')}</label>
-    ${opt('delivery','🚚',t('delivery_method_delivery'),deliveryFee)}
-    ${opt('shipping','📮',t('delivery_method_shipping'),shippingFee)}
-  </div>`;
+      <div id="deliveryMethodRadios">${deliveryMethodRadiosInnerHtml()}</div>
+    </div>
+    <div id="shippingCountryFieldWrap">${shippingCountryFieldHtml()}</div>`;
 }
 function selectDeliveryMethod(method) {
   SELECTED_DELIVERY_METHOD = method === 'shipping' ? 'shipping' : 'delivery';
+  if (SELECTED_DELIVERY_METHOD !== 'shipping') SELECTED_SHIPPING_COUNTRY = '';
   renderCartSheet('checkout', checkoutFieldValues());
+}
+// Recalcule juste les radios + le pays + le total sans reconstruire tout
+// le formulaire - appele a chaque frappe dans le champ pays, la ou un
+// renderCartSheet() complet ferait perdre le focus de ce meme champ.
+function onShippingCountryInput() {
+  SELECTED_SHIPPING_COUNTRY = document.getElementById('coShippingCountry').value.trim();
+  const radios = document.getElementById('deliveryMethodRadios');
+  if (radios) radios.innerHTML = deliveryMethodRadiosInnerHtml();
+  const totalsBlock = document.getElementById('checkoutTotalsBlock');
+  if (totalsBlock) {
+    const subtotal = CART.reduce((s,l)=>s+l.price*l.qty, 0);
+    const deliveryFee = cartHasPhysicalItem() ? computeFeeForMethod(SELECTED_DELIVERY_METHOD) : 0;
+    totalsBlock.innerHTML = cartTotalsHtml(subtotal, deliveryFee);
+  }
 }
 let APPLIED_PROMO = null; // {code, type, value, discount} - revalide de toute facon au checkout reel
 function cartTotalsHtml(subtotal, deliveryFee) {
@@ -792,7 +845,7 @@ function renderCartSheet(step, prefill) {
       <div class="field"><label>${cartHasDigitalItem() ? '<span style="color:#dc2626;font-weight:800">★ </span>'+t('checkout_email_label_required') : t('checkout_email_label')}</label><input id="coEmail" type="email" value="${escapeHtml(prefill.email||'')}" oninput="onCheckoutPhoneInput()" onblur="trackAbandoned()" style="${cartHasDigitalItem()?'border-color:#dc2626':''}"></div>
       ${deliveryMethodChoiceHtml()}
       ${promoFieldHtml()}
-      ${totalsHtml}
+      <div id="checkoutTotalsBlock">${totalsHtml}</div>
       <button class="btn btn-primary" id="coSubmitBtn" onclick="submitCheckout()">${cartHasPhysicalItem() ? t('confirm_order_btn') : t('confirm_order_digital_btn')}</button>
       <button class="btn btn-ghost" style="margin-top:8px" onclick="renderCartSheet('cart')">${t('back_to_cart_btn')}</button>
     `;
@@ -873,6 +926,8 @@ function submitCheckout() {
   if (!name || !phone) { showCheckoutError(t('name_phone_required')); return; }
   if (CART.length === 0) { showCheckoutError(t('cart_empty_error')); return; }
   if (cartHasDigitalItem() && !email) { showCheckoutError(t('digital_email_required_error')); return; }
+  if (SELECTED_DELIVERY_METHOD === 'shipping' && !SELECTED_SHIPPING_COUNTRY) { showCheckoutError(t('shipping_country_required')); return; }
+  if (SELECTED_DELIVERY_METHOD === 'shipping' && !COUNTRIES_FR.includes(SELECTED_SHIPPING_COUNTRY)) { showCheckoutError(t('shipping_country_invalid')); return; }
   // Capture avant le vidage du panier plus bas - sinon un panier vide au
   // moment de rendre l'ecran de confirmation ferait toujours croire a une
   // commande numerique (cartHasPhysicalItem() renverrait faux a tort).
@@ -887,12 +942,13 @@ function submitCheckout() {
     utm_source: params.get('utm_source')||'', utm_campaign: params.get('utm_campaign')||'',
     promo_code: APPLIED_PROMO ? APPLIED_PROMO.code : '',
     delivery_method: SELECTED_DELIVERY_METHOD,
+    customer_country: SELECTED_DELIVERY_METHOD === 'shipping' ? SELECTED_SHIPPING_COUNTRY : '',
   }).then(({data}) => {
     btn.disabled = false; btn.textContent = window.__lastOrderHasPhysical ? t('confirm_order_btn') : t('confirm_order_digital_btn');
     if (!data.success) { showCheckoutError(data.message); return; }
     window.__lastOrderRef = data.data.ref;
     saveCustomerProfile({name, phone, email, address});
-    CART = []; saveCart(); APPLIED_PROMO = null; SELECTED_DELIVERY_METHOD = 'delivery';
+    CART = []; saveCart(); APPLIED_PROMO = null; SELECTED_DELIVERY_METHOD = 'delivery'; SELECTED_SHIPPING_COUNTRY = '';
     renderCartSheet('confirm');
   });
 }

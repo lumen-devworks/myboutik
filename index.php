@@ -736,6 +736,11 @@ function route_install() {
     // shop_checkout()) : un client choisit l'un ou l'autre au panier, jamais
     // les deux a la fois.
     "ALTER TABLE boutiques ADD COLUMN IF NOT EXISTS default_shipping_fee DECIMAL(14,2) DEFAULT 0",
+    // Second palier d'expedition : tarif applique quand le pays de
+    // destination saisi par le client (voir shop_checkout()) differe du
+    // pays de la boutique - une expedition internationale coute
+    // generalement plus cher qu'une expedition a l'interieur du pays.
+    "ALTER TABLE boutiques ADD COLUMN IF NOT EXISTS default_shipping_fee_other_country DECIMAL(14,2) DEFAULT 0",
     "ALTER TABLE boutiques ADD COLUMN IF NOT EXISTS description TEXT",
     "ALTER TABLE boutiques ADD COLUMN IF NOT EXISTS logo_url TEXT",
     // Opt-in explicite (jamais automatique) pour apparaitre dans l'annuaire
@@ -822,6 +827,7 @@ function route_install() {
     // mais pour le mode "Expedition" choisi par le client au panier plutot
     // que "Livraison".
     "ALTER TABLE products ADD COLUMN IF NOT EXISTS shipping_fee DECIMAL(14,2)",
+    "ALTER TABLE products ADD COLUMN IF NOT EXISTS shipping_fee_other_country DECIMAL(14,2)",
     // Independant de is_physical : un produit peut etre physique ET
     // numerique a la fois (ex: une boite livree qui contient aussi un code
     // d'activation envoye par email), l'un n'exclut pas l'autre. is_physical
@@ -967,6 +973,11 @@ function route_install() {
     // delivery_fee_charged porte le montant reellement facture dans les
     // deux cas, cette colonne dit juste lequel des deux tarifs s'applique.
     "ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivery_method VARCHAR(20) DEFAULT 'delivery'",
+    // Pays de destination saisi par le client en mode "Expedition" - sert a
+    // determiner cote serveur si le tarif "meme pays" ou "autre pays"
+    // s'applique (voir shop_checkout()) ; NULL en mode "Livraison" ou pour
+    // les commandes 100% numeriques.
+    "ALTER TABLE orders ADD COLUMN IF NOT EXISTS customer_country VARCHAR(80)",
     "CREATE TABLE IF NOT EXISTS order_items (
         id VARCHAR(36) PRIMARY KEY,
         order_id VARCHAR(36) NOT NULL,
@@ -1409,8 +1420,8 @@ function boutiques_export_backup($pl) {
     $bid = $bt['id'];
     $data = [
         'exported_at' => date('c'),
-        'boutique' => q("SELECT id,slug,name,description,currency,cod_enabled,default_delivery_fee,default_shipping_fee,status,created_at FROM boutiques WHERE id=?", [$bid])->fetch(),
-        'products' => q("SELECT id,name,description,price,compare_at_price,cost_price,stock_qty,status,sku,barcode,slug,track_inventory,is_physical,is_digital,delivery_fee,shipping_fee,low_stock_threshold,category_id,created_at FROM products WHERE boutique_id=?", [$bid])->fetchAll(),
+        'boutique' => q("SELECT id,slug,name,description,currency,cod_enabled,default_delivery_fee,default_shipping_fee,default_shipping_fee_other_country,status,created_at FROM boutiques WHERE id=?", [$bid])->fetch(),
+        'products' => q("SELECT id,name,description,price,compare_at_price,cost_price,stock_qty,status,sku,barcode,slug,track_inventory,is_physical,is_digital,delivery_fee,shipping_fee,shipping_fee_other_country,low_stock_threshold,category_id,created_at FROM products WHERE boutique_id=?", [$bid])->fetchAll(),
         'product_variants' => q("SELECT v.* FROM product_variants v JOIN products p ON p.id=v.product_id WHERE p.boutique_id=?", [$bid])->fetchAll(),
         'product_categories' => q("SELECT * FROM product_categories WHERE boutique_id=?", [$bid])->fetchAll(),
         'customers' => q("SELECT * FROM customers WHERE boutique_id=?", [$bid])->fetchAll(),
@@ -1497,6 +1508,8 @@ function boutiques_update($pl) {
         ? max(0, (float)$b['default_delivery_fee']) : $row['default_delivery_fee'];
     $shippingFee = isset($b['default_shipping_fee']) && $b['default_shipping_fee'] !== ''
         ? max(0, (float)$b['default_shipping_fee']) : $row['default_shipping_fee'];
+    $shippingFeeOther = isset($b['default_shipping_fee_other_country']) && $b['default_shipping_fee_other_country'] !== ''
+        ? max(0, (float)$b['default_shipping_fee_other_country']) : $row['default_shipping_fee_other_country'];
     $description = trim($b['description'] ?? $row['description']);
     $logoUrl = trim($b['logo_url'] ?? $row['logo_url']);
     $notifyOrderEmail = isset($b['notify_order_email']) ? (int)!!$b['notify_order_email'] : $row['notify_order_email'];
@@ -1506,9 +1519,9 @@ function boutiques_update($pl) {
     $category = trim($b['category'] ?? $row['category']);
     $city = trim($b['city'] ?? $row['city']);
     $country = trim($b['country'] ?? $row['country']);
-    q("UPDATE boutiques SET name=?, cod_enabled=?, currency=?, default_delivery_fee=?, default_shipping_fee=?, description=?, logo_url=?,
+    q("UPDATE boutiques SET name=?, cod_enabled=?, currency=?, default_delivery_fee=?, default_shipping_fee=?, default_shipping_fee_other_country=?, description=?, logo_url=?,
        notify_order_email=?, notify_email=?, stock_alert_enabled=?, public_listed=?, category=?, city=?, country=? WHERE id=?",
-      [$name, $codEnabled, $currency, $deliveryFee, $shippingFee, $description, $logoUrl, $notifyOrderEmail, $notifyEmail,
+      [$name, $codEnabled, $currency, $deliveryFee, $shippingFee, $shippingFeeOther, $description, $logoUrl, $notifyOrderEmail, $notifyEmail,
        $stockAlertEnabled, $publicListed, $category, $city, $country, $id]);
     ok(q("SELECT * FROM boutiques WHERE id=?", [$id])->fetch(), 'Boutique mise a jour');
 }
@@ -1604,7 +1617,7 @@ function products_list($pl) {
     // meme celles qui ne montrent qu'un menu deroulant sans photo). Elle
     // reste disponible via products_get() pour la fiche d'un seul produit.
     $rows = q("SELECT p.id,p.boutique_id,p.name,p.description,p.price,p.compare_at_price,p.cost_price,p.stock_qty,p.status,
-               p.sku,p.barcode,p.slug,p.track_inventory,p.allow_backorder,p.is_physical,p.is_digital,p.delivery_fee,p.shipping_fee,p.low_stock_threshold,
+               p.sku,p.barcode,p.slug,p.track_inventory,p.allow_backorder,p.is_physical,p.is_digital,p.delivery_fee,p.shipping_fee,p.shipping_fee_other_country,p.low_stock_threshold,
                p.options_json,p.created_at,p.category_id, c.name AS category_name,
                (p.image_url IS NOT NULL AND p.image_url<>'') AS has_image
                FROM products p LEFT JOIN product_categories c ON c.id = p.category_id
@@ -1669,8 +1682,8 @@ function products_create($pl) {
     $relatedJson = related_product_ids_json($bt['id'], $b['related_product_ids'] ?? [], null);
     $categoryId = !empty($b['category_id']) ? category_owned($b['category_id'], $bt['id'])['id'] : null;
     q("INSERT INTO products (id,boutique_id,name,description,price,compare_at_price,cost_price,stock_qty,
-       image_url,status,sku,barcode,slug,track_inventory,allow_backorder,is_physical,is_digital,delivery_fee,shipping_fee,digital_delivery_content,options_json,low_stock_threshold,related_product_ids,category_id)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+       image_url,status,sku,barcode,slug,track_inventory,allow_backorder,is_physical,is_digital,delivery_fee,shipping_fee,shipping_fee_other_country,digital_delivery_content,options_json,low_stock_threshold,related_product_ids,category_id)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
       [$id, $bt['id'], $name, trim($b['description'] ?? ''), (float)($b['price'] ?? 0),
        isset($b['compare_at_price']) && $b['compare_at_price'] !== '' ? (float)$b['compare_at_price'] : null,
        isset($b['cost_price']) && $b['cost_price'] !== '' ? (float)$b['cost_price'] : null,
@@ -1680,6 +1693,7 @@ function products_create($pl) {
        (int)!!($b['is_digital'] ?? 0),
        isset($b['delivery_fee']) && $b['delivery_fee'] !== '' ? (float)$b['delivery_fee'] : null,
        isset($b['shipping_fee']) && $b['shipping_fee'] !== '' ? (float)$b['shipping_fee'] : null,
+       isset($b['shipping_fee_other_country']) && $b['shipping_fee_other_country'] !== '' ? (float)$b['shipping_fee_other_country'] : null,
        trim($b['digital_delivery_content'] ?? '') !== '' ? trim($b['digital_delivery_content']) : null,
        $optionsJson !== '' ? $optionsJson : null,
        (int)($b['low_stock_threshold'] ?? 5), $relatedJson, $categoryId]);
@@ -1742,7 +1756,7 @@ function products_update($pl) {
         $categoryId = !empty($b['category_id']) ? category_owned($b['category_id'], $bt['id'])['id'] : null;
     }
     q("UPDATE products SET name=?, description=?, price=?, compare_at_price=?, cost_price=?, stock_qty=?,
-       image_url=?, status=?, sku=?, barcode=?, slug=?, track_inventory=?, allow_backorder=?, is_physical=?, is_digital=?, delivery_fee=?, shipping_fee=?, digital_delivery_content=?, options_json=?, low_stock_threshold=?, related_product_ids=?, category_id=?
+       image_url=?, status=?, sku=?, barcode=?, slug=?, track_inventory=?, allow_backorder=?, is_physical=?, is_digital=?, delivery_fee=?, shipping_fee=?, shipping_fee_other_country=?, digital_delivery_content=?, options_json=?, low_stock_threshold=?, related_product_ids=?, category_id=?
        WHERE id=?",
       [$name, trim($b['description'] ?? $p['description']), (float)($b['price'] ?? $p['price']),
        isset($b['compare_at_price']) && $b['compare_at_price'] !== '' ? (float)$b['compare_at_price'] : $p['compare_at_price'],
@@ -1755,6 +1769,7 @@ function products_update($pl) {
        isset($b['is_digital']) ? (int)!!$b['is_digital'] : $p['is_digital'],
        isset($b['delivery_fee']) && $b['delivery_fee'] !== '' ? (float)$b['delivery_fee'] : null,
        isset($b['shipping_fee']) && $b['shipping_fee'] !== '' ? (float)$b['shipping_fee'] : null,
+       isset($b['shipping_fee_other_country']) && $b['shipping_fee_other_country'] !== '' ? (float)$b['shipping_fee_other_country'] : null,
        array_key_exists('digital_delivery_content', $b) ? (trim($b['digital_delivery_content']) !== '' ? trim($b['digital_delivery_content']) : null) : $p['digital_delivery_content'],
        $optionsJson, isset($b['low_stock_threshold']) && $b['low_stock_threshold'] !== '' ? (int)$b['low_stock_threshold'] : $p['low_stock_threshold'],
        $relatedJson, $categoryId, $p['id']]);
@@ -2168,7 +2183,7 @@ function preview_product() {
 }
 
 function public_boutique_by_slug($slug) {
-    $row = q("SELECT id,slug,name,description,logo_url,currency,cod_enabled,default_delivery_fee,default_shipping_fee,status,city,country FROM boutiques WHERE slug=?", [$slug])->fetch();
+    $row = q("SELECT id,slug,name,description,logo_url,currency,cod_enabled,default_delivery_fee,default_shipping_fee,default_shipping_fee_other_country,status,city,country FROM boutiques WHERE slug=?", [$slug])->fetch();
     if (!$row || $row['status'] !== 'active') fail('Boutique introuvable', 404);
     return $row;
 }
@@ -2220,7 +2235,7 @@ function shop_categories() {
 
 function shop_products() {
     $bt = public_boutique_by_slug($_GET['slug'] ?? '');
-    $sql = "SELECT id,name,description,price,compare_at_price,stock_qty,image_url,slug,track_inventory,allow_backorder,is_physical,is_digital,delivery_fee,shipping_fee,options_json,category_id
+    $sql = "SELECT id,name,description,price,compare_at_price,stock_qty,image_url,slug,track_inventory,allow_backorder,is_physical,is_digital,delivery_fee,shipping_fee,shipping_fee_other_country,options_json,category_id
             FROM products WHERE boutique_id=? AND status='active'";
     $params = [$bt['id']];
     if (!empty($_GET['category_id'])) { $sql .= " AND category_id=?"; $params[] = $_GET['category_id']; }
@@ -2236,7 +2251,7 @@ function shop_products() {
 
 function shop_product() {
     $bt = public_boutique_by_slug($_GET['slug'] ?? '');
-    $p = q("SELECT id,name,description,price,compare_at_price,stock_qty,image_url,slug,track_inventory,allow_backorder,is_physical,is_digital,delivery_fee,shipping_fee,options_json,related_product_ids
+    $p = q("SELECT id,name,description,price,compare_at_price,stock_qty,image_url,slug,track_inventory,allow_backorder,is_physical,is_digital,delivery_fee,shipping_fee,shipping_fee_other_country,options_json,related_product_ids
             FROM products WHERE id=? AND boutique_id=? AND status='active'", [$_GET['id'] ?? '', $bt['id']])->fetch();
     if (!$p) fail('Produit introuvable', 404);
     $p['variants'] = q("SELECT id,name,price,stock_qty FROM product_variants WHERE product_id=? ORDER BY name", [$p['id']])->fetchAll();
@@ -2414,13 +2429,20 @@ function shop_checkout() {
         // s'applique) ; une commande n'est livree/expediee qu'une fois, donc
         // on retient le plus eleve des frais concernes plutot que de les
         // additionner - et les produits non physiques (service/numerique)
-        // n'en ajoutent aucun. Le client choisit un SEUL des deux modes
-        // (jamais les deux a la fois) - deliveryMethod par defaut 'delivery'
-        // si absent/invalide, pour ne jamais rejeter une vieille requete qui
-        // n'envoie pas encore ce champ.
+        // n'en ajoutent aucun. Le client choisit un SEUL des trois modes
+        // (jamais deux a la fois) - deliveryMethod par defaut 'delivery' si
+        // absent/invalide, pour ne jamais rejeter une vieille requete qui
+        // n'envoie pas encore ce champ. En mode "Expedition", un second
+        // palier s'applique si le pays de destination saisi par le client
+        // differe du pays de la boutique (expedition internationale) -
+        // customerCountry vide (client n'a pas encore choisi, ou boutique
+        // sans pays configure) retombe sur le tarif "meme pays" par defaut.
         $deliveryMethod = in_array($b['delivery_method'] ?? '', ['delivery', 'shipping'], true) ? $b['delivery_method'] : 'delivery';
-        $feeField = $deliveryMethod === 'shipping' ? 'shipping_fee' : 'delivery_fee';
-        $defaultFeeField = $deliveryMethod === 'shipping' ? 'default_shipping_fee' : 'default_delivery_fee';
+        $customerCountry = $deliveryMethod === 'shipping' ? trim($b['customer_country'] ?? '') : '';
+        $isOtherCountry = $deliveryMethod === 'shipping' && $customerCountry !== '' && $bt['country'] && $customerCountry !== $bt['country'];
+        if ($deliveryMethod === 'delivery') { $feeField = 'delivery_fee'; $defaultFeeField = 'default_delivery_fee'; }
+        elseif ($isOtherCountry) { $feeField = 'shipping_fee_other_country'; $defaultFeeField = 'default_shipping_fee_other_country'; }
+        else { $feeField = 'shipping_fee'; $defaultFeeField = 'default_shipping_fee'; }
         $deliveryFee = 0;
         foreach ($lineData as $l) {
             if (!$l['product']['is_physical']) continue;
@@ -2446,10 +2468,10 @@ function shop_checkout() {
 
         $orderId = uid();
         $ref = order_ref();
-        q("INSERT INTO orders (id,boutique_id,customer_id,ref,status,payment_method,subtotal,delivery_fee_charged,delivery_method,total,
+        q("INSERT INTO orders (id,boutique_id,customer_id,ref,status,payment_method,subtotal,delivery_fee_charged,delivery_method,customer_country,total,
            customer_name,customer_phone,customer_address,utm_source,utm_campaign,promo_code,discount_amount)
-           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-          [$orderId, $bt['id'], $customerId, $ref, 'pending', 'cod', $subtotal, $deliveryFee, $deliveryMethod, $total,
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+          [$orderId, $bt['id'], $customerId, $ref, 'pending', 'cod', $subtotal, $deliveryFee, $deliveryMethod, ($customerCountry !== '' ? $customerCountry : null), $total,
            $name, $phone, $address, trim($b['utm_source'] ?? ''), trim($b['utm_campaign'] ?? ''), $promoCodeUsed, $discountAmount]);
 
         foreach ($lineData as $l) {
@@ -2478,7 +2500,7 @@ function shop_checkout() {
         log_activity($bt['id'], 'Nouvelle commande '.$ref.' ('.$name.')');
         notify_new_order($bt, $ref, $name, $total);
         if ($customerEmail !== '') {
-            notify_customer_order_confirmation($bt, $ref, $customerEmail, $name, $lineData, $subtotal, $deliveryFee, $discountAmount, $total, $address, $deliveryMethod);
+            notify_customer_order_confirmation($bt, $ref, $customerEmail, $name, $lineData, $subtotal, $deliveryFee, $discountAmount, $total, $address, $deliveryMethod, $customerCountry);
         }
         ok(['ref'=>$ref, 'order_id'=>$orderId, 'total'=>$total], 'Commande enregistree', 201);
     } catch (Exception $e) {
@@ -2506,7 +2528,7 @@ function notify_new_order($bt, $ref, $customerName, $total) {
 // (le champ est optionnel, voir store/index.html). N'est jamais bloquant :
 // appele apres le commit de la transaction, une erreur d'envoi ne doit
 // jamais faire echouer une commande deja enregistree.
-function notify_customer_order_confirmation($bt, $ref, $email, $customerName, $lineData, $subtotal, $deliveryFee, $discountAmount, $total, $address, $deliveryMethod = 'delivery') {
+function notify_customer_order_confirmation($bt, $ref, $email, $customerName, $lineData, $subtotal, $deliveryFee, $discountAmount, $total, $address, $deliveryMethod = 'delivery', $customerCountry = '') {
     $currency = $bt['currency'] ?: 'XOF';
     $lines = array_map(function($l) use ($currency) {
         $label = $l['product']['name'].($l['variant'] ? ' - '.$l['variant']['name'] : '');
@@ -2526,6 +2548,7 @@ function notify_customer_order_confirmation($bt, $ref, $email, $customerName, $l
     $footer = '';
     if ($hasPhysical) {
         $footer .= ($isShipping ? "Adresse d'expedition : $address\n\n" : "Adresse de livraison : $address\n\n").
+            ($isShipping && $customerCountry !== '' ? "Pays de destination : $customerCountry\n\n" : '').
             "Vous serez contacte(e) pour la ".$modeWord.". Paiement a la reception (paiement a la ".$modeWord.").\n";
     }
     if ($hasDigital) {
