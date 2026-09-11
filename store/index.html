@@ -120,6 +120,16 @@ function post(path, body) { return api(path, {method:'POST', body:JSON.stringify
 function fmtMoney(n, currency) { return Math.round(n||0).toLocaleString(LANG === 'en' ? 'en-US' : 'fr-FR') + ' ' + (currency||'FCFA'); }
 function fmtDateTime(iso) { if (!iso) return ''; const d = new Date(iso); const loc = LANG === 'en' ? 'en-US' : 'fr-FR'; return d.toLocaleDateString(loc) + ' ' + d.toLocaleTimeString(loc, {hour:'2-digit', minute:'2-digit'}); }
 function escapeHtml(s){ return (s==null?'':String(s)).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+// Code ISO 3166-1 alpha-2 par nom de pays (meme liste francaise que
+// COUNTRIES_FR cote tableau de bord) - sert uniquement a construire
+// l'emoji drapeau (2 "Regional Indicator Symbols" Unicode derives du
+// code), pour distinguer visuellement les boutiques d'un coup d'oeil.
+const COUNTRY_ISO = {"Afghanistan":"AF","Afrique du Sud":"ZA","Albanie":"AL","Algérie":"DZ","Allemagne":"DE","Andorre":"AD","Angola":"AO","Arabie saoudite":"SA","Argentine":"AR","Arménie":"AM","Australie":"AU","Autriche":"AT","Azerbaïdjan":"AZ","Bahamas":"BS","Bahreïn":"BH","Bangladesh":"BD","Barbade":"BB","Belgique":"BE","Belize":"BZ","Bénin":"BJ","Bhoutan":"BT","Biélorussie":"BY","Birmanie":"MM","Bolivie":"BO","Bosnie-Herzégovine":"BA","Botswana":"BW","Brésil":"BR","Brunei":"BN","Bulgarie":"BG","Burkina Faso":"BF","Burundi":"BI","Cambodge":"KH","Cameroun":"CM","Canada":"CA","Cap-Vert":"CV","Chili":"CL","Chine":"CN","Chypre":"CY","Colombie":"CO","Comores":"KM","Congo-Brazzaville":"CG","Congo-Kinshasa":"CD","Corée du Nord":"KP","Corée du Sud":"KR","Costa Rica":"CR","Côte d'Ivoire":"CI","Croatie":"HR","Cuba":"CU","Danemark":"DK","Djibouti":"DJ","Dominique":"DM","Égypte":"EG","Émirats arabes unis":"AE","Équateur":"EC","Érythrée":"ER","Espagne":"ES","Estonie":"EE","Eswatini":"SZ","États-Unis":"US","Éthiopie":"ET","Fidji":"FJ","Finlande":"FI","France":"FR","Gabon":"GA","Gambie":"GM","Géorgie":"GE","Ghana":"GH","Grèce":"GR","Grenade":"GD","Guatemala":"GT","Guinée":"GN","Guinée-Bissau":"GW","Guinée équatoriale":"GQ","Guyana":"GY","Haïti":"HT","Honduras":"HN","Hongrie":"HU","Inde":"IN","Indonésie":"ID","Irak":"IQ","Iran":"IR","Irlande":"IE","Islande":"IS","Israël":"IL","Italie":"IT","Jamaïque":"JM","Japon":"JP","Jordanie":"JO","Kazakhstan":"KZ","Kenya":"KE","Kirghizistan":"KG","Kiribati":"KI","Koweït":"KW","Laos":"LA","Lesotho":"LS","Lettonie":"LV","Liban":"LB","Liberia":"LR","Libye":"LY","Liechtenstein":"LI","Lituanie":"LT","Luxembourg":"LU","Macédoine du Nord":"MK","Madagascar":"MG","Malaisie":"MY","Malawi":"MW","Maldives":"MV","Mali":"ML","Malte":"MT","Maroc":"MA","Marshall":"MH","Maurice":"MU","Mauritanie":"MR","Mexique":"MX","Micronésie":"FM","Moldavie":"MD","Monaco":"MC","Mongolie":"MN","Monténégro":"ME","Mozambique":"MZ","Namibie":"NA","Nauru":"NR","Népal":"NP","Nicaragua":"NI","Niger":"NE","Nigeria":"NG","Norvège":"NO","Nouvelle-Zélande":"NZ","Oman":"OM","Ouganda":"UG","Ouzbékistan":"UZ","Pakistan":"PK","Palaos":"PW","Palestine":"PS","Panama":"PA","Papouasie-Nouvelle-Guinée":"PG","Paraguay":"PY","Pays-Bas":"NL","Pérou":"PE","Philippines":"PH","Pologne":"PL","Portugal":"PT","Qatar":"QA","République centrafricaine":"CF","République dominicaine":"DO","République tchèque":"CZ","Roumanie":"RO","Royaume-Uni":"GB","Russie":"RU","Rwanda":"RW","Saint-Christophe-et-Niévès":"KN","Saint-Marin":"SM","Saint-Vincent-et-les-Grenadines":"VC","Sainte-Lucie":"LC","Salomon":"SB","Salvador":"SV","Samoa":"WS","São Tomé-et-Príncipe":"ST","Sénégal":"SN","Serbie":"RS","Seychelles":"SC","Sierra Leone":"SL","Singapour":"SG","Slovaquie":"SK","Slovénie":"SI","Somalie":"SO","Soudan":"SD","Soudan du Sud":"SS","Sri Lanka":"LK","Suède":"SE","Suisse":"CH","Suriname":"SR","Syrie":"SY","Tadjikistan":"TJ","Tanzanie":"TZ","Tchad":"TD","Thaïlande":"TH","Timor oriental":"TL","Togo":"TG","Tonga":"TO","Trinité-et-Tobago":"TT","Tunisie":"TN","Turkménistan":"TM","Turquie":"TR","Tuvalu":"TV","Ukraine":"UA","Uruguay":"UY","Vanuatu":"VU","Vatican":"VA","Venezuela":"VE","Vietnam":"VN","Yémen":"YE","Zambie":"ZM","Zimbabwe":"ZW"};
+function countryFlag(name) {
+  const code = COUNTRY_ISO[name];
+  if (!code) return '';
+  return String.fromCodePoint(...[...code].map(c => 0x1F1E6 + c.charCodeAt(0) - 65));
+}
 
 // ============================================================
 // TRADUCTION (FR/EN) - textes fixes de la vitrine publique. Les messages
@@ -186,10 +196,16 @@ const I18N = {
     order_confirmed_title: 'Commande confirmée',
     order_ref_label: 'Référence : ',
     order_confirmed_note: 'Vous serez contacté(e) pour la livraison. Paiement à la réception.',
+    order_confirmed_shipping_note: 'Votre commande sera expédiée. Paiement à la réception.',
     order_confirmed_digital_note: 'Votre produit numérique vous sera envoyé par email dès confirmation du paiement.',
     close_btn: 'Fermer',
     subtotal_label: 'Sous-total',
     delivery_fee_label: 'Frais de livraison',
+    shipping_fee_label: 'Frais d\'expédition',
+    delivery_method_label: 'Mode de livraison',
+    delivery_method_delivery: 'Livraison',
+    delivery_method_shipping: 'Expédition',
+    delivery_method_free: 'Gratuit',
     total_label: 'Total',
     sending_in_progress: 'Envoi en cours…',
     personal_promo_prefix: '🎁 Code personnel ',
@@ -270,10 +286,16 @@ const I18N = {
     order_confirmed_title: 'Order confirmed',
     order_ref_label: 'Reference: ',
     order_confirmed_note: "You'll be contacted for delivery. Payment on receipt.",
+    order_confirmed_shipping_note: "Your order will be shipped. Payment on receipt.",
     order_confirmed_digital_note: "Your digital product will be emailed to you once payment is confirmed.",
     close_btn: 'Close',
     subtotal_label: 'Subtotal',
     delivery_fee_label: 'Delivery fee',
+    shipping_fee_label: 'Shipping fee',
+    delivery_method_label: 'Delivery method',
+    delivery_method_delivery: 'Delivery',
+    delivery_method_shipping: 'Shipping',
+    delivery_method_free: 'Free',
     total_label: 'Total',
     sending_in_progress: 'Sending…',
     personal_promo_prefix: '🎁 Personal code ',
@@ -370,6 +392,7 @@ function renderShop() {
       </div>
     </div>` : ''}
     <div class="wrap">
+      ${(BOUTIQUE.city || BOUTIQUE.country) ? '<div style="color:var(--gray);font-size:13px;margin-top:14px">📍 '+[escapeHtml(BOUTIQUE.city||''), (countryFlag(BOUTIQUE.country)?countryFlag(BOUTIQUE.country)+' ':'')+escapeHtml(BOUTIQUE.country||'')].filter(Boolean).join(', ')+'</div>' : ''}
       ${BOUTIQUE.description ? '<p style="color:var(--gray);margin:16px 0 0">'+escapeHtml(BOUTIQUE.description)+'</p>' : ''}
       ${PRODUCTS.length ? `
       <div style="margin:16px 0 8px">
@@ -649,23 +672,51 @@ function cartHasPhysicalItem() {
     return p && Number(p.is_physical) === 1;
   });
 }
-function computeDeliveryFee() {
+// Le client choisit un SEUL des deux modes au panier (jamais les deux a la
+// fois) - meme mecanique de calcul que l'ancien frais de livraison unique :
+// chaque produit peut definir son propre tarif pour ce mode (sinon celui de
+// la boutique s'applique), et on retient le plus eleve des tarifs concernes
+// plutot que de les additionner (voir shop_checkout() cote serveur, qui
+// recalcule exactement la meme chose a partir du champ delivery_method).
+let SELECTED_DELIVERY_METHOD = 'delivery';
+function computeFeeForMethod(method) {
+  const feeField = method === 'shipping' ? 'shipping_fee' : 'delivery_fee';
+  const defaultField = method === 'shipping' ? 'default_shipping_fee' : 'default_delivery_fee';
   let fee = 0;
   CART.forEach(l => {
     const p = PRODUCTS.find(x => x.id === l.product_id);
     if (!p || Number(p.is_physical) === 0) return;
-    const productFee = (p.delivery_fee !== null && p.delivery_fee !== undefined && p.delivery_fee !== '')
-      ? Number(p.delivery_fee) : Number(BOUTIQUE.default_delivery_fee || 0);
+    const productFee = (p[feeField] !== null && p[feeField] !== undefined && p[feeField] !== '')
+      ? Number(p[feeField]) : Number(BOUTIQUE[defaultField] || 0);
     fee = Math.max(fee, productFee);
   });
   return fee;
+}
+function deliveryMethodChoiceHtml() {
+  if (!cartHasPhysicalItem()) return '';
+  const deliveryFee = computeFeeForMethod('delivery');
+  const shippingFee = computeFeeForMethod('shipping');
+  const opt = (method, icon, label, fee) => `
+    <label style="display:flex;align-items:center;gap:8px;border:1.5px solid ${SELECTED_DELIVERY_METHOD===method?'var(--blue)':'var(--border)'};border-radius:10px;padding:10px 12px;margin-bottom:8px;cursor:pointer">
+      <input type="radio" name="deliveryMethod" value="${method}" ${SELECTED_DELIVERY_METHOD===method?'checked':''} onchange="selectDeliveryMethod('${method}')">
+      <span style="flex:1">${icon} ${label}</span>
+      <span style="font-weight:700">${fee>0?fmtMoney(fee,BOUTIQUE.currency):t('delivery_method_free')}</span>
+    </label>`;
+  return `<div class="field"><label>${t('delivery_method_label')}</label>
+    ${opt('delivery','🚚',t('delivery_method_delivery'),deliveryFee)}
+    ${opt('shipping','📮',t('delivery_method_shipping'),shippingFee)}
+  </div>`;
+}
+function selectDeliveryMethod(method) {
+  SELECTED_DELIVERY_METHOD = method === 'shipping' ? 'shipping' : 'delivery';
+  renderCartSheet('checkout', checkoutFieldValues());
 }
 let APPLIED_PROMO = null; // {code, type, value, discount} - revalide de toute facon au checkout reel
 function cartTotalsHtml(subtotal, deliveryFee) {
   const discount = APPLIED_PROMO ? Math.min(APPLIED_PROMO.discount, subtotal) : 0;
   const total = Math.max(0, subtotal + deliveryFee - discount);
   return `<div class="cart-line"><div>${t('subtotal_label')}</div><div>${fmtMoney(subtotal, BOUTIQUE.currency)}</div></div>
-       ${deliveryFee > 0 ? '<div class="cart-line"><div>'+t('delivery_fee_label')+'</div><div>'+fmtMoney(deliveryFee, BOUTIQUE.currency)+'</div></div>' : ''}
+       ${deliveryFee > 0 ? '<div class="cart-line"><div>'+(SELECTED_DELIVERY_METHOD==='shipping'?t('shipping_fee_label'):t('delivery_fee_label'))+'</div><div>'+fmtMoney(deliveryFee, BOUTIQUE.currency)+'</div></div>' : ''}
        ${discount > 0 ? '<div class="cart-line" style="color:var(--green,#16a34a)"><div>Code '+escapeHtml(APPLIED_PROMO.code)+'</div><div>-'+fmtMoney(discount, BOUTIQUE.currency)+'</div></div>' : ''}
        <div class="cart-total"><div>${t('total_label')}</div><div>${fmtMoney(total, BOUTIQUE.currency)}</div></div>`;
 }
@@ -718,7 +769,7 @@ function renderCartSheet(step, prefill) {
   prefill = prefill || {};
   window.__cartStep = step;
   const subtotal = CART.reduce((s,l)=>s+l.price*l.qty, 0);
-  const deliveryFee = computeDeliveryFee();
+  const deliveryFee = cartHasPhysicalItem() ? computeFeeForMethod(SELECTED_DELIVERY_METHOD) : 0;
   const totalsHtml = cartTotalsHtml(subtotal, deliveryFee);
   if (step === 'cart') {
     document.getElementById('cartSheet').innerHTML = `
@@ -739,6 +790,7 @@ function renderCartSheet(step, prefill) {
       <div id="personalPromoHint"></div>
       <div class="field"><label>${t('checkout_address_label')}</label><textarea id="coAddress" rows="2">${escapeHtml(prefill.address||'')}</textarea></div>
       <div class="field"><label>${cartHasDigitalItem() ? '<span style="color:#dc2626;font-weight:800">★ </span>'+t('checkout_email_label_required') : t('checkout_email_label')}</label><input id="coEmail" type="email" value="${escapeHtml(prefill.email||'')}" oninput="onCheckoutPhoneInput()" onblur="trackAbandoned()" style="${cartHasDigitalItem()?'border-color:#dc2626':''}"></div>
+      ${deliveryMethodChoiceHtml()}
       ${promoFieldHtml()}
       ${totalsHtml}
       <button class="btn btn-primary" id="coSubmitBtn" onclick="submitCheckout()">${cartHasPhysicalItem() ? t('confirm_order_btn') : t('confirm_order_digital_btn')}</button>
@@ -751,7 +803,7 @@ function renderCartSheet(step, prefill) {
         <div class="ic">✓</div>
         <h2>${t('order_confirmed_title')}</h2>
         <p style="color:var(--gray);margin-top:8px">${t('order_ref_label')}<strong>${escapeHtml(window.__lastOrderRef||'')}</strong></p>
-        <p style="color:var(--gray)">${window.__lastOrderHasPhysical ? t('order_confirmed_note') : t('order_confirmed_digital_note')}</p>
+        <p style="color:var(--gray)">${window.__lastOrderHasPhysical ? (window.__lastOrderDeliveryMethod==='shipping' ? t('order_confirmed_shipping_note') : t('order_confirmed_note')) : t('order_confirmed_digital_note')}</p>
         <button class="btn btn-primary" style="margin-top:16px" onclick="closeOverlay('cartOverlay')">${t('close_btn')}</button>
       </div>
     `;
@@ -825,6 +877,7 @@ function submitCheckout() {
   // moment de rendre l'ecran de confirmation ferait toujours croire a une
   // commande numerique (cartHasPhysicalItem() renverrait faux a tort).
   window.__lastOrderHasPhysical = cartHasPhysicalItem();
+  window.__lastOrderDeliveryMethod = SELECTED_DELIVERY_METHOD;
   const btn = document.getElementById('coSubmitBtn'); btn.disabled = true; btn.textContent = t('sending_in_progress');
   const params = new URLSearchParams(window.location.search);
   post('/shop?action=checkout', {
@@ -833,12 +886,13 @@ function submitCheckout() {
     items: CART.map(l => ({product_id:l.product_id, variant_id:l.variant_id, qty:l.qty})),
     utm_source: params.get('utm_source')||'', utm_campaign: params.get('utm_campaign')||'',
     promo_code: APPLIED_PROMO ? APPLIED_PROMO.code : '',
+    delivery_method: SELECTED_DELIVERY_METHOD,
   }).then(({data}) => {
     btn.disabled = false; btn.textContent = window.__lastOrderHasPhysical ? t('confirm_order_btn') : t('confirm_order_digital_btn');
     if (!data.success) { showCheckoutError(data.message); return; }
     window.__lastOrderRef = data.data.ref;
     saveCustomerProfile({name, phone, email, address});
-    CART = []; saveCart(); APPLIED_PROMO = null;
+    CART = []; saveCart(); APPLIED_PROMO = null; SELECTED_DELIVERY_METHOD = 'delivery';
     renderCartSheet('confirm');
   });
 }

@@ -287,6 +287,7 @@ const I18N = {
     boutique_city_required: 'La ville de la boutique est requise',
     label_boutique_country: 'Pays de la boutique',
     boutique_country_required: 'Le pays de la boutique est requis',
+    boutique_country_invalid: 'Veuillez choisir un pays dans la liste proposée',
     select_country_placeholder: 'Choisir un pays…',
     btn_cancel: 'Annuler',
     confirm_ok_btn: 'Confirmer',
@@ -320,6 +321,8 @@ const I18N = {
     col_ref: 'Réf',
     badge_physical_title: 'Contient un produit physique (à livrer)',
     badge_digital_title: 'Contient un produit numérique (envoyé par email)',
+    badge_delivery_title: 'Mode : Livraison',
+    badge_shipping_title: 'Mode : Expédition',
     col_client: 'Client',
     col_total: 'Total',
     col_status: 'Statut',
@@ -554,6 +557,7 @@ const I18N = {
     label_compare_price: 'Prix barré (optionnel)',
     label_cost_price: 'Prix de revient (interne)',
     label_delivery_fee_empty_hint: 'Frais de livraison (vide = frais par défaut de la boutique)',
+    label_shipping_fee_empty_hint: 'Frais d\'expédition (vide = frais par défaut de la boutique)',
     label_sku: 'Référence (SKU)',
     label_barcode: 'Code-barres (UPC, EAN)',
     label_stock: 'Stock',
@@ -729,6 +733,7 @@ const I18N = {
     btn_copy: 'Copier',
     share_note: 'Chaque bouton ouvre le réseau avec le lien déjà rempli — plus besoin de le recopier à la main. Instagram et TikTok ne permettent pas ce pré-remplissage depuis un site : le lien est copié automatiquement, il ne reste qu\'à le coller dans votre bio ou une story/vidéo.',
     label_default_delivery_fee: 'Frais de livraison par défaut (facturé au client)',
+    label_default_shipping_fee: 'Frais d\'expédition par défaut (facturé au client)',
     checkbox_cod_enabled: 'Paiement à la livraison activé',
     cod_enabled_note: 'Ne concerne que les commandes avec au moins un produit physique — désactiver ceci n\'empêche pas de vendre des produits numériques.',
     checkbox_public_listed: 'Lister ma boutique dans l\'annuaire public MYBOUTIK',
@@ -914,6 +919,7 @@ const I18N = {
     boutique_city_required: 'The shop city is required',
     label_boutique_country: 'Shop country',
     boutique_country_required: 'The shop country is required',
+    boutique_country_invalid: 'Please choose a country from the suggested list',
     select_country_placeholder: 'Choose a country…',
     btn_cancel: 'Cancel',
     confirm_ok_btn: 'Confirm',
@@ -947,6 +953,8 @@ const I18N = {
     col_ref: 'Ref',
     badge_physical_title: 'Contains a physical product (to be shipped)',
     badge_digital_title: 'Contains a digital product (sent by email)',
+    badge_delivery_title: 'Mode: Delivery',
+    badge_shipping_title: 'Mode: Shipping',
     col_client: 'Customer',
     col_total: 'Total',
     col_status: 'Status',
@@ -1181,6 +1189,7 @@ const I18N = {
     label_compare_price: 'Compare-at price (optional)',
     label_cost_price: 'Cost price (internal)',
     label_delivery_fee_empty_hint: 'Delivery fee (empty = shop\'s default fee)',
+    label_shipping_fee_empty_hint: 'Shipping fee (empty = shop\'s default fee)',
     label_sku: 'SKU',
     label_barcode: 'Barcode (UPC, EAN)',
     label_stock: 'Stock',
@@ -1356,6 +1365,7 @@ const I18N = {
     btn_copy: 'Copy',
     share_note: 'Each button opens the network with the link already filled in — no need to copy it by hand. Instagram and TikTok don\'t allow this pre-filling from a website: the link is copied automatically, just paste it into your bio or a story/video.',
     label_default_delivery_fee: 'Default delivery fee (charged to the customer)',
+    label_default_shipping_fee: 'Default shipping fee (charged to the customer)',
     checkbox_cod_enabled: 'Cash on delivery enabled',
     cod_enabled_note: 'Only applies to orders with at least one physical product — turning this off doesn\'t stop you from selling digital products.',
     checkbox_public_listed: 'List my shop in the public MYBOUTIK directory',
@@ -1515,10 +1525,18 @@ function DIRECTORY_CATEGORIES_FN() { return [
 // les variantes orthographiques d'un pays tape librement, et permet a
 // l'annuaire de filtrer dessus de facon fiable (voir directory_filters()).
 const COUNTRIES_FR = ["Afghanistan","Afrique du Sud","Albanie","Algérie","Allemagne","Andorre","Angola","Arabie saoudite","Argentine","Arménie","Australie","Autriche","Azerbaïdjan","Bahamas","Bahreïn","Bangladesh","Barbade","Belgique","Belize","Bénin","Bhoutan","Biélorussie","Birmanie","Bolivie","Bosnie-Herzégovine","Botswana","Brésil","Brunei","Bulgarie","Burkina Faso","Burundi","Cambodge","Cameroun","Canada","Cap-Vert","Chili","Chine","Chypre","Colombie","Comores","Congo-Brazzaville","Congo-Kinshasa","Corée du Nord","Corée du Sud","Costa Rica","Côte d'Ivoire","Croatie","Cuba","Danemark","Djibouti","Dominique","Égypte","Émirats arabes unis","Équateur","Érythrée","Espagne","Estonie","Eswatini","États-Unis","Éthiopie","Fidji","Finlande","France","Gabon","Gambie","Géorgie","Ghana","Grèce","Grenade","Guatemala","Guinée","Guinée-Bissau","Guinée équatoriale","Guyana","Haïti","Honduras","Hongrie","Inde","Indonésie","Irak","Iran","Irlande","Islande","Israël","Italie","Jamaïque","Japon","Jordanie","Kazakhstan","Kenya","Kirghizistan","Kiribati","Koweït","Laos","Lesotho","Lettonie","Liban","Liberia","Libye","Liechtenstein","Lituanie","Luxembourg","Macédoine du Nord","Madagascar","Malaisie","Malawi","Maldives","Mali","Malte","Maroc","Marshall","Maurice","Mauritanie","Mexique","Micronésie","Moldavie","Monaco","Mongolie","Monténégro","Mozambique","Namibie","Nauru","Népal","Nicaragua","Niger","Nigeria","Norvège","Nouvelle-Zélande","Oman","Ouganda","Ouzbékistan","Pakistan","Palaos","Palestine","Panama","Papouasie-Nouvelle-Guinée","Paraguay","Pays-Bas","Pérou","Philippines","Pologne","Portugal","Qatar","République centrafricaine","République dominicaine","République tchèque","Roumanie","Royaume-Uni","Russie","Rwanda","Saint-Christophe-et-Niévès","Saint-Marin","Saint-Vincent-et-les-Grenadines","Sainte-Lucie","Salomon","Salvador","Samoa","São Tomé-et-Príncipe","Sénégal","Serbie","Seychelles","Sierra Leone","Singapour","Slovaquie","Slovénie","Somalie","Soudan","Soudan du Sud","Sri Lanka","Suède","Suisse","Suriname","Syrie","Tadjikistan","Tanzanie","Tchad","Thaïlande","Timor oriental","Togo","Tonga","Trinité-et-Tobago","Tunisie","Turkménistan","Turquie","Tuvalu","Ukraine","Uruguay","Vanuatu","Vatican","Venezuela","Vietnam","Yémen","Zambie","Zimbabwe"];
-function countryOptionsHtml(selected, includeEmpty) {
-  return (includeEmpty ? '<option value="">'+t('select_country_placeholder')+'</option>' : '')
-    + COUNTRIES_FR.map(c => '<option value="'+c+'" '+(selected===c?'selected':'')+'>'+c+'</option>').join('');
+// Champ texte + <datalist> plutot qu'un <select> classique : taper "ma"
+// filtre nativement sur Mali/Madagascar/Malaisie/Malawi/Maldives/Malte/
+// Maroc/Mauritanie/Maurice au lieu d'obliger a faire defiler 194 pays un
+// par un. isValidCountryValue() sert de garde-fou avant sauvegarde (voir
+// submitCreateBoutique()/saveSettings()) puisqu'un champ texte libre
+// pourrait sinon laisser passer une saisie qui ne correspond a aucun pays
+// de la liste (fautes de frappe), ce qui casserait le filtre par pays de
+// l'annuaire (comparaison exacte, voir directory_boutiques()).
+function countryDatalistHtml(datalistId) {
+  return '<datalist id="'+datalistId+'">' + COUNTRIES_FR.map(c => '<option value="'+c+'">').join('') + '</datalist>';
 }
+function isValidCountryValue(value) { return COUNTRIES_FR.includes(value); }
 function STATUS_LABELS_FN() { return {
   pending: t('order_status_pending'), processing: t('order_status_processing'), shipped: t('order_status_shipped'), delivered: t('order_status_delivered'),
   refused: t('order_status_refused'), cancelled: t('order_status_cancelled'),
@@ -1740,7 +1758,7 @@ function openCreateBoutique() {
     <h2>${t('modal_create_boutique_title')}</h2>
     <div id="createBoutiqueMsg"></div>
     <div class="field"><label>${t('label_boutique_name')}</label><input id="newBoutiqueName" placeholder="${t('placeholder_boutique_name')}"></div>
-    <div class="field"><label>${t('label_boutique_country')}</label><select id="newBoutiqueCountry">${countryOptionsHtml('', true)}</select></div>
+    <div class="field"><label>${t('label_boutique_country')}</label><input id="newBoutiqueCountry" list="newBoutiqueCountryList" placeholder="${t('select_country_placeholder')}">${countryDatalistHtml('newBoutiqueCountryList')}</div>
     <div class="field"><label>${t('label_boutique_city')}</label><input id="newBoutiqueCity" placeholder="${t('placeholder_boutique_city')}"></div>
     <div class="modal-actions">
       <button class="btn btn-ghost" onclick="closeModal()">${t('btn_cancel')}</button>
@@ -1751,9 +1769,10 @@ function openCreateBoutique() {
 function submitCreateBoutique() {
   const name = document.getElementById('newBoutiqueName').value.trim();
   const city = document.getElementById('newBoutiqueCity').value.trim();
-  const country = document.getElementById('newBoutiqueCountry').value;
+  const country = document.getElementById('newBoutiqueCountry').value.trim();
   if (!name) return;
   if (!country) { document.getElementById('createBoutiqueMsg').innerHTML = '<div class="msg error">'+t('boutique_country_required')+'</div>'; return; }
+  if (!isValidCountryValue(country)) { document.getElementById('createBoutiqueMsg').innerHTML = '<div class="msg error">'+t('boutique_country_invalid')+'</div>'; return; }
   if (!city) { document.getElementById('createBoutiqueMsg').innerHTML = '<div class="msg error">'+t('boutique_city_required')+'</div>'; return; }
   post('/boutiques?action=create', {name, city, country}).then(({data}) => {
     if (!data.success) { document.getElementById('createBoutiqueMsg').innerHTML = '<div class="msg error">'+data.message+'</div>'; return; }
@@ -1838,6 +1857,7 @@ function orderTypeBadge(o) {
   const icons = [];
   if (Number(o.has_physical) === 1) icons.push('<span title="'+t('badge_physical_title')+'">📦</span>');
   if (Number(o.has_digital) === 1) icons.push('<span title="'+t('badge_digital_title')+'">📧</span>');
+  if (Number(o.has_physical) === 1) icons.push(o.delivery_method === 'shipping' ? '<span title="'+t('badge_shipping_title')+'">📮</span>' : '<span title="'+t('badge_delivery_title')+'">🚚</span>');
   return icons.length ? ' <span style="margin-left:4px">'+icons.join('')+'</span>' : '';
 }
 function renderOrdersTable(rows, bt, compact) {
@@ -2695,6 +2715,7 @@ function renderProductFormModal(p, allProducts, categories) {
     <div class="field-row">
       <div class="field"><label>${t('label_cost_price')}</label><input id="prodCost" type="number" min="0" value="${p.cost_price??''}"></div>
       <div class="field"><label>${t('label_delivery_fee_empty_hint')}</label><input id="prodDeliveryFee" type="number" min="0" value="${p.delivery_fee??''}"></div>
+      <div class="field"><label>${t('label_shipping_fee_empty_hint')}</label><input id="prodShippingFee" type="number" min="0" value="${p.shipping_fee??''}"></div>
     </div>
     <div class="field-row">
       <div class="field"><label>${t('label_sku')}</label><input id="prodSku" value="${escapeHtml(p.sku||'')}"></div>
@@ -3022,6 +3043,7 @@ function submitProductForm(id) {
     compare_at_price: document.getElementById('prodCompareAt').value,
     cost_price: document.getElementById('prodCost').value,
     delivery_fee: document.getElementById('prodDeliveryFee').value,
+    shipping_fee: document.getElementById('prodShippingFee').value,
     sku: document.getElementById('prodSku').value.trim(),
     barcode: document.getElementById('prodBarcode').value.trim(),
     slug: document.getElementById('prodSlug').value.trim(),
@@ -3457,7 +3479,10 @@ function renderSettings(bt) {
         </div>
         <div class="muted" style="font-size:12px;margin-top:6px">${t('share_note')}</div>
       </div>
-      <div class="field"><label>${t('label_default_delivery_fee')}</label><input id="setDeliveryFee" type="number" min="0" value="${bt.default_delivery_fee||0}"></div>
+      <div class="field-row">
+        <div class="field"><label>${t('label_default_delivery_fee')}</label><input id="setDeliveryFee" type="number" min="0" value="${bt.default_delivery_fee||0}"></div>
+        <div class="field"><label>${t('label_default_shipping_fee')}</label><input id="setShippingFee" type="number" min="0" value="${bt.default_shipping_fee||0}"></div>
+      </div>
       <label style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><input type="checkbox" id="setCod" ${bt.cod_enabled?'checked':''}> ${t('checkbox_cod_enabled')}</label>
       <div class="muted" style="margin:-2px 0 14px;font-size:12px">${t('cod_enabled_note')}</div>
       <label style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><input type="checkbox" id="setPublicListed" ${bt.public_listed?'checked':''}> ${t('checkbox_public_listed')}</label>
@@ -3470,7 +3495,7 @@ function renderSettings(bt) {
           </select>
         </div>
         <div class="field"><label>${t('label_directory_city')}</label><input id="setCity" value="${escapeHtml(bt.city||'')}" placeholder="${t('placeholder_directory_city')}"></div>
-        <div class="field"><label>${t('label_boutique_country')}</label><select id="setCountry">${countryOptionsHtml(bt.country||'', true)}</select></div>
+        <div class="field"><label>${t('label_boutique_country')}</label><input id="setCountry" list="setCountryList" value="${escapeHtml(bt.country||'')}" placeholder="${t('select_country_placeholder')}">${countryDatalistHtml('setCountryList')}</div>
       </div>
       <button class="btn btn-primary" onclick="saveSettings('settingsMsg')">${t('btn_save')}</button>
     </div>
@@ -3505,6 +3530,8 @@ function handleLogoFile(input) {
 // passait, le message apparaissant hors de vue plus haut).
 function saveSettings(targetMsgId) {
   const msgEl = document.getElementById(targetMsgId || 'settingsMsg');
+  const countryInput = document.getElementById('setCountry').value.trim();
+  if (countryInput && !isValidCountryValue(countryInput)) { msgEl.innerHTML = '<div class="msg error">'+t('boutique_country_invalid')+'</div>'; return; }
   post('/boutiques?action=update', {
     id:CURRENT.id, name:document.getElementById('setName').value.trim(),
     description:document.getElementById('setDescription').value.trim(),
@@ -3513,8 +3540,9 @@ function saveSettings(targetMsgId) {
     public_listed:document.getElementById('setPublicListed').checked,
     category:document.getElementById('setCategory').value,
     city:document.getElementById('setCity').value.trim(),
-    country:document.getElementById('setCountry').value,
+    country:countryInput,
     default_delivery_fee:Number(document.getElementById('setDeliveryFee').value||0),
+    default_shipping_fee:Number(document.getElementById('setShippingFee').value||0),
     notify_order_email:document.getElementById('setNotifyEmail').checked,
     notify_email:document.getElementById('setNotifyAddr').value.trim(),
     stock_alert_enabled:document.getElementById('setStockAlert').checked,
