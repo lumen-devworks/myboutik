@@ -126,6 +126,8 @@ const EN_DICT = [
     'Boutique introuvable' => 'Shop not found',
     'Boutique suspendue' => 'Shop suspended',
     'Boutique reactivee' => 'Shop reactivated',
+    'La ville de la boutique est requise' => 'The shop city is required',
+    'Le pays de la boutique est requis' => 'The shop country is required',
     'Boutique mise a jour' => 'Shop updated',
     'Categorie creee' => 'Category created',
     'Categorie introuvable' => 'Category not found',
@@ -741,6 +743,10 @@ function route_install() {
     // qui n'y est pas listee.
     "ALTER TABLE boutiques ADD COLUMN IF NOT EXISTS category VARCHAR(60)",
     "ALTER TABLE boutiques ADD COLUMN IF NOT EXISTS city VARCHAR(80)",
+    // Pays obligatoire a la creation (voir boutiques_create()) - l'annuaire
+    // etant public et multi-pays, un acheteur doit pouvoir filtrer pour ne
+    // pas commander par erreur chez une boutique trop loin pour etre livre.
+    "ALTER TABLE boutiques ADD COLUMN IF NOT EXISTS country VARCHAR(80)",
     "ALTER TABLE boutiques ADD COLUMN IF NOT EXISTS notify_order_email SMALLINT DEFAULT 1",
     "ALTER TABLE boutiques ADD COLUMN IF NOT EXISTS notify_email VARCHAR(190)",
     // notify_whatsapp_enabled/number : colonnes conservees pour compatibilite
@@ -1443,8 +1449,10 @@ function boutiques_create($pl) {
     $b = body();
     $name = trim($b['name'] ?? '');
     $city = trim($b['city'] ?? '');
+    $country = trim($b['country'] ?? '');
     if ($name === '') fail('Le nom de la boutique est requis');
     if ($city === '') fail('La ville de la boutique est requise');
+    if ($country === '') fail('Le pays de la boutique est requis');
     $user = q("SELECT plan FROM users WHERE id=?", [$pl['sub']])->fetch();
     $limit = PLANS[$user['plan']]['boutique_limit'] ?? 1;
     $count = (int)q("SELECT COUNT(*) c FROM boutiques WHERE owner_user_id=?", [$pl['sub']])->fetch()['c'];
@@ -1453,7 +1461,7 @@ function boutiques_create($pl) {
     }
     $slug = unique_boutique_slug(slugify($name));
     $id = uid();
-    q("INSERT INTO boutiques (id,owner_user_id,slug,name,city) VALUES (?,?,?,?,?)", [$id, $pl['sub'], $slug, $name, $city]);
+    q("INSERT INTO boutiques (id,owner_user_id,slug,name,city,country) VALUES (?,?,?,?,?,?)", [$id, $pl['sub'], $slug, $name, $city, $country]);
     // Compte caisse par defaut, pour que le Livre de Compte ne soit pas vide
     // des la creation (l'utilisateur peut le renommer/en ajouter d'autres).
     q("INSERT INTO accounts (id,boutique_id,name,type) VALUES (?,?,?,?)", [uid(), $id, 'Caisse', 'caisse']);
@@ -1480,10 +1488,11 @@ function boutiques_update($pl) {
     $publicListed = isset($b['public_listed']) ? (int)!!$b['public_listed'] : $row['public_listed'];
     $category = trim($b['category'] ?? $row['category']);
     $city = trim($b['city'] ?? $row['city']);
+    $country = trim($b['country'] ?? $row['country']);
     q("UPDATE boutiques SET name=?, cod_enabled=?, currency=?, default_delivery_fee=?, description=?, logo_url=?,
-       notify_order_email=?, notify_email=?, stock_alert_enabled=?, public_listed=?, category=?, city=? WHERE id=?",
+       notify_order_email=?, notify_email=?, stock_alert_enabled=?, public_listed=?, category=?, city=?, country=? WHERE id=?",
       [$name, $codEnabled, $currency, $deliveryFee, $description, $logoUrl, $notifyOrderEmail, $notifyEmail,
-       $stockAlertEnabled, $publicListed, $category, $city, $id]);
+       $stockAlertEnabled, $publicListed, $category, $city, $country, $id]);
     ok(q("SELECT * FROM boutiques WHERE id=?", [$id])->fetch(), 'Boutique mise a jour');
 }
 
@@ -1980,10 +1989,11 @@ function directory_boutiques() {
     $q = trim($_GET['q'] ?? '');
     $category = trim($_GET['category'] ?? '');
     $city = trim($_GET['city'] ?? '');
+    $country = trim($_GET['country'] ?? '');
     // Note moyenne calculee a la volee a partir des avis produits deja
     // approuves par le marchand (product_reviews.status='approved') -
     // aucune nouvelle table, juste une agregation par boutique.
-    $sql = "SELECT b.slug, b.name, b.description, b.logo_url, b.currency, b.category, b.city,
+    $sql = "SELECT b.slug, b.name, b.description, b.logo_url, b.currency, b.category, b.city, b.country,
               (SELECT ROUND(AVG(r.rating)::numeric, 1) FROM product_reviews r WHERE r.boutique_id=b.id AND r.status='approved') AS avg_rating,
               (SELECT COUNT(*) FROM product_reviews r WHERE r.boutique_id=b.id AND r.status='approved') AS review_count
             FROM boutiques b WHERE b.status='active' AND b.public_listed=1";
@@ -1991,6 +2001,7 @@ function directory_boutiques() {
     if ($q !== '') { $sql .= " AND b.name ILIKE ?"; $params[] = '%'.$q.'%'; }
     if ($category !== '') { $sql .= " AND b.category=?"; $params[] = $category; }
     if ($city !== '') { $sql .= " AND b.city ILIKE ?"; $params[] = '%'.$city.'%'; }
+    if ($country !== '') { $sql .= " AND b.country=?"; $params[] = $country; }
     $sql .= " ORDER BY b.created_at DESC LIMIT 60";
     ok(q($sql, $params)->fetchAll());
 }
@@ -2001,7 +2012,8 @@ function directory_filters() {
     rate_limit_check('directory_filters', 60, 300);
     $categories = q("SELECT DISTINCT category FROM boutiques WHERE status='active' AND public_listed=1 AND category IS NOT NULL AND category<>'' ORDER BY category")->fetchAll(PDO::FETCH_COLUMN);
     $cities = q("SELECT DISTINCT city FROM boutiques WHERE status='active' AND public_listed=1 AND city IS NOT NULL AND city<>'' ORDER BY city")->fetchAll(PDO::FETCH_COLUMN);
-    ok(['categories' => $categories, 'cities' => $cities]);
+    $countries = q("SELECT DISTINCT country FROM boutiques WHERE status='active' AND public_listed=1 AND country IS NOT NULL AND country<>'' ORDER BY country")->fetchAll(PDO::FETCH_COLUMN);
+    ok(['categories' => $categories, 'cities' => $cities, 'countries' => $countries]);
 }
 // Recherche d'articles a travers TOUTES les boutiques listees publiquement -
 // le nom de la boutique est renvoye avec chaque article pour que le client

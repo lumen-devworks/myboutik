@@ -126,6 +126,7 @@
     </div>
     <div id="shopFilters" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
       <select id="filterCategory" onchange="runSearch()" style="width:auto;flex:1 1 160px"></select>
+      <select id="filterCountry" onchange="runSearch()" style="width:auto;flex:1 1 160px"></select>
       <input id="filterCity" list="cityList" oninput="onSearchInput()" style="width:auto;flex:1 1 160px">
       <datalist id="cityList"></datalist>
     </div>
@@ -192,6 +193,7 @@ const I18N = {
     guide_link: 'Consulter le guide d\'utilisation',
     server_unreachable: 'Impossible de contacter le serveur.',
     filter_all_categories: 'Toutes les catégories',
+    filter_all_countries: 'Tous les pays',
     filter_city_placeholder: 'Ville…',
     directory_cat_mode: 'Mode & Vêtements',
     directory_cat_beaute: 'Beauté & Cosmétiques',
@@ -235,6 +237,7 @@ const I18N = {
     guide_link: 'View the user guide',
     server_unreachable: 'Unable to reach the server.',
     filter_all_categories: 'All categories',
+    filter_all_countries: 'All countries',
     filter_city_placeholder: 'City…',
     directory_cat_mode: 'Fashion & Clothing',
     directory_cat_beaute: 'Beauty & Cosmetics',
@@ -281,6 +284,21 @@ function fillCategoryOptions() {
     + DIRECTORY_CATEGORIES_FN().map(c => '<option value="'+c.value+'">'+c.label+'</option>').join('');
   sel.value = current;
   document.getElementById('filterCity').placeholder = t('filter_city_placeholder');
+  renderCountryFilterOptions();
+}
+// Contrairement aux categories (liste fixe de 7), la liste des pays est
+// trop longue pour tout proposer - seuls les pays reellement utilises par
+// au moins une boutique listee sont affiches (alimente par
+// loadDirectoryFilters()), pour ne jamais proposer un filtre qui ne
+// donnerait aucun resultat.
+let DIRECTORY_COUNTRIES = [];
+function renderCountryFilterOptions() {
+  const sel = document.getElementById('filterCountry');
+  if (!sel) return;
+  const current = sel.value;
+  sel.innerHTML = '<option value="">'+t('filter_all_countries')+'</option>'
+    + DIRECTORY_COUNTRIES.map(c => '<option value="'+escapeHtml(c)+'">'+escapeHtml(c)+'</option>').join('');
+  sel.value = current;
 }
 function setMode(mode) {
   MODE = mode;
@@ -365,9 +383,11 @@ function runSearch() {
   if (MODE === 'shops') {
     const category = document.getElementById('filterCategory').value;
     const city = document.getElementById('filterCity').value.trim();
+    const country = document.getElementById('filterCountry').value;
     let url = '/directory?action=boutiques&q='+encodeURIComponent(q);
     if (category) url += '&category='+encodeURIComponent(category);
     if (city) url += '&city='+encodeURIComponent(city);
+    if (country) url += '&country='+encodeURIComponent(country);
     api(url).then(({data}) => {
       if (!data.success) { area.innerHTML = '<div class="empty">'+data.message+'</div>'; return; }
       renderShops(data.data || [], q);
@@ -448,6 +468,8 @@ function loadDirectoryFilters() {
     if (!data.success) return;
     const cities = (data.data && data.data.cities) || [];
     document.getElementById('cityList').innerHTML = cities.map(c => '<option value="'+escapeHtml(c)+'">').join('');
+    DIRECTORY_COUNTRIES = (data.data && data.data.countries) || [];
+    renderCountryFilterOptions();
   });
 }
 
