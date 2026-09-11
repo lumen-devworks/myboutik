@@ -49,6 +49,13 @@
   button:active{transform:translateY(0)}
   button.ghost{background:#fff;color:var(--ink);border:1.5px solid var(--border);box-shadow:none}
   button.ghost:hover{border-color:var(--blue);color:var(--blue);box-shadow:none;background:var(--blue-light)}
+  button.danger{background:var(--red);color:#fff}
+  button.danger:hover{box-shadow:0 6px 16px -4px rgba(220,53,69,.5)}
+  .overlay{display:none;position:fixed;inset:0;background:rgba(14,21,38,.5);align-items:center;justify-content:center;padding:20px;z-index:300}
+  .overlay.open{display:flex}
+  .modal{background:#fff;border-radius:16px;max-width:420px;width:100%;padding:26px;box-shadow:var(--shadow-md)}
+  .modal-actions{display:flex;gap:10px;margin-top:18px}
+  .modal-actions button{flex:1}
   table{width:100%;border-collapse:collapse;font-size:13.5px}
   thead th{position:sticky;top:0;background:#fafbfe;text-transform:uppercase;font-size:11px;letter-spacing:.04em;color:var(--gray);font-weight:700}
   th,td{text-align:left;padding:11px 10px;border-bottom:1px solid var(--border)}
@@ -179,6 +186,7 @@
     </div>
   </div>
 </div>
+<div class="overlay" id="confirmOverlay"><div class="modal" id="confirmModalBody"></div></div>
 <div id="toastContainer"></div>
 <script src="config.js"></script>
 <script>
@@ -230,6 +238,7 @@ const I18N = {
     no_pending_requests: 'Aucune demande en attente.',
     no_pending_payouts: 'Aucun retrait en attente.',
     btn_approve: 'Approuver', btn_reject: 'Rejeter', btn_mark_paid: 'Marquer payé',
+    confirm_cancel_btn: 'Annuler', confirm_ok_btn: 'Confirmer',
     pill_approved: 'Approuvé', pill_rejected: 'Rejeté', pill_pending: 'En attente',
     waiting_since: '⚠️ En attente depuis {n} j',
     copy_email_title: "Copier l'email",
@@ -307,6 +316,7 @@ const I18N = {
     no_pending_requests: 'No pending requests.',
     no_pending_payouts: 'No pending payouts.',
     btn_approve: 'Approve', btn_reject: 'Reject', btn_mark_paid: 'Mark as paid',
+    confirm_cancel_btn: 'Cancel', confirm_ok_btn: 'Confirm',
     pill_approved: 'Approved', pill_rejected: 'Rejected', pill_pending: 'Pending',
     waiting_since: '⚠️ Waiting for {n} d',
     copy_email_title: 'Copy email',
@@ -421,6 +431,26 @@ function showToast(message, type) {
     el.classList.remove('show');
     setTimeout(() => el.remove(), 300);
   }, 4000);
+}
+// Remplace confirm() natif (position/style non maitrisables selon le
+// navigateur) par une boite de dialogue centree sur la page - approuver/
+// rejeter un abonnement, marquer un retrait paye, suspendre une boutique.
+// Retourne une Promise<boolean> (true = confirme).
+function customConfirm(message, opts) {
+  opts = opts || {};
+  return new Promise(resolve => {
+    document.getElementById('confirmModalBody').innerHTML = `
+      <p style="font-size:14.5px;line-height:1.5;white-space:pre-line;margin-bottom:4px">${escapeAttr(message)}</p>
+      <div class="modal-actions">
+        <button type="button" class="ghost" id="confirmCancelBtn">${t('confirm_cancel_btn')}</button>
+        <button type="button" class="${opts.danger ? 'danger' : ''}" id="confirmOkBtn">${t('confirm_ok_btn')}</button>
+      </div>
+    `;
+    document.getElementById('confirmOverlay').classList.add('open');
+    const finish = (result) => { document.getElementById('confirmOverlay').classList.remove('open'); resolve(result); };
+    document.getElementById('confirmCancelBtn').onclick = () => finish(false);
+    document.getElementById('confirmOkBtn').onclick = () => finish(true);
+  });
 }
 let CLIENTS = [];
 let SUBS_ROWS = [];
@@ -767,17 +797,21 @@ function renderPayouts(rows) {
 }
 function review(id, action, email, plan, isApprove) {
   const question = isApprove ? tf('confirm_approve', {plan, email}) : tf('confirm_reject', {plan, email});
-  if (!confirm(question)) return;
-  call(action, {id}).then(data => {
-    showToast(data.message || (data.success ? t('toast_done') : t('toast_error')), data.success ? 'success' : 'error');
-    loadAll();
+  customConfirm(question, {danger: !isApprove}).then(ok => {
+    if (!ok) return;
+    call(action, {id}).then(data => {
+      showToast(data.message || (data.success ? t('toast_done') : t('toast_error')), data.success ? 'success' : 'error');
+      loadAll();
+    });
   });
 }
 function markPayoutPaid(id, email, amount) {
-  if (!confirm(tf('confirm_payout', {amount: amount.toLocaleString(LANG === 'en' ? 'en-US' : 'fr-FR'), email}))) return;
-  call('payout_mark_paid', {id}).then(data => {
-    showToast(data.message || (data.success ? t('toast_payout_marked') : t('toast_error')), data.success ? 'success' : 'error');
-    loadAll();
+  customConfirm(tf('confirm_payout', {amount: amount.toLocaleString(LANG === 'en' ? 'en-US' : 'fr-FR'), email})).then(ok => {
+    if (!ok) return;
+    call('payout_mark_paid', {id}).then(data => {
+      showToast(data.message || (data.success ? t('toast_payout_marked') : t('toast_error')), data.success ? 'success' : 'error');
+      loadAll();
+    });
   });
 }
 // Le bouton "Repondre" ouvre directement le client mail par defaut (mailto:)
@@ -859,11 +893,13 @@ function toggleBoutiqueStatus(id, status) {
   const b = BOUTIQUES_ROWS.find(x => x.id === id);
   const name = b ? b.name : '';
   const question = status === 'suspended' ? tf('confirm_suspend_boutique', {name}) : tf('confirm_reactivate_boutique', {name});
-  if (!confirm(question)) return;
-  call('boutique_set_status', {id, status}).then(data => {
-    showToast(data.message || (data.success ? t('toast_done') : t('toast_error')), data.success ? 'success' : 'error');
-    if (data.success && b) b.status = status;
-    renderBoutiquesFiltered();
+  customConfirm(question, {danger: status === 'suspended'}).then(ok => {
+    if (!ok) return;
+    call('boutique_set_status', {id, status}).then(data => {
+      showToast(data.message || (data.success ? t('toast_done') : t('toast_error')), data.success ? 'success' : 'error');
+      if (data.success && b) b.status = status;
+      renderBoutiquesFiltered();
+    });
   });
 }
 function adminLogout(reason) {

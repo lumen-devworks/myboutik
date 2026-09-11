@@ -168,6 +168,7 @@
 </div>
 
 <div class="overlay" id="modalOverlay"><div class="modal" id="modalBody"></div></div>
+<div class="overlay" id="confirmOverlay" style="z-index:200"><div class="modal" id="confirmModalBody" style="max-width:400px"></div></div>
 <div id="toastContainer"></div>
 
 <script src="../config.js"></script>
@@ -284,7 +285,11 @@ const I18N = {
     label_boutique_city: 'Ville de la boutique',
     placeholder_boutique_city: 'Ex: Abidjan',
     boutique_city_required: 'La ville de la boutique est requise',
+    label_boutique_country: 'Pays de la boutique',
+    boutique_country_required: 'Le pays de la boutique est requis',
+    select_country_placeholder: 'Choisir un pays…',
     btn_cancel: 'Annuler',
+    confirm_ok_btn: 'Confirmer',
     btn_create: 'Créer',
     btn_save: 'Enregistrer',
     btn_close: 'Fermer',
@@ -907,7 +912,11 @@ const I18N = {
     label_boutique_city: 'Shop city',
     placeholder_boutique_city: 'E.g.: Abidjan',
     boutique_city_required: 'The shop city is required',
+    label_boutique_country: 'Shop country',
+    boutique_country_required: 'The shop country is required',
+    select_country_placeholder: 'Choose a country…',
     btn_cancel: 'Cancel',
+    confirm_ok_btn: 'Confirm',
     btn_create: 'Create',
     btn_save: 'Save',
     btn_close: 'Close',
@@ -1501,6 +1510,15 @@ function DIRECTORY_CATEGORIES_FN() { return [
   {value:'services', label:t('directory_cat_services')},
   {value:'autre', label:t('directory_cat_autre')},
 ]; }
+// Liste fermee de pays (noms en francais, utilises tels quels comme valeur
+// ET libelle - non traduits en anglais, comme les noms de ville) : evite
+// les variantes orthographiques d'un pays tape librement, et permet a
+// l'annuaire de filtrer dessus de facon fiable (voir directory_filters()).
+const COUNTRIES_FR = ["Afghanistan","Afrique du Sud","Albanie","Algérie","Allemagne","Andorre","Angola","Arabie saoudite","Argentine","Arménie","Australie","Autriche","Azerbaïdjan","Bahamas","Bahreïn","Bangladesh","Barbade","Belgique","Belize","Bénin","Bhoutan","Biélorussie","Birmanie","Bolivie","Bosnie-Herzégovine","Botswana","Brésil","Brunei","Bulgarie","Burkina Faso","Burundi","Cambodge","Cameroun","Canada","Cap-Vert","Chili","Chine","Chypre","Colombie","Comores","Congo-Brazzaville","Congo-Kinshasa","Corée du Nord","Corée du Sud","Costa Rica","Côte d'Ivoire","Croatie","Cuba","Danemark","Djibouti","Dominique","Égypte","Émirats arabes unis","Équateur","Érythrée","Espagne","Estonie","Eswatini","États-Unis","Éthiopie","Fidji","Finlande","France","Gabon","Gambie","Géorgie","Ghana","Grèce","Grenade","Guatemala","Guinée","Guinée-Bissau","Guinée équatoriale","Guyana","Haïti","Honduras","Hongrie","Inde","Indonésie","Irak","Iran","Irlande","Islande","Israël","Italie","Jamaïque","Japon","Jordanie","Kazakhstan","Kenya","Kirghizistan","Kiribati","Koweït","Laos","Lesotho","Lettonie","Liban","Liberia","Libye","Liechtenstein","Lituanie","Luxembourg","Macédoine du Nord","Madagascar","Malaisie","Malawi","Maldives","Mali","Malte","Maroc","Marshall","Maurice","Mauritanie","Mexique","Micronésie","Moldavie","Monaco","Mongolie","Monténégro","Mozambique","Namibie","Nauru","Népal","Nicaragua","Niger","Nigeria","Norvège","Nouvelle-Zélande","Oman","Ouganda","Ouzbékistan","Pakistan","Palaos","Palestine","Panama","Papouasie-Nouvelle-Guinée","Paraguay","Pays-Bas","Pérou","Philippines","Pologne","Portugal","Qatar","République centrafricaine","République dominicaine","République tchèque","Roumanie","Royaume-Uni","Russie","Rwanda","Saint-Christophe-et-Niévès","Saint-Marin","Saint-Vincent-et-les-Grenadines","Sainte-Lucie","Salomon","Salvador","Samoa","São Tomé-et-Príncipe","Sénégal","Serbie","Seychelles","Sierra Leone","Singapour","Slovaquie","Slovénie","Somalie","Soudan","Soudan du Sud","Sri Lanka","Suède","Suisse","Suriname","Syrie","Tadjikistan","Tanzanie","Tchad","Thaïlande","Timor oriental","Togo","Tonga","Trinité-et-Tobago","Tunisie","Turkménistan","Turquie","Tuvalu","Ukraine","Uruguay","Vanuatu","Vatican","Venezuela","Vietnam","Yémen","Zambie","Zimbabwe"];
+function countryOptionsHtml(selected, includeEmpty) {
+  return (includeEmpty ? '<option value="">'+t('select_country_placeholder')+'</option>' : '')
+    + COUNTRIES_FR.map(c => '<option value="'+c+'" '+(selected===c?'selected':'')+'>'+c+'</option>').join('');
+}
 function STATUS_LABELS_FN() { return {
   pending: t('order_status_pending'), processing: t('order_status_processing'), shipped: t('order_status_shipped'), delivered: t('order_status_delivered'),
   refused: t('order_status_refused'), cancelled: t('order_status_cancelled'),
@@ -1510,6 +1528,30 @@ function pill(status){ return '<span class="pill pill-'+status+'">'+(STATUS_LABE
 
 function openModal(html) { document.getElementById('modalBody').innerHTML = html; document.getElementById('modalOverlay').classList.add('open'); }
 function closeModal() { document.getElementById('modalOverlay').classList.remove('open'); }
+// Remplace confirm() natif (position/style non maitrisables selon le
+// navigateur, parfois pres de la barre d'adresse) par une boite de
+// dialogue centree sur la page. Utilise sa PROPRE surcouche (confirmOverlay,
+// empilee au-dessus de modalOverlay) plutot que openModal()/closeModal() -
+// beaucoup de suppressions se declenchent depuis un modal deja ouvert
+// (ex: supprimer une categorie depuis "Gerer les categories"), et reutiliser
+// le meme modal aurait efface ce modal-la au lieu de simplement le suspendre
+// pendant la confirmation. Retourne une Promise<boolean> (true = confirme).
+function customConfirm(message, opts) {
+  opts = opts || {};
+  return new Promise(resolve => {
+    document.getElementById('confirmModalBody').innerHTML = `
+      <p style="font-size:15px;line-height:1.5;white-space:pre-line;margin-bottom:20px">${escapeHtml(message)}</p>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" id="confirmCancelBtn">${t('btn_cancel')}</button>
+        <button type="button" class="btn ${opts.danger ? 'btn-danger' : 'btn-primary'}" id="confirmOkBtn">${t('confirm_ok_btn')}</button>
+      </div>
+    `;
+    document.getElementById('confirmOverlay').classList.add('open');
+    const finish = (result) => { document.getElementById('confirmOverlay').classList.remove('open'); resolve(result); };
+    document.getElementById('confirmCancelBtn').onclick = () => finish(false);
+    document.getElementById('confirmOkBtn').onclick = () => finish(true);
+  });
+}
 // Remplace window.alert() par une notification stylee coherente avec le
 // reste de l'appli - type deduit du contenu si non precise (les messages
 // d'erreur commencent generalement par une lettre suivant un pattern
@@ -1698,6 +1740,7 @@ function openCreateBoutique() {
     <h2>${t('modal_create_boutique_title')}</h2>
     <div id="createBoutiqueMsg"></div>
     <div class="field"><label>${t('label_boutique_name')}</label><input id="newBoutiqueName" placeholder="${t('placeholder_boutique_name')}"></div>
+    <div class="field"><label>${t('label_boutique_country')}</label><select id="newBoutiqueCountry">${countryOptionsHtml('', true)}</select></div>
     <div class="field"><label>${t('label_boutique_city')}</label><input id="newBoutiqueCity" placeholder="${t('placeholder_boutique_city')}"></div>
     <div class="modal-actions">
       <button class="btn btn-ghost" onclick="closeModal()">${t('btn_cancel')}</button>
@@ -1708,9 +1751,11 @@ function openCreateBoutique() {
 function submitCreateBoutique() {
   const name = document.getElementById('newBoutiqueName').value.trim();
   const city = document.getElementById('newBoutiqueCity').value.trim();
+  const country = document.getElementById('newBoutiqueCountry').value;
   if (!name) return;
+  if (!country) { document.getElementById('createBoutiqueMsg').innerHTML = '<div class="msg error">'+t('boutique_country_required')+'</div>'; return; }
   if (!city) { document.getElementById('createBoutiqueMsg').innerHTML = '<div class="msg error">'+t('boutique_city_required')+'</div>'; return; }
-  post('/boutiques?action=create', {name, city}).then(({data}) => {
+  post('/boutiques?action=create', {name, city, country}).then(({data}) => {
     if (!data.success) { document.getElementById('createBoutiqueMsg').innerHTML = '<div class="msg error">'+data.message+'</div>'; return; }
     closeModal();
     loadBoutiques().then(() => { window.location.hash = '#/'+data.data.slug+'/home'; });
@@ -1897,9 +1942,11 @@ function printOrderBordereau(orderId) {
 // le pool - voir orders_resend_digital() cote serveur) - utile quand le
 // client dit ne rien avoir recu (spam, adresse corrigee entre temps...).
 function resendDigitalDelivery(orderId, ref) {
-  if (!confirm(t('confirm_resend_digital').replace('{ref}', ref))) return;
-  post('/orders?action=resend_digital', {boutique_id:CURRENT.id, id:orderId}).then(({data}) => {
-    showToast(data.message, data.success ? 'success' : 'error');
+  customConfirm(t('confirm_resend_digital').replace('{ref}', ref)).then(ok => {
+    if (!ok) return;
+    post('/orders?action=resend_digital', {boutique_id:CURRENT.id, id:orderId}).then(({data}) => {
+      showToast(data.message, data.success ? 'success' : 'error');
+    });
   });
 }
 function printSelectedBordereaux() {
@@ -2262,7 +2309,7 @@ function submitAddContact() {
   post('/contacts?action=create', {boutique_id:CURRENT.id, name, role_id:document.getElementById('ctRole').value||null,
     phone:document.getElementById('ctPhone').value.trim(), email:document.getElementById('ctEmail').value.trim()}).then(()=>{closeModal(); route();});
 }
-function deleteContact(id) { if(!confirm(t('confirm_delete_contact'))) return; post('/contacts?action=delete', {boutique_id:CURRENT.id, id}).then(()=>route()); }
+function deleteContact(id) { customConfirm(t('confirm_delete_contact'), {danger:true}).then(ok => { if (!ok) return; post('/contacts?action=delete', {boutique_id:CURRENT.id, id}).then(()=>route()); }); }
 
 // ============================================================
 // Finances
@@ -2594,8 +2641,10 @@ function submitNewCategory() {
   });
 }
 function deleteCategory(id) {
-  if (!confirm(t('confirm_delete_category'))) return;
-  post('/products?action=category_delete', {boutique_id:CURRENT.id, id}).then(()=>{ closeModal(); renderProducts(CURRENT); });
+  customConfirm(t('confirm_delete_category'), {danger:true}).then(ok => {
+    if (!ok) return;
+    post('/products?action=category_delete', {boutique_id:CURRENT.id, id}).then(()=>{ closeModal(); renderProducts(CURRENT); });
+  });
 }
 function stockBadge(p) {
   if (!p.track_inventory) return '<span class="muted">—</span>';
@@ -2912,8 +2961,10 @@ function addProductImage(input) {
   chain.then(() => openProductForm(productId));
 }
 function deleteProductImage(imgId) {
-  if (!confirm(t('confirm_delete_photo'))) return;
-  post('/products?action=image_delete', {boutique_id:CURRENT.id, id:imgId}).then(() => openProductForm(window.__editingProductId));
+  customConfirm(t('confirm_delete_photo'), {danger:true}).then(ok => {
+    if (!ok) return;
+    post('/products?action=image_delete', {boutique_id:CURRENT.id, id:imgId}).then(() => openProductForm(window.__editingProductId));
+  });
 }
 function setPrimaryProductImage(imgId) {
   post('/products?action=image_set_primary', {boutique_id:CURRENT.id, id:imgId}).then(() => openProductForm(window.__editingProductId));
@@ -2998,7 +3049,7 @@ function submitProductForm(id) {
     closeModal(); route();
   });
 }
-function deleteProduct(id) { if(!confirm(t('confirm_delete_product'))) return; post('/products?action=delete', {boutique_id:CURRENT.id, id}).then(()=>route()); }
+function deleteProduct(id) { customConfirm(t('confirm_delete_product'), {danger:true}).then(ok => { if (!ok) return; post('/products?action=delete', {boutique_id:CURRENT.id, id}).then(()=>route()); }); }
 
 function renderStock(bt) {
   document.getElementById('content').innerHTML = `<div class="empty">${t('loading')}</div>`;
@@ -3045,7 +3096,7 @@ function submitSupplierForm() {
   const name = document.getElementById('supName').value.trim(); if(!name) return;
   post('/products?action=supplier_create', {boutique_id:CURRENT.id, name, phone:document.getElementById('supPhone').value.trim(), notes:document.getElementById('supNotes').value.trim()}).then(()=>{closeModal(); route();});
 }
-function deleteSupplier(id) { if(!confirm(t('confirm_delete_supplier'))) return; post('/products?action=supplier_delete', {boutique_id:CURRENT.id, id}).then(()=>route()); }
+function deleteSupplier(id) { customConfirm(t('confirm_delete_supplier'), {danger:true}).then(ok => { if (!ok) return; post('/products?action=supplier_delete', {boutique_id:CURRENT.id, id}).then(()=>route()); }); }
 
 function renderSupplierOrders(bt) {
   document.getElementById('content').innerHTML = `<div class="empty">${t('loading')}</div>`;
@@ -3327,7 +3378,7 @@ function submitPromoTargetsForm(id) {
   });
 }
 function togglePromo(id, active) { post('/marketing?action=promo_update', {boutique_id:CURRENT.id, id, active}).then(({data})=>{ if(!data.success){showToast(data.message,'error');return;} route(); }); }
-function deletePromo(id) { if(!confirm(t('confirm_delete_promo'))) return; post('/marketing?action=promo_delete', {boutique_id:CURRENT.id, id}).then(()=>route()); }
+function deletePromo(id) { customConfirm(t('confirm_delete_promo'), {danger:true}).then(ok => { if (!ok) return; post('/marketing?action=promo_delete', {boutique_id:CURRENT.id, id}).then(()=>route()); }); }
 function openPromotionForm(pr) {
   pr = pr || {};
   const selectedIds = (pr.products || []).map(x => x.id);
@@ -3370,10 +3421,9 @@ function submitPromotionForm(id) {
   });
 }
 function togglePromotion(id, active) { post('/marketing?action=promotion_update', {boutique_id:CURRENT.id, id, active}).then(()=>route()); }
-function deletePromotion(id) { if(!confirm(t('confirm_delete_promotion'))) return; post('/marketing?action=promotion_delete', {boutique_id:CURRENT.id, id}).then(()=>route()); }
+function deletePromotion(id) { customConfirm(t('confirm_delete_promotion'), {danger:true}).then(ok => { if (!ok) return; post('/marketing?action=promotion_delete', {boutique_id:CURRENT.id, id}).then(()=>route()); }); }
 function moderateReview(id, status) { post('/marketing?action=review_moderate', {boutique_id:CURRENT.id, id, status}).then(()=>route()); }
-function deleteReview(id) { if(!confirm(t('confirm_delete_review'))) return; post('/marketing?action=review_delete', {boutique_id:CURRENT.id, id}).then(()=>route());
-}
+function deleteReview(id) { customConfirm(t('confirm_delete_review'), {danger:true}).then(ok => { if (!ok) return; post('/marketing?action=review_delete', {boutique_id:CURRENT.id, id}).then(()=>route()); }); }
 
 // ============================================================
 // Paramètres
@@ -3420,6 +3470,7 @@ function renderSettings(bt) {
           </select>
         </div>
         <div class="field"><label>${t('label_directory_city')}</label><input id="setCity" value="${escapeHtml(bt.city||'')}" placeholder="${t('placeholder_directory_city')}"></div>
+        <div class="field"><label>${t('label_boutique_country')}</label><select id="setCountry">${countryOptionsHtml(bt.country||'', true)}</select></div>
       </div>
       <button class="btn btn-primary" onclick="saveSettings('settingsMsg')">${t('btn_save')}</button>
     </div>
@@ -3462,6 +3513,7 @@ function saveSettings(targetMsgId) {
     public_listed:document.getElementById('setPublicListed').checked,
     category:document.getElementById('setCategory').value,
     city:document.getElementById('setCity').value.trim(),
+    country:document.getElementById('setCountry').value,
     default_delivery_fee:Number(document.getElementById('setDeliveryFee').value||0),
     notify_order_email:document.getElementById('setNotifyEmail').checked,
     notify_email:document.getElementById('setNotifyAddr').value.trim(),
@@ -3531,8 +3583,10 @@ function submitInvite() {
   });
 }
 function removeTeamMember(id) {
-  if (!confirm(t('confirm_remove_member'))) return;
-  post('/team?action=remove', {boutique_id:CURRENT.id, id}).then(()=>route());
+  customConfirm(t('confirm_remove_member'), {danger:true}).then(ok => {
+    if (!ok) return;
+    post('/team?action=remove', {boutique_id:CURRENT.id, id}).then(()=>route());
+  });
 }
 
 // ============================================================
@@ -3625,10 +3679,12 @@ function renderBilling() {
   });
 }
 function subscribeToPlan(plan, planName, price) {
-  if (!confirm(tf('confirm_subscribe', {plan: planName, price: fmtMoney(price)}))) return;
-  post('/billing?action=subscribe', {plan}).then(({data}) => {
-    showToast(data.message, data.success ? 'success' : 'error');
-    if (data.success) renderBilling();
+  customConfirm(tf('confirm_subscribe', {plan: planName, price: fmtMoney(price)})).then(ok => {
+    if (!ok) return;
+    post('/billing?action=subscribe', {plan}).then(({data}) => {
+      showToast(data.message, data.success ? 'success' : 'error');
+      if (data.success) renderBilling();
+    });
   });
 }
 
