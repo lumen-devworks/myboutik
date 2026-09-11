@@ -72,6 +72,14 @@
   .kpi{background:#fff;border:1px solid var(--border);border-radius:14px;padding:18px}
   .kpi .lbl{font-size:13px;color:var(--gray);display:flex;align-items:center;gap:6px;margin-bottom:8px}
   .kpi .val{font-size:24px;font-weight:800}
+  /* Vue d'ensemble multi-boutiques : toujours 2 cases par ligne (meme sur
+     telephone, ou .kpi-grid generique repasse a 1 colonne), avec le
+     revenu total mis en evidence par un fond degrade plutot qu'une
+     simple carte blanche comme les 3 autres. */
+  .overview-kpi-grid{grid-template-columns:repeat(2,1fr)}
+  .kpi-highlight{background:linear-gradient(145deg,var(--blue),var(--blue-dark));border-color:transparent;box-shadow:0 10px 24px -12px rgba(194,65,12,.5)}
+  .kpi-highlight .lbl{color:rgba(255,255,255,.85)}
+  .kpi-highlight .val{color:#fff}
 
   .card{background:#fff;border:1px solid var(--border);border-radius:14px;padding:20px;margin-bottom:20px}
   .card h3{font-size:15px;margin-bottom:14px}
@@ -151,6 +159,7 @@
   }
   @media (max-width: 480px) {
     .kpi-grid{grid-template-columns:1fr}
+    .overview-kpi-grid{grid-template-columns:repeat(2,1fr);gap:10px}
   }
 </style>
 </head>
@@ -297,7 +306,7 @@ const I18N = {
     btn_manage: 'Gérer →',
     modal_create_boutique_title: 'Créer une boutique',
     label_boutique_name: 'Nom de la boutique',
-    placeholder_boutique_name: 'Ex: Boutik de Rom',
+    placeholder_boutique_name: 'Ex: RoyalBoutik',
     label_boutique_city: 'Ville de la boutique',
     placeholder_boutique_city: 'Ex: Abidjan',
     boutique_city_required: 'La ville de la boutique est requise',
@@ -933,7 +942,7 @@ const I18N = {
     btn_manage: 'Manage →',
     modal_create_boutique_title: 'Create a shop',
     label_boutique_name: 'Shop name',
-    placeholder_boutique_name: 'E.g.: Rom\'s Shop',
+    placeholder_boutique_name: 'E.g.: RoyalBoutik',
     label_boutique_city: 'Shop city',
     placeholder_boutique_city: 'E.g.: Abidjan',
     boutique_city_required: 'The shop city is required',
@@ -1750,11 +1759,11 @@ function renderMultiBoutiqueSummary() {
   const totalsHtml = Object.entries(byCurrency).map(([cur,amt]) => fmtMoney(amt, cur)).join(' + ');
   return `<div class="card">
     <h3>${t('overview_all_boutiques')}</h3>
-    <div class="kpi-grid">
+    <div class="kpi-grid overview-kpi-grid">
       <div class="kpi"><div class="lbl">${t('kpi_boutiques')}</div><div class="val">${BOUTIQUES.length}</div></div>
       <div class="kpi"><div class="lbl">${t('kpi_orders_total')}</div><div class="val">${totalCommandes}</div></div>
       <div class="kpi"><div class="lbl">${t('kpi_pending')}</div><div class="val">${totalEnAttente}</div></div>
-      <div class="kpi"><div class="lbl">${t('kpi_revenue_total')}</div><div class="val">${totalsHtml}</div></div>
+      <div class="kpi kpi-highlight"><div class="lbl">${t('kpi_revenue_total')}</div><div class="val">${totalsHtml}</div></div>
     </div>
   </div>`;
 }
