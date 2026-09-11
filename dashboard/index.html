@@ -152,8 +152,9 @@
     #sidebarBackdrop.open{display:block;position:fixed;inset:0;background:rgba(15,23,42,.45);z-index:40}
     #topbar{padding:10px 14px;flex-wrap:wrap;row-gap:8px;height:auto}
     #topbar h1{font-size:14px}
+    #topbarLeft{flex-wrap:wrap;row-gap:4px}
+    #userEmail{font-size:11px;max-width:100%}
     .top-actions{width:100%;justify-content:flex-end}
-    #userEmail{display:none}
     #content{padding:14px}
     .field-row{grid-template-columns:1fr}
     .kpi-grid{grid-template-columns:1fr 1fr}
@@ -162,8 +163,9 @@
     .card table{display:block;overflow-x:auto;white-space:nowrap}
   }
   @media (max-width: 480px) {
-    .kpi-grid{grid-template-columns:1fr}
-    .overview-kpi-grid{grid-template-columns:repeat(2,1fr);gap:10px}
+    .kpi-grid{grid-template-columns:repeat(2,1fr);gap:10px}
+    .kpi{padding:14px}
+    .kpi .val{font-size:20px}
   }
 </style>
 </head>
@@ -182,13 +184,13 @@
   </div>
   <div id="main">
     <div id="topbar">
-      <div style="display:flex;align-items:center;gap:10px">
+      <div id="topbarLeft" style="display:flex;align-items:center;gap:10px;flex:1;min-width:0">
         <button id="menuToggle" class="btn btn-ghost btn-sm" onclick="toggleSidebar()" aria-label="Menu">☰</button>
         <h1 id="topTitle">Tableau de bord</h1>
+        <span class="muted" id="userEmail" style="margin-left:auto;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
       </div>
       <div class="top-actions">
         <div class="lang-switch"><button type="button" id="langFr" onclick="setLang('fr')">FR</button><button type="button" id="langEn" onclick="setLang('en')">EN</button></div>
-        <span class="muted" id="userEmail"></span>
         <button class="btn btn-ghost btn-sm" onclick="logout()" id="logoutBtn">Se déconnecter</button>
       </div>
     </div>
@@ -2669,8 +2671,8 @@ function renderProducts(bt, categoryFilter) {
           <button class="btn btn-ghost" onclick="openCategoriesManager()">${t('btn_categories')}</button>
           <button class="btn btn-primary" onclick="openProductForm()">${t('btn_new_product')}</button>
         </div></div>
-      ${lowStock.length ? '<div class="card" style="background:var(--amber-bg);border-color:#fde68a">'+t('low_stock_warning_prefix')+lowStock.length+t('low_stock_warning_suffix')+'<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px">'+
-        lowStock.map(p=>'<span>'+escapeHtml(p.name)+' <button class="btn btn-ghost btn-sm" onclick="goReorder(\''+p.id+'\')">'+t('btn_order')+'</button></span>').join('')+'</div></div>' : ''}
+      ${lowStock.length ? '<div class="card" style="background:var(--amber-bg);border-color:#fde68a">'+t('low_stock_warning_prefix')+lowStock.length+t('low_stock_warning_suffix')+'<div style="margin-top:8px">'+
+        lowStock.map(p=>escapeHtml(p.name)).join(', ')+'</div></div>' : ''}
       ${categories.length ? `<div class="field" style="max-width:260px"><label>${t('label_filter_by_category')}</label>
         <select onchange="renderProducts(CURRENT, this.value)">
           <option value="">${t('filter_all_categories_prefix')}${allRows.length})</option>
