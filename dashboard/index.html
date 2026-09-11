@@ -60,11 +60,12 @@
     background:#fff;border:2px solid transparent;
     background-image:linear-gradient(#fff,#fff),linear-gradient(135deg,#fb923c 0%,var(--blue) 45%,var(--blue-dark) 100%);
     background-origin:border-box;background-clip:padding-box,border-box;
-    border-radius:18px;padding:22px 26px;margin-bottom:20px;
+    border-radius:18px;padding:26px;margin-bottom:20px;
     box-shadow:0 16px 36px -18px rgba(194,65,12,.35);
+    text-align:center;
   }
-  .home-hero .page-title{margin-bottom:6px}
-  .home-boutique-name{font-size:20px;font-weight:800;color:var(--ink)}
+  .home-hero .page-title{margin-bottom:8px;text-transform:uppercase;letter-spacing:.02em}
+  .home-boutique-name{color:var(--blue)}
   .row-between{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:20px}
 
   .kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-bottom:20px}
@@ -314,9 +315,8 @@ const I18N = {
     period_30d: '30 derniers jours',
     period_90d: '90 derniers jours',
     period_all: 'Depuis le début',
-    home_title: 'Tableau de bord',
-    home_subtitle_prefix: 'L\'activité de ',
-    home_subtitle_suffix: ' en un coup d\'œil.',
+    home_title_prefix: 'Bienvenue sur ',
+    home_subtitle: 'Suivez vos ventes, analysez vos performances et mesurez l\'évolution de votre boutique en temps réel.',
     kpi_sales_30d: '💰 Ventes totales (30j)',
     kpi_orders_30d: '🛒 Commandes (30j)',
     kpi_delivered_30d: '📦 Livrées (30j)',
@@ -951,9 +951,8 @@ const I18N = {
     period_30d: 'Last 30 days',
     period_90d: 'Last 90 days',
     period_all: 'Since the beginning',
-    home_title: 'Dashboard',
-    home_subtitle_prefix: 'A snapshot of ',
-    home_subtitle_suffix: '\'s activity.',
+    home_title_prefix: 'Welcome to ',
+    home_subtitle: 'Track your sales, analyze your performance, and measure your shop\'s growth in real time.',
     kpi_sales_30d: '💰 Total sales (30d)',
     kpi_orders_30d: '🛒 Orders (30d)',
     kpi_delivered_30d: '📦 Delivered (30d)',
@@ -1856,8 +1855,8 @@ function renderHome(bt) {
     const L = live.data.data || {}; const R = report.data.data || {};
     document.getElementById('content').innerHTML = `
       <div class="home-hero">
-        <h2 class="page-title">${t('home_title')}</h2>
-        <div class="page-sub" style="margin-bottom:0">${t('home_subtitle_prefix')}<strong class="home-boutique-name">${escapeHtml(bt.name)}</strong>${t('home_subtitle_suffix')}</div>
+        <h2 class="page-title">${t('home_title_prefix')}<span class="home-boutique-name">${escapeHtml(bt.name)}</span></h2>
+        <div class="page-sub" style="margin-bottom:0">${t('home_subtitle')}</div>
       </div>
       <div class="kpi-grid">
         <div class="kpi"><div class="lbl">${t('kpi_sales_30d')}</div><div class="val">${fmtMoney(R.ventes_brutes, bt.currency)}</div></div>
