@@ -876,6 +876,7 @@ const I18N = {
     btn_current_plan: 'Plan actuel',
     btn_choose: 'Choisir',
     confirm_subscribe: 'Passer au plan {plan} ({price}/mois) ?\n\nUne demande d\'activation sera envoyée ; votre plan actuel reste actif jusqu\'à validation du paiement par l\'équipe MYBOUTIK.',
+    confirm_subscribe_free: 'Activer le plan {plan} avec votre 1er mois gratuit ?\n\nAucun paiement requis, l\'activation est immédiate.',
     affiliate_title: 'Affiliation',
     affiliate_subtitle: 'Recommandez MYBOUTIK et gagnez 10% de chaque abonnement payé par vos filleuls.',
     referral_link_title: 'Votre lien d\'affiliation',
@@ -1513,6 +1514,7 @@ const I18N = {
     btn_current_plan: 'Current plan',
     btn_choose: 'Choose',
     confirm_subscribe: 'Switch to the {plan} plan ({price}/month)?\n\nAn activation request will be sent; your current plan stays active until the MYBOUTIK team verifies the payment.',
+    confirm_subscribe_free: 'Activate the {plan} plan with your free 1st month?\n\nNo payment required, activation is immediate.',
     affiliate_title: 'Affiliate',
     affiliate_subtitle: 'Recommend MYBOUTIK and earn 10% of every subscription paid by your referrals.',
     referral_link_title: 'Your referral link',
@@ -3785,18 +3787,19 @@ function renderBilling() {
           <div class="card" style="${key===B.current_plan?'border-color:var(--blue)':''}">
             <div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px">
               <h3 style="margin:0">${p.name}</h3>
-              ${key==='starter' ? '<span style="color:#16a34a;font-weight:700;font-size:26px;white-space:nowrap">'+t('first_month_free')+'</span>' : ''}
+              ${key==='starter' && B.free_trial_eligible ? '<span style="color:#16a34a;font-weight:700;font-size:26px;white-space:nowrap">'+t('first_month_free')+'</span>' : ''}
             </div>
             <div style="font-size:22px;font-weight:800;margin:8px 0">${fmtMoney(p.price)}<span class="muted" style="font-size:13px;font-weight:400">${t('per_month')}</span></div>
             <div class="muted" style="margin-bottom:14px">${p.boutique_limit}${t('boutique_limit_suffix')}</div>
-            ${key===B.current_plan ? '<button class="btn btn-ghost btn-block" disabled>'+t('btn_current_plan')+'</button>' : '<button class="btn btn-primary btn-block" onclick="subscribeToPlan(\''+key+'\',\''+p.name+'\','+p.price+')">'+t('btn_choose')+'</button>'}
+            ${key===B.current_plan ? '<button class="btn btn-ghost btn-block" disabled>'+t('btn_current_plan')+'</button>' : '<button class="btn btn-primary btn-block" onclick="subscribeToPlan(\''+key+'\',\''+p.name+'\','+p.price+','+(key==='starter'&&B.free_trial_eligible?'true':'false')+')">'+t('btn_choose')+'</button>'}
           </div>`).join('')}
       </div>
     `;
   });
 }
-function subscribeToPlan(plan, planName, price) {
-  customConfirm(tf('confirm_subscribe', {plan: planName, price: fmtMoney(price)})).then(ok => {
+function subscribeToPlan(plan, planName, price, isFreeTrial) {
+  const question = isFreeTrial ? tf('confirm_subscribe_free', {plan: planName}) : tf('confirm_subscribe', {plan: planName, price: fmtMoney(price)});
+  customConfirm(question).then(ok => {
     if (!ok) return;
     post('/billing?action=subscribe', {plan}).then(({data}) => {
       showToast(data.message, data.success ? 'success' : 'error');

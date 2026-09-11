@@ -229,6 +229,7 @@ const EN_DICT = [
     'Panneau admin non configure (variable ADMIN_PASSWORD absente)' => 'Admin panel not configured (ADMIN_PASSWORD variable missing)',
     'Parametres enregistres' => 'Settings saved',
     'Plan active' => 'Plan activated',
+    'Votre mois gratuit Starter est active immediatement !' => 'Your free Starter month is activated immediately!',
     'Plan invalide' => 'Invalid plan',
     'Produit cree' => 'Product created',
     'Produit introuvable' => 'Product not found',
@@ -3957,6 +3958,14 @@ function route_billing($action) {
     }
 }
 
+// Eligible au mois gratuit Starter uniquement si ce compte n'a JAMAIS eu
+// un seul abonnement approuve (tous plans confondus) - un compte qui a
+// deja ete Pro/Premium (ou meme Starter payant) et revient sur Starter
+// n'a plus droit au mois gratuit, meme si son plan actuel est redevenu
+// 'starter' entre-temps (voir billing_subscribe()).
+function user_ever_had_approved_subscription($userId) {
+    return (bool) q("SELECT 1 FROM subscription_requests WHERE user_id=? AND status='approved' LIMIT 1", [$userId])->fetch();
+}
 function billing_plans($pl) {
     $user = q("SELECT plan, plan_status, plan_valid_until FROM users WHERE id=?", [$pl['sub']])->fetch();
     $pending = q("SELECT * FROM subscription_requests WHERE user_id=? AND status='pending' ORDER BY created_at DESC LIMIT 1", [$pl['sub']])->fetch();
@@ -3964,6 +3973,7 @@ function billing_plans($pl) {
         'plans' => PLANS, 'current_plan' => $user['plan'], 'plan_status' => $user['plan_status'],
         'plan_valid_until' => $user['plan_valid_until'],
         'pending_request' => $pending ?: null,
+        'free_trial_eligible' => !user_ever_had_approved_subscription($pl['sub']),
         'payment_instructions' => 'Envoyez le montant du plan choisi via Orange Money, Wave ou Djomo au +225 07 78 79 83 19 (MYBOUTIK). Votre plan sera active des verification manuelle du paiement par l\'equipe MYBOUTIK (generalement sous 24h).',
     ]);
 }
@@ -3972,6 +3982,17 @@ function billing_subscribe($pl) {
     $b = body();
     $plan = $b['plan'] ?? '';
     if (!isset(PLANS[$plan])) fail('Plan invalide');
+    // Starter gratuit le premier mois, mais seulement pour un compte qui
+    // n'a jamais eu d'abonnement approuve avant (voir
+    // user_ever_had_approved_subscription()) - active immediatement, sans
+    // paiement ni validation admin, et sans commission de parrainage
+    // (aucun argent reel n'a change de mains).
+    if ($plan === 'starter' && !user_ever_had_approved_subscription($pl['sub'])) {
+        $id = uid();
+        q("INSERT INTO subscription_requests (id,user_id,plan,status,reviewed_at) VALUES (?,?,?,'approved',NOW())", [$id, $pl['sub'], $plan]);
+        q("UPDATE users SET plan='starter', plan_status='active', plan_valid_until=NOW() + INTERVAL '30 days' WHERE id=?", [$pl['sub']]);
+        ok(null, 'Votre mois gratuit Starter est active immediatement !', 201);
+    }
     $existing = q("SELECT id FROM subscription_requests WHERE user_id=? AND plan=? AND status='pending'", [$pl['sub'], $plan])->fetch();
     if ($existing) { ok(null, 'Demande deja en attente de verification'); }
     $id = uid();
