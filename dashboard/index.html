@@ -162,13 +162,15 @@
     #sidebar{position:fixed;left:0;top:0;z-index:45;transform:translateX(-100%);transition:transform .2s ease;box-shadow:2px 0 12px rgba(0,0,0,.15)}
     #sidebar.open{transform:translateX(0)}
     #sidebarBackdrop.open{display:block;position:fixed;inset:0;background:rgba(15,23,42,.45);z-index:40}
-    #topbar{padding:10px 14px;flex-wrap:wrap;row-gap:8px;height:auto}
-    /* topTitle doit tronquer avec "…" (min-width:0 + nowrap + ellipsis) au
-       lieu de se laisser ecraser en largeur par le flex - sans ca, un nom
-       de boutique un peu long revenait a la ligne mot par mot (BOUTIK / DE
-       / ROM) et poussait l'email hors de vue au lieu de partager la ligne. */
-    #topbar h1{font-size:14px;min-width:0;flex-shrink:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-    #userEmail{font-size:10.5px;flex-shrink:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    #topbar{padding:10px 14px;flex-wrap:wrap;row-gap:6px;height:auto}
+    /* Chaque groupe (titre, email, actions) reste sur sa PROPRE ligne
+       complete (width:100%) plutot que de partager une ligne en flex-shrink
+       - cette derniere approche s'est montree fragile (l'un des elements
+       finissait ecrase a une largeur nulle selon la longueur du contenu).
+       Ici chacun est toujours visible, quelle que soit la longueur du nom
+       de boutique ou de l'email. */
+    #topbar h1{font-size:14px;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    #userEmail{width:100%;margin-left:0;font-size:11px}
     .top-actions{width:100%;justify-content:flex-end}
     #content{padding:14px}
     .field-row{grid-template-columns:1fr}
@@ -206,8 +208,8 @@
       <div id="topbarLeft" style="display:flex;align-items:center;gap:10px;flex:1;min-width:0">
         <button id="menuToggle" class="btn btn-ghost btn-sm" onclick="toggleSidebar()" aria-label="Menu">☰</button>
         <h1 id="topTitle">Tableau de bord</h1>
-        <span class="muted" id="userEmail" style="margin-left:auto;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
       </div>
+      <span class="muted" id="userEmail" style="margin-left:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
       <div class="top-actions">
         <div class="lang-switch"><button type="button" id="langFr" onclick="setLang('fr')">FR</button><button type="button" id="langEn" onclick="setLang('en')">EN</button></div>
         <button class="btn btn-ghost btn-sm" onclick="logout()" id="logoutBtn">Se déconnecter</button>
