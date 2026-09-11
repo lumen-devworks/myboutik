@@ -187,6 +187,11 @@
     .kpi-grid{grid-template-columns:repeat(2,1fr);gap:10px}
     .kpi{padding:14px}
     .kpi .val{font-size:20px}
+    /* Repete ici l'exception plans-grid : cette regle .kpi-grid arrive
+       apres celle qui remet plans-grid a 1 colonne (voir le bloc 860px
+       plus haut), donc sans ca elle la re-ecrase sur les tres petits
+       ecrans - meme piege que overview-kpi-grid deja rencontre. */
+    .plans-grid{grid-template-columns:1fr}
   }
 </style>
 </head>
