@@ -262,7 +262,12 @@ function downloadCsv(path, filename) {
     URL.revokeObjectURL(url);
   }).catch(() => showToast(t('export_impossible'), 'error'));
 }
-function logout() { localStorage.removeItem('myboutik_token'); localStorage.removeItem('myboutik_user'); window.location.href = '../index.html'; }
+function logout() {
+  customConfirm(t('confirm_logout'), {danger: true}).then(ok => {
+    if (!ok) return;
+    localStorage.removeItem('myboutik_token'); localStorage.removeItem('myboutik_user'); window.location.href = '../index.html';
+  });
+}
 
 function fmtMoney(n, currency) { return Math.round(n||0).toLocaleString('fr-FR') + ' ' + (currency||'FCFA'); }
 function fmtDate(iso) { if(!iso) return '—'; const d = new Date(iso); return d.toLocaleDateString('fr-FR') + ' ' + d.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}); }
@@ -492,6 +497,7 @@ const I18N = {
     label_role_name: 'Nom du rôle',
     placeholder_role_example: 'Ex: Comptable',
     modal_new_contact: 'Nouveau contact',
+    confirm_logout: 'Voulez-vous vraiment vous déconnecter ?',
     confirm_delete_contact: 'Supprimer ce contact ?',
     finance_overview_title: 'Vue Globale',
     finance_overview_subtitle_prefix: 'Santé financière complète — ',
@@ -1128,6 +1134,7 @@ const I18N = {
     label_role_name: 'Role name',
     placeholder_role_example: 'E.g.: Accountant',
     modal_new_contact: 'New contact',
+    confirm_logout: 'Are you sure you want to log out?',
     confirm_delete_contact: 'Delete this contact?',
     finance_overview_title: 'Overview',
     finance_overview_subtitle_prefix: 'Complete financial health — ',
