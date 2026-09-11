@@ -77,9 +77,13 @@
      revenu total mis en evidence par un fond degrade plutot qu'une
      simple carte blanche comme les 3 autres. */
   .overview-kpi-grid{grid-template-columns:repeat(2,1fr)}
-  .kpi-highlight{background:linear-gradient(145deg,var(--blue),var(--blue-dark));border-color:transparent;box-shadow:0 10px 24px -12px rgba(194,65,12,.5)}
-  .kpi-highlight .lbl{color:rgba(255,255,255,.85)}
-  .kpi-highlight .val{color:#fff}
+  .kpi-highlight{
+    background-image:linear-gradient(#fff,#fff),linear-gradient(135deg,#fb923c 0%,var(--blue) 45%,var(--blue-dark) 100%);
+    background-origin:border-box;background-clip:padding-box,border-box;
+    border:2px solid transparent;
+    box-shadow:0 10px 24px -12px rgba(194,65,12,.4);
+  }
+  .kpi-highlight .val{color:var(--blue)}
 
   .card{background:#fff;border:1px solid var(--border);border-radius:14px;padding:20px;margin-bottom:20px}
   .card h3{font-size:15px;margin-bottom:14px}
@@ -1761,9 +1765,9 @@ function renderMultiBoutiqueSummary() {
     <h3>${t('overview_all_boutiques')}</h3>
     <div class="kpi-grid overview-kpi-grid">
       <div class="kpi"><div class="lbl">${t('kpi_boutiques')}</div><div class="val">${BOUTIQUES.length}</div></div>
+      <div class="kpi kpi-highlight"><div class="lbl">${t('kpi_revenue_total')}</div><div class="val">${totalsHtml}</div></div>
       <div class="kpi"><div class="lbl">${t('kpi_orders_total')}</div><div class="val">${totalCommandes}</div></div>
       <div class="kpi"><div class="lbl">${t('kpi_pending')}</div><div class="val">${totalEnAttente}</div></div>
-      <div class="kpi kpi-highlight"><div class="lbl">${t('kpi_revenue_total')}</div><div class="val">${totalsHtml}</div></div>
     </div>
   </div>`;
 }
