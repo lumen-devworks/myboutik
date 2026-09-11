@@ -12,7 +12,8 @@
   }
   *{box-sizing:border-box;margin:0;padding:0}
   html,body{height:100%}
-  body{font-family:-apple-system,'Segoe UI',Roboto,Arial,sans-serif;color:var(--ink);background:var(--bg);overflow:hidden}
+  html{overflow-x:hidden;max-width:100%}
+  body{font-family:-apple-system,'Segoe UI',Roboto,Arial,sans-serif;color:var(--ink);background:var(--bg);overflow:hidden;max-width:100%}
   a{color:inherit;text-decoration:none}
   button,select,input,textarea{font-family:inherit}
   #app{display:flex;height:100vh}
@@ -69,9 +70,13 @@
   .row-between{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:20px}
 
   .kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-bottom:20px}
-  .kpi{background:#fff;border:1px solid var(--border);border-radius:14px;padding:18px}
+  /* min-width:0 : sans ca, une grille a colonnes egales (1fr) grandit quand
+     meme au-dela de sa largeur disponible si le contenu d'une case (ex: un
+     montant "357 400 XOF" qui ne se coupe pas) est plus large que sa part -
+     exactement ce qui a pousse toute la page a deborder horizontalement. */
+  .kpi{background:#fff;border:1px solid var(--border);border-radius:14px;padding:18px;min-width:0}
   .kpi .lbl{font-size:13px;color:var(--gray);display:flex;align-items:center;gap:6px;margin-bottom:8px}
-  .kpi .val{font-size:24px;font-weight:800}
+  .kpi .val{font-size:24px;font-weight:800;overflow-wrap:break-word}
   /* Vue d'ensemble multi-boutiques : toujours 2 cases par ligne (meme sur
      telephone, ou .kpi-grid generique repasse a 1 colonne), avec le
      revenu total mis en evidence par un fond degrade plutot qu'une
@@ -156,12 +161,15 @@
        de boutique un peu long revenait a la ligne mot par mot (BOUTIK / DE
        / ROM) et poussait l'email hors de vue au lieu de partager la ligne. */
     #topbar h1{font-size:14px;min-width:0;flex-shrink:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-    #topbarLeft{flex-wrap:nowrap}
-    #userEmail{font-size:10.5px;flex-shrink:0;max-width:42%}
+    #userEmail{font-size:10.5px;flex-shrink:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     .top-actions{width:100%;justify-content:flex-end}
     #content{padding:14px}
     .field-row{grid-template-columns:1fr}
     .kpi-grid{grid-template-columns:1fr 1fr}
+    /* Les cartes d'abonnement (Starter/Pro/Premium) restent 1 par ligne -
+       leur contenu (prix, "1er mois gratuit") est trop large pour tenir a
+       cote d'une autre carte, contrairement aux petites tuiles de stats. */
+    .plans-grid{grid-template-columns:1fr}
     /* Les tableaux larges (finances, commandes...) defilent horizontalement
        au lieu de deborder de l'ecran ou d'ecraser les colonnes. */
     .card table{display:block;overflow-x:auto;white-space:nowrap}
@@ -3751,7 +3759,7 @@ function renderBilling() {
       ${daysLeft !== null && daysLeft < 0 ? '<div class="card" style="background:#fef2f2;border-color:#fecaca">'+t('blocked_access_warning')+'</div>' : ''}
       ${daysLeft !== null && daysLeft >= 0 && daysLeft <= 5 ? '<div class="card" style="background:var(--amber-bg);border-color:#fde68a">'+t('expiring_soon_prefix')+daysLeft+t('expiring_soon_suffix')+'</div>' : ''}
       ${B.pending_request ? `<div class="card" style="background:var(--amber-bg);border-color:#fde68a">${t('pending_request_prefix')}<strong>${B.plans[B.pending_request.plan]?.name}</strong> — ${B.payment_instructions}</div>` : ''}
-      <div class="kpi-grid">
+      <div class="kpi-grid plans-grid">
         ${plans.map(([key,p]) => `
           <div class="card" style="${key===B.current_plan?'border-color:var(--blue)':''}">
             <div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px">
