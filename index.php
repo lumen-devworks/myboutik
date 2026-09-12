@@ -3556,8 +3556,21 @@ function route_analytics($action) {
         case 'activity_log': analytics_activity_log($pl); break;
         case 'export':       analytics_export($pl); break;
         case 'export_excel': analytics_export_excel($pl); break;
+        case 'revenue_by_month': analytics_revenue_by_month($pl); break;
         default: fail('Action inconnue', 404);
     }
+}
+// Ventes de LA BOUTIQUE regroupees par mois - meme principe et meme forme
+// de reponse que admin_revenue_by_month() (qui, lui, agrege les revenus
+// d'abonnement de toute la plateforme, pas les ventes d'une boutique) :
+// le graphique/tableau cote tableau de bord marchand reutilise le meme
+// composant de rendu (voir renderRevenueChart() dans dashboard/index.html).
+function analytics_revenue_by_month($pl) {
+    $bt = require_boutique_owned($_GET['boutique_id'] ?? '', $pl['sub']);
+    $rows = q("SELECT TO_CHAR(created_at, 'YYYY-MM') AS month, COALESCE(SUM(total),0) AS revenue
+               FROM orders WHERE boutique_id=? AND status IN ".ENCAISSE_STATUSES."
+               GROUP BY month ORDER BY month", [$bt['id']])->fetchAll();
+    ok($rows);
 }
 function analytics_export_rows($bt, $period) {
     $pc = period_clause($period);

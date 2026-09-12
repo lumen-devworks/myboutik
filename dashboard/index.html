@@ -278,6 +278,113 @@ function fmtMoney(n, currency) { return Math.round(n||0).toLocaleString('fr-FR')
 function fmtDate(iso) { if(!iso) return '—'; const d = new Date(iso); return d.toLocaleDateString('fr-FR') + ' ' + d.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}); }
 function escapeHtml(s){ return (s==null?'':String(s)).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
+// ============================================================
+// Courbe d'evolution mensuelle des ventes (Rapports de ventes) - meme
+// composant que "Revenus par mois" du panneau admin, adapte pour utiliser
+// la devise de LA boutique plutot que FCFA fixe, et alimente par
+// analytics_revenue_by_month() (ventes de cette boutique, pas les
+// abonnements de toute la plateforme).
+// ============================================================
+const MONTH_NAMES_FR = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
+const MONTH_NAMES_EN = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+const MONTH_ABBR_FR = ['Jan','Fév','Mar','Avr','Mai','Juin','Juil','Aoû','Sep','Oct','Nov','Déc'];
+const MONTH_ABBR_EN = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+function monthNames() { return LANG === 'en' ? MONTH_NAMES_EN : MONTH_NAMES_FR; }
+function monthAbbr() { return LANG === 'en' ? MONTH_ABBR_EN : MONTH_ABBR_FR; }
+let SHOP_REVENUE_BY_MONTH = [];
+let CURRENT_SHOP_REVENUE_YEAR = '';
+let CURRENT_SHOP_REVENUE_ROWS = [];
+function setupShopRevenueYears(bt) {
+  const years = Array.from(new Set(SHOP_REVENUE_BY_MONTH.map(r => r.month.slice(0,4)))).sort().reverse();
+  const currentYear = String(new Date().getFullYear());
+  if (!years.includes(currentYear)) years.unshift(currentYear);
+  const sel = document.getElementById('shopRevenueYear');
+  if (!sel) return;
+  sel.innerHTML = years.map(y => '<option value="'+y+'">'+y+'</option>').join('');
+  renderShopRevenue(bt);
+}
+function renderShopRevenue(bt) {
+  const sel = document.getElementById('shopRevenueYear');
+  if (!sel) return;
+  const year = sel.value;
+  CURRENT_SHOP_REVENUE_YEAR = year;
+  const byMonth = {};
+  SHOP_REVENUE_BY_MONTH.filter(r => r.month.startsWith(year)).forEach(r => { byMonth[r.month.slice(5,7)] = r.revenue; });
+  const total = Object.values(byMonth).reduce((s,v) => s+Number(v), 0);
+  document.getElementById('shopRevenueYearTotal').textContent = fmtMoney(total, bt.currency);
+  const rows = monthNames().map((name, i) => {
+    const key = String(i+1).padStart(2,'0');
+    return {name, revenue: byMonth[key] || 0};
+  });
+  CURRENT_SHOP_REVENUE_ROWS = rows;
+  const now = new Date();
+  const lastElapsedMonth = (Number(year) === now.getFullYear()) ? (now.getMonth() + 1) : 12;
+  renderShopRevenueChart(rows, lastElapsedMonth, bt.currency);
+  document.getElementById('shopRevenueBody').innerHTML = `<table><thead><tr><th>${t('col_month')}</th><th>${t('col_revenue')}</th></tr></thead><tbody>
+    ${rows.map(r => '<tr><td>'+r.name+'</td><td>'+(r.revenue ? fmtMoney(r.revenue, bt.currency) : '—')+'</td></tr>').join('')}
+    </tbody></table>`;
+}
+// Meme graphique en courbe SVG fait main que le panneau admin (voir
+// renderRevenueChart() dans admin.html pour le detail des choix) - les 12
+// mois de l'annee restent affiches, la courbe ne se trace que jusqu'au
+// dernier mois deja ecoule, et une seconde courbe pointillee superpose le
+// cumul mis a l'echelle sur son propre maximum.
+function renderShopRevenueChart(rows, lastElapsedMonth, currency) {
+  const w = 760, h = 200, padBottom = 26, padTop = 16, padSide = 16;
+  const max = Math.max(1, ...rows.map(r => Number(r.revenue)));
+  const innerW = w - padSide*2;
+  const innerH = h - padTop - padBottom;
+  const pts = rows.map((r, i) => {
+    const x = padSide + (i / (rows.length - 1)) * innerW;
+    const y = padTop + innerH - (Number(r.revenue) / max) * innerH;
+    return {x, y, r, i};
+  });
+  const elapsed = pts.slice(0, lastElapsedMonth);
+  const curveThrough = (points) => {
+    let path = `M ${points[0].x} ${points[0].y}`;
+    for (let i = 0; i < points.length - 1; i++) {
+      const p0 = points[i], p1 = points[i+1];
+      const midX = (p0.x + p1.x) / 2;
+      path += ` C ${midX} ${p0.y}, ${midX} ${p1.y}, ${p1.x} ${p1.y}`;
+    }
+    return path;
+  };
+  let path = '', areaPath = '';
+  if (elapsed.length >= 2) {
+    path = curveThrough(elapsed);
+    areaPath = `${path} L ${elapsed[elapsed.length-1].x} ${h - padBottom} L ${elapsed[0].x} ${h - padBottom} Z`;
+  }
+  let cumuPath = '';
+  const cumuValues = [];
+  let running = 0;
+  elapsed.forEach(p => { running += Number(p.r.revenue); cumuValues.push(running); });
+  const cumuMax = Math.max(1, ...cumuValues);
+  if (elapsed.length >= 2) {
+    const cumuPts = elapsed.map((p, i) => ({x: p.x, y: padTop + innerH - (cumuValues[i] / cumuMax) * innerH}));
+    cumuPath = curveThrough(cumuPts);
+  }
+  const dots = pts.map(p => `<circle cx="${p.x}" cy="${p.y}" r="4" fill="${p.i < lastElapsedMonth ? (p.r.revenue > 0 ? '#ea580c' : '#cbd5e1') : '#f1f5f9'}" stroke="#fff" stroke-width="1.5"><title>${monthNames()[p.i]} : ${p.i < lastElapsedMonth ? fmtMoney(p.r.revenue, currency) : t('upcoming')}</title></circle>`).join('');
+  const cumuDots = elapsed.length >= 2 ? elapsed.map((p, i) => {
+    const cy = padTop + innerH - (cumuValues[i] / cumuMax) * innerH;
+    return `<rect x="${p.x-3.5}" y="${cy-3.5}" width="7" height="7" fill="#2563eb" stroke="#fff" stroke-width="1.2" transform="rotate(45 ${p.x} ${cy})"><title>${monthNames()[p.i]} : ${t('cumulative_prefix')}${fmtMoney(cumuValues[i], currency)}</title></rect>`;
+  }).join('') : '';
+  const labels = pts.map(p => `<text x="${p.x}" y="${h - 8}" text-anchor="middle" font-size="11" fill="${p.i < lastElapsedMonth ? '#64748b' : '#cbd5e1'}">${monthAbbr()[p.i]}</text>`).join('');
+  const gridY = h - padBottom;
+  document.getElementById('shopRevenueChart').innerHTML = `<svg viewBox="0 0 ${w} ${h}" style="width:100%;height:auto;max-height:220px">
+    <defs><linearGradient id="shopRevFill" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ea580c" stop-opacity="0.25"/>
+      <stop offset="100%" stop-color="#ea580c" stop-opacity="0"/>
+    </linearGradient></defs>
+    <line x1="${padSide}" y1="${gridY}" x2="${w - padSide}" y2="${gridY}" stroke="#e2e8f0" stroke-width="1"/>
+    ${areaPath ? `<path d="${areaPath}" fill="url(#shopRevFill)"/>` : ''}
+    ${path ? `<path d="${path}" fill="none" stroke="#ea580c" stroke-width="2.5"/>` : ''}
+    ${cumuPath ? `<path d="${cumuPath}" fill="none" stroke="#2563eb" stroke-width="2.5" stroke-dasharray="7 5" stroke-linecap="round"/>` : ''}
+    ${dots}
+    ${cumuDots}
+    ${labels}
+  </svg>`;
+}
+
 
 // ============================================================
 // TRADUCTION (FR/EN) - textes fixes de l'interface. Les messages qui
@@ -700,6 +807,14 @@ const I18N = {
     modal_new_supplier_order: 'Nouvelle commande fournisseur',
     reports_title: 'Rapports de ventes',
     reports_subtitle: 'Suivez les performances de votre boutique.',
+    monthly_evolution_title: 'Évolution mensuelle des ventes',
+    total_year_label: 'Total de l\'année : ',
+    legend_monthly: 'Ventes mensuelles',
+    legend_cumulative: 'Ventes cumulées',
+    legend_scale_note: '(échelle propre à chaque courbe)',
+    col_month: 'Mois',
+    upcoming: 'à venir',
+    cumulative_prefix: 'cumul ',
     kpi_gross_sales: 'Ventes brutes',
     kpi_orders: 'Commandes',
     kpi_avg_cart2: 'Panier moyen',
@@ -1338,6 +1453,14 @@ const I18N = {
     modal_new_supplier_order: 'New supplier order',
     reports_title: 'Sales reports',
     reports_subtitle: 'Track your shop\'s performance.',
+    monthly_evolution_title: 'Monthly sales evolution',
+    total_year_label: 'Total for the year: ',
+    legend_monthly: 'Monthly sales',
+    legend_cumulative: 'Cumulative sales',
+    legend_scale_note: '(each curve has its own scale)',
+    col_month: 'Month',
+    upcoming: 'upcoming',
+    cumulative_prefix: 'cumulative ',
     kpi_gross_sales: 'Gross sales',
     kpi_orders: 'Orders',
     kpi_avg_cart2: 'Average cart',
@@ -3262,9 +3385,13 @@ function supplierOrderStatus(id, status) { post('/products?action=supplier_order
 function renderReports(bt, period) {
   period = period || '30d';
   document.getElementById('content').innerHTML = `<div class="empty">${t('loading')}</div>`;
-  api('/analytics?action=report&boutique_id='+bt.id+'&period='+period).then(({data}) => {
+  Promise.all([
+    api('/analytics?action=report&boutique_id='+bt.id+'&period='+period),
+    api('/analytics?action=revenue_by_month&boutique_id='+bt.id),
+  ]).then(([{data}, revData]) => {
     if (!data.success) { document.getElementById('content').innerHTML = '<div class="card">'+escapeHtml(data.message)+'</div>'; return; }
     const R = data.data;
+    SHOP_REVENUE_BY_MONTH = (revData.data.success && revData.data.data) || [];
     window.__reportsData = R; window.__reportsPeriod = period;
     document.getElementById('content').innerHTML = `
       <div class="row-between"><div><h2 class="page-title">${t('reports_title')}</h2><div class="page-sub">${t('reports_subtitle')}</div></div>
@@ -3279,6 +3406,21 @@ function renderReports(bt, period) {
         <div class="kpi"><div class="lbl">${t('kpi_orders')}</div><div class="val">${R.commandes}</div></div>
         <div class="kpi"><div class="lbl">${t('kpi_avg_cart2')}</div><div class="val">${fmtMoney(R.panier_moyen, bt.currency)}</div></div>
         <div class="kpi"><div class="lbl">${t('kpi_delivered')}</div><div class="val">${R.livrees}</div></div>
+      </div>
+      <div class="card">
+        <div class="row-between" style="margin-bottom:12px">
+          <h3 style="margin:0">${t('monthly_evolution_title')}</h3>
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+            <select id="shopRevenueYear" onchange="renderShopRevenue(CURRENT)" style="width:auto;margin:0"></select>
+            <div><span class="muted" style="font-size:13px">${t('total_year_label')}</span><strong id="shopRevenueYearTotal" style="font-size:16px"></strong></div>
+          </div>
+        </div>
+        <div class="chart-legend" style="display:flex;gap:18px;font-size:12px;color:var(--gray);margin-bottom:10px;font-weight:600">
+          <span><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#ea580c;margin-right:5px;vertical-align:middle"></span>${t('legend_monthly')}</span>
+          <span><span style="display:inline-block;width:8px;height:8px;background:#2563eb;margin-right:6px;vertical-align:middle;transform:rotate(45deg)"></span>${t('legend_cumulative')} <span style="font-weight:400">${t('legend_scale_note')}</span></span>
+        </div>
+        <div id="shopRevenueChart" style="margin-bottom:16px"></div>
+        <div class="table-wrap" id="shopRevenueBody" style="overflow-x:auto"></div>
       </div>
       <div class="card"><h3>${t('breakdown_title')}</h3>
         <table><tbody>
@@ -3297,6 +3439,7 @@ function renderReports(bt, period) {
         : '<div class="empty" style="text-align:left">'+t('no_campaign_data')+'<br><code>utm_source=facebook&utm_medium=paid&utm_campaign={{campaign.id}}</code></div>'}
       </div>
     `;
+    setupShopRevenueYears(bt);
     window.__periodChange = p => renderReports(bt, p);
   });
 }
