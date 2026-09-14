@@ -987,10 +987,18 @@ const I18N = {
     pending_request_prefix: 'Demande en cours pour le plan ',
     first_month_free: '1er mois gratuit',
     per_month: '/mois',
+    per_year_13_months: '/an (13 mois)',
+    annual_free_month_note: '✓ 1 mois offert',
+    annual_toggle_label: 'Payer 12 mois d\'un coup (1 mois offert)',
     boutique_limit_suffix: ' boutique(s)',
     btn_current_plan: 'Plan actuel',
     btn_choose: 'Choisir',
+    btn_notify_payment_sent: 'J\'ai payé, prévenir MYBOUTIK',
+    payment_phone_label: 'Numéro : ',
+    phone_copied_toast: 'Numéro copié !',
+    copy_failed_toast: 'Impossible de copier',
     confirm_subscribe: 'Passer au plan {plan} ({price}/mois) ?\n\nUne demande d\'activation sera envoyée ; votre plan actuel reste actif jusqu\'à validation du paiement par l\'équipe MYBOUTIK.',
+    confirm_subscribe_annual: 'Passer au plan {plan} ({price} pour 12 mois, 1 mois offert = 13 mois d\'accès) ?\n\nUne demande d\'activation sera envoyée ; votre plan actuel reste actif jusqu\'à validation du paiement par l\'équipe MYBOUTIK.',
     confirm_subscribe_free: 'Activer le plan {plan} avec votre 1er mois gratuit ?\n\nAucun paiement requis, l\'activation est immédiate.',
     affiliate_title: 'Affiliation',
     affiliate_subtitle: 'Recommandez MYBOUTIK et gagnez 10% de chaque abonnement payé par vos filleuls.',
@@ -1635,10 +1643,18 @@ const I18N = {
     pending_request_prefix: 'Request pending for the ',
     first_month_free: '1st month free',
     per_month: '/month',
+    per_year_13_months: '/year (13 months)',
+    annual_free_month_note: '✓ 1 month free',
+    annual_toggle_label: 'Pay 12 months upfront (1 month free)',
     boutique_limit_suffix: ' shop(s)',
     btn_current_plan: 'Current plan',
     btn_choose: 'Choose',
+    btn_notify_payment_sent: 'I\'ve paid, notify MYBOUTIK',
+    payment_phone_label: 'Number: ',
+    phone_copied_toast: 'Number copied!',
+    copy_failed_toast: 'Unable to copy',
     confirm_subscribe: 'Switch to the {plan} plan ({price}/month)?\n\nAn activation request will be sent; your current plan stays active until the MYBOUTIK team verifies the payment.',
+    confirm_subscribe_annual: 'Switch to the {plan} plan ({price} for 12 months, 1 month free = 13 months of access)?\n\nAn activation request will be sent; your current plan stays active until the MYBOUTIK team verifies the payment.',
     confirm_subscribe_free: 'Activate the {plan} plan with your free 1st month?\n\nNo payment required, activation is immediate.',
     affiliate_title: 'Affiliate',
     affiliate_subtitle: 'Recommend MYBOUTIK and earn 10% of every subscription paid by your referrals.',
@@ -3927,46 +3943,86 @@ function paymentMethodBadgesHtml() {
     ${logo('djamo.png', 'Djamo')}
   </div>`;
 }
+let BILLING_DATA = null;
+let ANNUAL_MODE = false;
 function renderBilling() {
   document.getElementById('content').innerHTML = `<div class="empty">${t('loading')}</div>`;
+  ANNUAL_MODE = false;
   api('/billing?action=plans').then(({data}) => {
     if (!data.success) { document.getElementById('content').innerHTML = '<div class="card">'+escapeHtml(data.message)+'</div>'; return; }
-    const B = data.data;
-    const plans = Object.entries(B.plans);
-    const daysLeft = B.plan_valid_until ? Math.ceil((new Date(B.plan_valid_until) - new Date()) / 86400000) : null;
-    document.getElementById('content').innerHTML = `
+    BILLING_DATA = data.data;
+    renderBillingContent();
+  });
+}
+function toggleAnnualMode() {
+  ANNUAL_MODE = document.getElementById('annualToggle').checked;
+  renderBillingContent();
+}
+function renderBillingContent() {
+  const B = BILLING_DATA;
+  const plans = Object.entries(B.plans);
+  const daysLeft = B.plan_valid_until ? Math.ceil((new Date(B.plan_valid_until) - new Date()) / 86400000) : null;
+  document.getElementById('content').innerHTML = `
       <h2 class="page-title">${t('billing_title')}</h2>
       <div class="page-sub">${t('current_plan_prefix')}<strong>${B.plans[B.current_plan]?.name || B.current_plan}</strong> ${B.plan_status==='active'?'<span class="pill pill-delivered">'+t('status_active')+'</span>':'<span class="pill pill-pending">'+t('status_pending')+'</span>'}
         ${daysLeft !== null ? (daysLeft >= 0 ? t('access_valid_until_prefix')+fmtDate(B.plan_valid_until)+' ('+daysLeft+t('days_remaining_suffix') : ' — <strong style="color:#b91c1c">'+t('access_expired_prefix')+fmtDate(B.plan_valid_until)+'</strong>') : ''}
       </div>
-      <div style="margin-bottom:18px"><div class="muted" style="font-size:12px;margin-bottom:6px">${t('accepted_payment_methods_label')}</div>${paymentMethodBadgesHtml()}</div>
+      <div style="margin-bottom:18px"><div class="muted" style="font-size:12px;margin-bottom:6px">${t('accepted_payment_methods_label')}</div>${paymentMethodBadgesHtml()}
+        <div style="display:flex;align-items:center;gap:8px;margin-top:10px">
+          <span style="font-size:13px;color:var(--gray)">${t('payment_phone_label')}<strong style="color:var(--ink)">${B.payment_phone}</strong></span>
+          <button class="btn btn-ghost btn-sm" onclick="copyPaymentPhone('${B.payment_phone}')">📋 ${t('btn_copy')}</button>
+        </div>
+      </div>
       ${daysLeft !== null && daysLeft < 0 ? '<div class="card" style="background:#fef2f2;border-color:#fecaca">'+t('blocked_access_warning')+'</div>' : ''}
       ${daysLeft !== null && daysLeft >= 0 && daysLeft <= 5 ? '<div class="card" style="background:var(--amber-bg);border-color:#fde68a">'+t('expiring_soon_prefix')+daysLeft+t('expiring_soon_suffix')+'</div>' : ''}
-      ${B.pending_request ? `<div class="card" style="background:var(--amber-bg);border-color:#fde68a">${t('pending_request_prefix')}<strong>${B.plans[B.pending_request.plan]?.name}</strong> — ${B.payment_instructions}</div>` : ''}
+      ${B.pending_request ? `<div class="card" style="background:var(--amber-bg);border-color:#fde68a">
+          <div>${t('pending_request_prefix')}<strong>${B.plans[B.pending_request.plan]?.name}</strong> — ${B.payment_instructions}</div>
+          <button class="btn btn-primary btn-sm" style="margin-top:10px" onclick="notifyPaymentSentWhatsApp('${B.payment_phone}','${B.plans[B.pending_request.plan]?.name}')">✅ ${t('btn_notify_payment_sent')}</button>
+        </div>` : ''}
+      <label style="display:flex;align-items:center;gap:8px;margin-bottom:14px;cursor:pointer">
+        <input type="checkbox" id="annualToggle" onchange="toggleAnnualMode()" ${ANNUAL_MODE?'checked':''}>
+        ${t('annual_toggle_label')}
+      </label>
       <div class="kpi-grid plans-grid">
-        ${plans.map(([key,p]) => `
+        ${plans.map(([key,p]) => {
+          const isFreeTrial = key==='starter' && B.free_trial_eligible;
+          const useAnnual = ANNUAL_MODE && !isFreeTrial;
+          const displayPrice = useAnnual ? p.price*12 : p.price;
+          return `
           <div class="card" style="${key===B.current_plan?'border-color:var(--blue)':''}">
             <div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px">
               <h3 style="margin:0">${p.name}</h3>
-              ${key==='starter' && B.free_trial_eligible ? '<span style="color:#16a34a;font-weight:700;font-size:26px;white-space:nowrap">'+t('first_month_free')+'</span>' : ''}
+              ${isFreeTrial ? '<span style="color:#16a34a;font-weight:700;font-size:26px;white-space:nowrap">'+t('first_month_free')+'</span>' : ''}
             </div>
-            <div style="font-size:22px;font-weight:800;margin:8px 0">${fmtMoney(p.price)}<span class="muted" style="font-size:13px;font-weight:400">${t('per_month')}</span></div>
+            <div style="font-size:22px;font-weight:800;margin:8px 0">${fmtMoney(displayPrice)}<span class="muted" style="font-size:13px;font-weight:400">${useAnnual ? t('per_year_13_months') : t('per_month')}</span></div>
+            ${useAnnual ? '<div style="color:#16a34a;font-size:12px;font-weight:700;margin:-8px 0 8px">'+t('annual_free_month_note')+'</div>' : ''}
             <div class="muted" style="margin-bottom:14px">${p.boutique_limit}${t('boutique_limit_suffix')}</div>
-            ${key===B.current_plan ? '<button class="btn btn-ghost btn-block" disabled>'+t('btn_current_plan')+'</button>' : '<button class="btn btn-primary btn-block" onclick="subscribeToPlan(\''+key+'\',\''+p.name+'\','+p.price+','+(key==='starter'&&B.free_trial_eligible?'true':'false')+')">'+t('btn_choose')+'</button>'}
-          </div>`).join('')}
+            ${key===B.current_plan ? '<button class="btn btn-ghost btn-block" disabled>'+t('btn_current_plan')+'</button>' : '<button class="btn btn-primary btn-block" onclick="subscribeToPlan(\''+key+'\',\''+p.name+'\','+displayPrice+','+(isFreeTrial?'true':'false')+','+(useAnnual?'true':'false')+')">'+t('btn_choose')+'</button>'}
+          </div>`;
+        }).join('')}
       </div>
     `;
-  });
 }
-function subscribeToPlan(plan, planName, price, isFreeTrial) {
-  const question = isFreeTrial ? tf('confirm_subscribe_free', {plan: planName}) : tf('confirm_subscribe', {plan: planName, price: fmtMoney(price)});
+function subscribeToPlan(plan, planName, price, isFreeTrial, isAnnual) {
+  const question = isFreeTrial ? tf('confirm_subscribe_free', {plan: planName}) : tf(isAnnual ? 'confirm_subscribe_annual' : 'confirm_subscribe', {plan: planName, price: fmtMoney(price)});
   customConfirm(question).then(ok => {
     if (!ok) return;
-    post('/billing?action=subscribe', {plan}).then(({data}) => {
+    post('/billing?action=subscribe', {plan, annual: !!isAnnual}).then(({data}) => {
       showToast(data.message, data.success ? 'success' : 'error');
       if (data.success) renderBilling();
     });
   });
+}
+function copyPaymentPhone(phone) {
+  navigator.clipboard.writeText(phone).then(() => showToast(t('phone_copied_toast'), 'success')).catch(() => showToast(t('copy_failed_toast'), 'error'));
+}
+// Notifie immediatement l'operateur par WhatsApp plutot que d'attendre
+// qu'il remarque la demande dans le panneau admin - potentiellement plus
+// rapide que les 24h annoncees dans les instructions de paiement.
+function notifyPaymentSentWhatsApp(phone, planName) {
+  const digits = phone.replace(/\D/g, '');
+  const text = 'Bonjour MYBOUTIK, je viens d\'envoyer le paiement pour le plan '+planName+'.\nMon email : '+(USER.email||'')+'\nMerci de verifier et activer mon abonnement.';
+  window.open('https://wa.me/'+digits+'?text='+encodeURIComponent(text), '_blank');
 }
 
 // ============================================================

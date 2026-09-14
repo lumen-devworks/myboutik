@@ -245,6 +245,8 @@ const I18N = {
     email_copied: 'Email copié : ',
     copy_failed: 'Impossible de copier',
     confirm_approve: 'Approuver le plan {plan} pour {email} ?\n\nSon abonnement sera activé/prolongé de 30 jours.',
+    confirm_approve_annual: 'Approuver le plan {plan} (annuel) pour {email} ?\n\nVérifiez qu\'il a bien envoyé 12 mois de paiement. Son abonnement sera activé/prolongé de 13 mois (1 mois offert).',
+    col_cycle: 'Cycle', cycle_annual: 'Annuel (1 mois offert)', cycle_monthly: 'Mensuel',
     confirm_reject: 'Rejeter la demande de plan {plan} pour {email} ?',
     confirm_payout: 'Confirmer que le retrait de {amount} FCFA pour {email} a bien été payé ?\n\nCette action est irréversible.',
     toast_done: 'Fait.', toast_error: 'Erreur.', toast_payout_marked: 'Paiement marqué payé.',
@@ -323,6 +325,8 @@ const I18N = {
     email_copied: 'Email copied: ',
     copy_failed: 'Unable to copy',
     confirm_approve: 'Approve the {plan} plan for {email}?\n\nTheir subscription will be activated/extended by 30 days.',
+    confirm_approve_annual: 'Approve the {plan} plan (annual) for {email}?\n\nMake sure they sent 12 months of payment. Their subscription will be activated/extended by 13 months (1 month free).',
+    col_cycle: 'Cycle', cycle_annual: 'Annual (1 month free)', cycle_monthly: 'Monthly',
     confirm_reject: 'Reject the {plan} plan request for {email}?',
     confirm_payout: 'Confirm that the {amount} FCFA payout for {email} has been paid?\n\nThis action is irreversible.',
     toast_done: 'Done.', toast_error: 'Error.', toast_payout_marked: 'Payment marked as paid.',
@@ -782,10 +786,10 @@ function renderSubs(rows) {
   SUBS_ROWS = rows;
   const hoursSince = r => (Date.now() - new Date(r.created_at).getTime()) / 3600000;
   const locale = LANG === 'en' ? 'en-US' : 'fr-FR';
-  document.getElementById('subsBody').innerHTML = rows.length ? `<table><thead><tr><th>${t('col_email')}</th><th>${t('col_plan')}</th><th>${t('col_date')}</th><th></th></tr></thead><tbody>
-    ${rows.map(r => `<tr><td>${r.email}</td><td>${r.plan}</td><td>${new Date(r.created_at).toLocaleString(locale)}${hoursSince(r) > 24 ? '<span class="badge-late">'+tf('waiting_since', {n: Math.floor(hoursSince(r)/24)})+'</span>' : ''}</td>
-      <td><button onclick="review('${r.id}','subscription_approve','${r.email}','${r.plan}',true)">${t('btn_approve')}</button>
-          <button class="ghost" onclick="review('${r.id}','subscription_reject','${r.email}','${r.plan}',false)">${t('btn_reject')}</button></td></tr>`).join('')}
+  document.getElementById('subsBody').innerHTML = rows.length ? `<table><thead><tr><th>${t('col_email')}</th><th>${t('col_plan')}</th><th>${t('col_cycle')}</th><th>${t('col_date')}</th><th></th></tr></thead><tbody>
+    ${rows.map(r => `<tr><td>${r.email}</td><td>${r.plan}</td><td>${r.billing_cycle==='annual' ? '<span class="pill pill-warn">'+t('cycle_annual')+'</span>' : '<span class="pill" style="background:var(--bg);color:var(--ink)">'+t('cycle_monthly')+'</span>'}</td><td>${new Date(r.created_at).toLocaleString(locale)}${hoursSince(r) > 24 ? '<span class="badge-late">'+tf('waiting_since', {n: Math.floor(hoursSince(r)/24)})+'</span>' : ''}</td>
+      <td><button onclick="review('${r.id}','subscription_approve','${r.email}','${r.plan}',true,${r.billing_cycle==='annual'})">${t('btn_approve')}</button>
+          <button class="ghost" onclick="review('${r.id}','subscription_reject','${r.email}','${r.plan}',false,false)">${t('btn_reject')}</button></td></tr>`).join('')}
     </tbody></table>` : '<p style="color:var(--gray)">'+t('no_pending_requests')+'</p>';
 }
 function renderPayouts(rows) {
@@ -795,8 +799,8 @@ function renderPayouts(rows) {
       <td><button onclick="markPayoutPaid('${r.id}','${r.email}',${Math.round(r.amount)})">${t('btn_mark_paid')}</button></td></tr>`).join('')}
     </tbody></table>` : '<p style="color:var(--gray)">'+t('no_pending_payouts')+'</p>';
 }
-function review(id, action, email, plan, isApprove) {
-  const question = isApprove ? tf('confirm_approve', {plan, email}) : tf('confirm_reject', {plan, email});
+function review(id, action, email, plan, isApprove, isAnnual) {
+  const question = isApprove ? tf(isAnnual ? 'confirm_approve_annual' : 'confirm_approve', {plan, email}) : tf('confirm_reject', {plan, email});
   customConfirm(question, {danger: !isApprove}).then(ok => {
     if (!ok) return;
     call(action, {id}).then(data => {

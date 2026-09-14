@@ -692,6 +692,12 @@ function route_install() {
     )",
     "CREATE INDEX IF NOT EXISTS idx_subreq_user ON subscription_requests(user_id)",
     "CREATE INDEX IF NOT EXISTS idx_subreq_status ON subscription_requests(status)",
+    // 'monthly' (30 jours, tarif normal), 'annual' (390 jours = 13x30, tarif
+    // 12x le prix mensuel - 1 mois offert), 'free_trial' (30 jours, 0 FCFA,
+    // voir is_eligible_for_free_starter_month()) - determine la duree
+    // accordee a l'approbation (voir admin_subscription_approve()) et le
+    // montant compte comme revenu (voir subscription_request_amount()).
+    "ALTER TABLE subscription_requests ADD COLUMN IF NOT EXISTS billing_cycle VARCHAR(12) DEFAULT 'monthly'",
     // Avis sur la plateforme MYBOUTIK elle-meme - soit d'un marchand connecte
     // (user_id renseigne), soit d'un client acheteur anonyme identifie par
     // son telephone/nom saisis a la volee (user_id NULL, customer_* renseignes) -
@@ -3979,6 +3985,11 @@ function route_billing($action) {
 function user_ever_had_approved_subscription($userId) {
     return (bool) q("SELECT 1 FROM subscription_requests WHERE user_id=? AND status='approved' LIMIT 1", [$userId])->fetch();
 }
+// Numero unique reutilise partout (instructions, bouton WhatsApp "J'ai
+// paye", copie en un clic cote tableau de bord) - un seul endroit a
+// modifier si ce numero change un jour.
+define('PAYMENT_PHONE_DISPLAY', '+225 07 78 79 83 19');
+
 function billing_plans($pl) {
     $user = q("SELECT plan, plan_status, plan_valid_until FROM users WHERE id=?", [$pl['sub']])->fetch();
     $pending = q("SELECT * FROM subscription_requests WHERE user_id=? AND status='pending' ORDER BY created_at DESC LIMIT 1", [$pl['sub']])->fetch();
@@ -3987,7 +3998,8 @@ function billing_plans($pl) {
         'plan_valid_until' => $user['plan_valid_until'],
         'pending_request' => $pending ?: null,
         'free_trial_eligible' => !user_ever_had_approved_subscription($pl['sub']),
-        'payment_instructions' => 'Envoyez le montant du plan choisi via Orange Money, Wave ou Djomo au +225 07 78 79 83 19 (MYBOUTIK). Votre plan sera active des verification manuelle du paiement par l\'equipe MYBOUTIK (generalement sous 24h).',
+        'payment_phone' => PAYMENT_PHONE_DISPLAY,
+        'payment_instructions' => 'Envoyez le montant du plan choisi via Orange Money, Wave ou Djomo au '.PAYMENT_PHONE_DISPLAY.' (MYBOUTIK). Votre plan sera active des verification manuelle du paiement par l\'equipe MYBOUTIK (generalement sous 24h).',
     ]);
 }
 
@@ -3999,18 +4011,28 @@ function billing_subscribe($pl) {
     // n'a jamais eu d'abonnement approuve avant (voir
     // user_ever_had_approved_subscription()) - active immediatement, sans
     // paiement ni validation admin, et sans commission de parrainage
-    // (aucun argent reel n'a change de mains).
+    // (aucun argent reel n'a change de mains). billing_cycle='free_trial'
+    // pour que les stats de revenu (subscription_request_amount()) ne le
+    // comptent jamais comme un vrai paiement.
     if ($plan === 'starter' && !user_ever_had_approved_subscription($pl['sub'])) {
         $id = uid();
-        q("INSERT INTO subscription_requests (id,user_id,plan,status,reviewed_at) VALUES (?,?,?,'approved',NOW())", [$id, $pl['sub'], $plan]);
+        q("INSERT INTO subscription_requests (id,user_id,plan,status,reviewed_at,billing_cycle) VALUES (?,?,?,'approved',NOW(),'free_trial')", [$id, $pl['sub'], $plan]);
         q("UPDATE users SET plan='starter', plan_status='active', plan_valid_until=NOW() + INTERVAL '30 days' WHERE id=?", [$pl['sub']]);
         ok(null, 'Votre mois gratuit Starter est active immediatement !', 201);
     }
+    // Formule annuelle : paie 12x le tarif mensuel mais 13 mois sont
+    // accordes a l'approbation (voir admin_subscription_approve()) - "1
+    // mois offert". Le prix affiche/mentionne ici reste le prix MENSUEL
+    // (PLANS) ; seul le total a envoyer, calcule ici, change avec le cycle.
+    $annual = !!($b['annual'] ?? false);
+    $cycle = $annual ? 'annual' : 'monthly';
     $existing = q("SELECT id FROM subscription_requests WHERE user_id=? AND plan=? AND status='pending'", [$pl['sub'], $plan])->fetch();
     if ($existing) { ok(null, 'Demande deja en attente de verification'); }
+    $amount = PLANS[$plan]['price'] * ($annual ? 12 : 1);
+    $amountLabel = number_format($amount, 0, ',', ' ').' FCFA'.($annual ? ' (12 mois, 1 mois offert = 13 mois d\'acces)' : '');
     $id = uid();
-    q("INSERT INTO subscription_requests (id,user_id,plan) VALUES (?,?,?)", [$id, $pl['sub'], $plan]);
-    ok(null, 'Demande enregistree. Envoyez le montant via Orange Money, Wave ou Djomo au +225 07 78 79 83 19 (MYBOUTIK) - votre plan sera active des verification du paiement par l\'equipe MYBOUTIK (generalement sous 24h).', 201);
+    q("INSERT INTO subscription_requests (id,user_id,plan,billing_cycle) VALUES (?,?,?,?)", [$id, $pl['sub'], $plan, $cycle]);
+    ok(null, 'Demande enregistree. Envoyez '.$amountLabel.' via Orange Money, Wave ou Djomo au '.PAYMENT_PHONE_DISPLAY.' (MYBOUTIK) - votre plan sera active des verification du paiement par l\'equipe MYBOUTIK (generalement sous 24h).', 201);
 }
 
 function billing_affiliate_info($pl) {
@@ -4167,9 +4189,9 @@ function admin_clients_list() {
                      WHERE bm.user_id=? AND bm.status='active'", [$u['id']])->fetchAll();
         $u['member_boutique_count'] = count($member);
         $u['member_boutique_names'] = array_column($member, 'name');
-        $approved = q("SELECT plan FROM subscription_requests WHERE user_id=? AND status='approved'", [$u['id']])->fetchAll();
+        $approved = q("SELECT plan, billing_cycle FROM subscription_requests WHERE user_id=? AND status='approved'", [$u['id']])->fetchAll();
         $u['payments_count'] = count($approved);
-        $u['total_paid'] = array_sum(array_map(fn($r) => PLANS[$r['plan']]['price'] ?? 0, $approved));
+        $u['total_paid'] = array_sum(array_map('subscription_request_amount', $approved));
     }
     ok($users);
 }
@@ -4188,11 +4210,11 @@ function admin_subscription_history() {
 // plan (PLANS), comme admin_clients_list() - aucun prix historique fige par
 // demande n'est stocke.
 function admin_revenue_by_month() {
-    $rows = q("SELECT plan, COALESCE(reviewed_at, created_at) AS paid_at FROM subscription_requests WHERE status='approved'")->fetchAll();
+    $rows = q("SELECT plan, billing_cycle, COALESCE(reviewed_at, created_at) AS paid_at FROM subscription_requests WHERE status='approved'")->fetchAll();
     $byMonth = [];
     foreach ($rows as $r) {
         $key = date('Y-m', strtotime($r['paid_at']));
-        $byMonth[$key] = ($byMonth[$key] ?? 0) + (PLANS[$r['plan']]['price'] ?? 0);
+        $byMonth[$key] = ($byMonth[$key] ?? 0) + subscription_request_amount($r);
     }
     ksort($byMonth);
     $result = [];
@@ -4243,23 +4265,46 @@ function admin_boutique_set_status() {
     ok(null, $status === 'suspended' ? 'Boutique suspendue' : 'Boutique reactivee');
 }
 
+// Montant reellement paye pour une demande, selon son billing_cycle -
+// 'annual' = 12x le tarif mensuel (paye pour 13 mois d'acces), 'free_trial'
+// = 0 (aucun argent n'a change de mains), 'monthly'/absent = tarif normal.
+// Source unique utilisee par les stats de revenu ET le calcul de
+// commission de parrainage, pour qu'un abonnement annuel ou gratuit ne
+// soit jamais compte comme un mois normal a l'un des deux endroits sans
+// l'autre.
+function subscription_request_amount($req) {
+    $base = PLANS[$req['plan']]['price'] ?? 0;
+    $cycle = $req['billing_cycle'] ?? 'monthly';
+    if ($cycle === 'annual') return $base * 12;
+    if ($cycle === 'free_trial') return 0;
+    return $base;
+}
+// Duree accordee a l'approbation, selon le billing_cycle - 390 jours
+// (13x30) pour l'annuel ("1 mois offert"), 30 jours sinon.
+function subscription_request_days($req) {
+    return ($req['billing_cycle'] ?? 'monthly') === 'annual' ? 390 : 30;
+}
+
 function admin_subscription_approve() {
     $b = body();
     $req = q("SELECT * FROM subscription_requests WHERE id=?", [$b['id'] ?? ''])->fetch();
     if (!$req) fail('Demande introuvable', 404);
-    // Prolonge de 30 jours a partir de MAINTENANT (pas cumule sur l'ancienne
-    // date) - si un compte est deja expire depuis longtemps, le paiement
-    // repart d'un mois plein a partir d'aujourd'hui plutot que de rester
-    // bloque a cause d'un cumul depuis une tres vieille date.
-    q("UPDATE users SET plan=?, plan_status='active', plan_valid_until=NOW() + INTERVAL '30 days' WHERE id=?", [$req['plan'], $req['user_id']]);
+    // Prolonge a partir de MAINTENANT (pas cumule sur l'ancienne date) - si
+    // un compte est deja expire depuis longtemps, le paiement repart d'une
+    // periode pleine a partir d'aujourd'hui plutot que de rester bloque a
+    // cause d'un cumul depuis une tres vieille date. Duree selon le cycle
+    // (30 jours, ou 390 pour l'annuel "1 mois offert" - voir
+    // subscription_request_days()).
+    $days = subscription_request_days($req);
+    q("UPDATE users SET plan=?, plan_status='active', plan_valid_until=NOW() + (?::text || ' days')::interval WHERE id=?", [$req['plan'], $days, $req['user_id']]);
     q("UPDATE subscription_requests SET status='approved', reviewed_at=NOW() WHERE id=?", [$req['id']]);
-    // Commission de parrainage (10% du prix du plan) si ce compte a ete
-    // recrute via un lien d'affiliation - une seule fois par abonnement
-    // approuve (subscription_request_id), jamais recalculee si le meme
-    // plan est de nouveau approuve plus tard.
+    // Commission de parrainage (10% du montant reellement paye) si ce
+    // compte a ete recrute via un lien d'affiliation - une seule fois par
+    // abonnement approuve (subscription_request_id), jamais recalculee si
+    // le meme plan est de nouveau approuve plus tard.
     $referredUser = q("SELECT referred_by FROM users WHERE id=?", [$req['user_id']])->fetch();
     if ($referredUser && $referredUser['referred_by']) {
-        $amount = round((PLANS[$req['plan']]['price'] ?? 0) * 0.10, 2);
+        $amount = round(subscription_request_amount($req) * 0.10, 2);
         if ($amount > 0) {
             q("INSERT INTO referral_commissions (id,referrer_user_id,referred_user_id,subscription_request_id,plan,amount) VALUES (?,?,?,?,?,?)",
               [uid(), $referredUser['referred_by'], $req['user_id'], $req['id'], $req['plan'], $amount]);
