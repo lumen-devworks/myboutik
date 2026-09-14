@@ -1017,6 +1017,7 @@ const I18N = {
     gsheets_title: 'Google Sheets',
     gsheets_subtitle: 'Publiez votre feuille en CSV (Fichier → Partager → Publier sur le web → CSV) puis collez le lien ici.',
     label_sheet_link: 'Lien de votre Google Sheet (CSV)',
+    accepted_payment_methods_label: 'Moyens de paiement acceptés',
     checkbox_enable_integration: 'Activer cette intégration',
     sheet_auto_sync_note: 'Une fois activée, la feuille est importée automatiquement toutes les heures — inutile de cliquer sur "Importer maintenant" à chaque fois.',
     btn_import_now: 'Importer maintenant',
@@ -1664,6 +1665,7 @@ const I18N = {
     gsheets_title: 'Google Sheets',
     gsheets_subtitle: 'Publish your sheet as CSV (File → Share → Publish to web → CSV) then paste the link here.',
     label_sheet_link: 'Your Google Sheet link (CSV)',
+    accepted_payment_methods_label: 'Accepted payment methods',
     checkbox_enable_integration: 'Enable this integration',
     sheet_auto_sync_note: 'Once enabled, the sheet is imported automatically every hour — no need to click "Import now" each time.',
     btn_import_now: 'Import now',
@@ -3936,9 +3938,10 @@ function renderBilling() {
       <div class="page-sub">${t('current_plan_prefix')}<strong>${B.plans[B.current_plan]?.name || B.current_plan}</strong> ${B.plan_status==='active'?'<span class="pill pill-delivered">'+t('status_active')+'</span>':'<span class="pill pill-pending">'+t('status_pending')+'</span>'}
         ${daysLeft !== null ? (daysLeft >= 0 ? t('access_valid_until_prefix')+fmtDate(B.plan_valid_until)+' ('+daysLeft+t('days_remaining_suffix') : ' — <strong style="color:#b91c1c">'+t('access_expired_prefix')+fmtDate(B.plan_valid_until)+'</strong>') : ''}
       </div>
+      <div style="margin-bottom:18px"><div class="muted" style="font-size:12px;margin-bottom:6px">${t('accepted_payment_methods_label')}</div>${paymentMethodBadgesHtml()}</div>
       ${daysLeft !== null && daysLeft < 0 ? '<div class="card" style="background:#fef2f2;border-color:#fecaca">'+t('blocked_access_warning')+'</div>' : ''}
       ${daysLeft !== null && daysLeft >= 0 && daysLeft <= 5 ? '<div class="card" style="background:var(--amber-bg);border-color:#fde68a">'+t('expiring_soon_prefix')+daysLeft+t('expiring_soon_suffix')+'</div>' : ''}
-      ${B.pending_request ? `<div class="card" style="background:var(--amber-bg);border-color:#fde68a">${t('pending_request_prefix')}<strong>${B.plans[B.pending_request.plan]?.name}</strong> — ${B.payment_instructions}${paymentMethodBadgesHtml()}</div>` : ''}
+      ${B.pending_request ? `<div class="card" style="background:var(--amber-bg);border-color:#fde68a">${t('pending_request_prefix')}<strong>${B.plans[B.pending_request.plan]?.name}</strong> — ${B.payment_instructions}</div>` : ''}
       <div class="kpi-grid plans-grid">
         ${plans.map(([key,p]) => `
           <div class="card" style="${key===B.current_plan?'border-color:var(--blue)':''}">
