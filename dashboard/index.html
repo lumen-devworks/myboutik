@@ -3912,6 +3912,18 @@ function saveProfile() {
 // ============================================================
 // Abonnement
 // ============================================================
+// Badges colores (pas de vraie image externe, pour ne pas dependre d'un
+// hebergeur de logo tiers qui pourrait bloquer le hotlink) reprenant la
+// couleur de marque de chaque moyen de paiement mentionne dans les
+// instructions - plus reconnaissable visuellement qu'un simple texte.
+function paymentMethodBadgesHtml() {
+  const badge = (bg, fg, label) => `<span style="display:inline-flex;align-items:center;background:${bg};color:${fg};font-weight:700;font-size:12px;padding:5px 12px;border-radius:999px;white-space:nowrap">${label}</span>`;
+  return `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+    ${badge('#FF6600', '#fff', '🟠 Orange Money')}
+    ${badge('#1DC8DA', '#00303a', '🌊 Wave')}
+    ${badge('#5B3DF6', '#fff', '💜 Djamo')}
+  </div>`;
+}
 function renderBilling() {
   document.getElementById('content').innerHTML = `<div class="empty">${t('loading')}</div>`;
   api('/billing?action=plans').then(({data}) => {
@@ -3926,7 +3938,7 @@ function renderBilling() {
       </div>
       ${daysLeft !== null && daysLeft < 0 ? '<div class="card" style="background:#fef2f2;border-color:#fecaca">'+t('blocked_access_warning')+'</div>' : ''}
       ${daysLeft !== null && daysLeft >= 0 && daysLeft <= 5 ? '<div class="card" style="background:var(--amber-bg);border-color:#fde68a">'+t('expiring_soon_prefix')+daysLeft+t('expiring_soon_suffix')+'</div>' : ''}
-      ${B.pending_request ? `<div class="card" style="background:var(--amber-bg);border-color:#fde68a">${t('pending_request_prefix')}<strong>${B.plans[B.pending_request.plan]?.name}</strong> — ${B.payment_instructions}</div>` : ''}
+      ${B.pending_request ? `<div class="card" style="background:var(--amber-bg);border-color:#fde68a">${t('pending_request_prefix')}<strong>${B.plans[B.pending_request.plan]?.name}</strong> — ${B.payment_instructions}${paymentMethodBadgesHtml()}</div>` : ''}
       <div class="kpi-grid plans-grid">
         ${plans.map(([key,p]) => `
           <div class="card" style="${key===B.current_plan?'border-color:var(--blue)':''}">
