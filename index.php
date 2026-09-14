@@ -670,6 +670,10 @@ function route_install() {
     )",
     "CREATE INDEX IF NOT EXISTS idx_refcomm_referrer ON referral_commissions(referrer_user_id)",
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS referral_clicks INT DEFAULT 0",
+    // Numero WhatsApp du marchand (facultatif, renseigne dans Profil) -
+    // utilise pour pre-remplir "Mon numero" dans le message WhatsApp
+    // "J'ai paye" envoye a l'operateur (voir billing_plans()).
+    "ALTER TABLE users ADD COLUMN IF NOT EXISTS whatsapp_number VARCHAR(30)",
     // Un retrait couvre toujours la totalite du solde "disponible" au
     // moment de la demande (les commissions couvertes passent en
     // status='requested' pour ne pas etre comptees deux fois dans une
@@ -1387,7 +1391,7 @@ function auth_login() {
 
 function auth_me() {
     $pl = owner_auth();
-    $user = q("SELECT id,email,full_name,plan,plan_status,created_at FROM users WHERE id=?", [$pl['sub']])->fetch();
+    $user = q("SELECT id,email,full_name,plan,plan_status,whatsapp_number,created_at FROM users WHERE id=?", [$pl['sub']])->fetch();
     if (!$user) fail('Compte introuvable', 404);
     ok($user);
 }
@@ -1397,7 +1401,8 @@ function auth_profile_update() {
     $b = body();
     $user = q("SELECT * FROM users WHERE id=?", [$pl['sub']])->fetch();
     $fullName = trim($b['full_name'] ?? $user['full_name']);
-    q("UPDATE users SET full_name=? WHERE id=?", [$fullName, $user['id']]);
+    $whatsapp = trim($b['whatsapp_number'] ?? $user['whatsapp_number']);
+    q("UPDATE users SET full_name=?, whatsapp_number=? WHERE id=?", [$fullName, $whatsapp, $user['id']]);
     if (!empty($b['new_password'])) {
         if (strlen($b['new_password']) < 6) fail('Le nouveau mot de passe doit contenir au moins 6 caracteres');
         q("UPDATE users SET password_hash=? WHERE id=?", [password_hash($b['new_password'], PASSWORD_DEFAULT), $user['id']]);
@@ -3991,7 +3996,7 @@ function user_ever_had_approved_subscription($userId) {
 }
 
 function billing_plans($pl) {
-    $user = q("SELECT plan, plan_status, plan_valid_until FROM users WHERE id=?", [$pl['sub']])->fetch();
+    $user = q("SELECT plan, plan_status, plan_valid_until, whatsapp_number FROM users WHERE id=?", [$pl['sub']])->fetch();
     $pending = q("SELECT * FROM subscription_requests WHERE user_id=? AND status='pending' ORDER BY created_at DESC LIMIT 1", [$pl['sub']])->fetch();
     ok([
         'plans' => PLANS, 'current_plan' => $user['plan'], 'plan_status' => $user['plan_status'],
@@ -3999,6 +4004,7 @@ function billing_plans($pl) {
         'pending_request' => $pending ?: null,
         'free_trial_eligible' => !user_ever_had_approved_subscription($pl['sub']),
         'payment_phone' => PAYMENT_PHONE_DISPLAY,
+        'merchant_whatsapp' => $user['whatsapp_number'],
         'payment_instructions' => 'Envoyez le montant du plan choisi via Orange Money, Wave ou Djomo au '.PAYMENT_PHONE_DISPLAY.' (MYBOUTIK). Votre plan sera active des verification manuelle du paiement par l\'equipe MYBOUTIK (generalement sous 24h).',
     ]);
 }

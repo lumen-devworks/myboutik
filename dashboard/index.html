@@ -964,6 +964,9 @@ const I18N = {
     role_comptable: 'Comptable',
     profile_title: 'Mon profil',
     label_full_name: 'Nom complet',
+    label_whatsapp_number: 'Numéro WhatsApp (recommandé)',
+    placeholder_whatsapp_number: 'Ex: +225 07 00 00 00 00',
+    whatsapp_number_hint: 'Utilisé pour pré-remplir votre numéro dans le message envoyé à MYBOUTIK quand vous confirmez un paiement.',
     label_new_password: 'Nouveau mot de passe (laisser vide pour ne pas changer)',
     placeholder_min_6_chars: '6 caractères minimum',
     profile_updated: 'Profil mis à jour',
@@ -1620,6 +1623,9 @@ const I18N = {
     role_comptable: 'Accountant',
     profile_title: 'My profile',
     label_full_name: 'Full name',
+    label_whatsapp_number: 'WhatsApp number (recommended)',
+    placeholder_whatsapp_number: 'E.g.: +225 07 00 00 00 00',
+    whatsapp_number_hint: 'Used to pre-fill your number in the message sent to MYBOUTIK when you confirm a payment.',
     label_new_password: 'New password (leave empty to keep it unchanged)',
     placeholder_min_6_chars: 'Minimum 6 characters',
     profile_updated: 'Profile updated',
@@ -3885,6 +3891,9 @@ function renderProfile() {
         <div id="profileMsg"></div>
         <div class="field"><label>${t('label_full_name')}</label><input id="profName" value="${escapeHtml(u.full_name||'')}"></div>
         <div class="field"><label>${t('col_email')}</label><input value="${escapeHtml(u.email)}" readonly></div>
+        <div class="field"><label>${t('label_whatsapp_number')}</label><input id="profWhatsapp" value="${escapeHtml(u.whatsapp_number||'')}" placeholder="${t('placeholder_whatsapp_number')}">
+          <div class="muted" style="font-size:12px;margin-top:4px">${t('whatsapp_number_hint')}</div>
+        </div>
         <div class="field"><label>${t('label_new_password')}</label>
           <div class="password-wrap"><input id="profPassword" type="password" placeholder="${t('placeholder_min_6_chars')}">
             <button type="button" class="pw-toggle" onclick="togglePasswordVisibility('profPassword', this)">🙈</button></div>
@@ -3915,7 +3924,7 @@ function submitFeedback() {
   });
 }
 function saveProfile() {
-  const payload = {full_name: document.getElementById('profName').value.trim()};
+  const payload = {full_name: document.getElementById('profName').value.trim(), whatsapp_number: document.getElementById('profWhatsapp').value.trim()};
   const pwd = document.getElementById('profPassword').value;
   if (pwd) payload.new_password = pwd;
   post('/auth?action=profile_update', payload).then(({data}) => {
@@ -3977,7 +3986,7 @@ function renderBillingContent() {
       ${daysLeft !== null && daysLeft >= 0 && daysLeft <= 5 ? '<div class="card" style="background:var(--amber-bg);border-color:#fde68a">'+t('expiring_soon_prefix')+daysLeft+t('expiring_soon_suffix')+'</div>' : ''}
       ${B.pending_request ? `<div class="card" style="background:var(--amber-bg);border-color:#fde68a">
           <div>${t('pending_request_prefix')}<strong>${B.plans[B.pending_request.plan]?.name}</strong> — ${B.payment_instructions}</div>
-          <button class="btn btn-primary btn-sm" style="margin-top:10px" onclick="notifyPaymentSentWhatsApp('${B.payment_phone}','${B.plans[B.pending_request.plan]?.name}')">✅ ${t('btn_notify_payment_sent')}</button>
+          <button class="btn btn-primary btn-sm" style="margin-top:10px" onclick="notifyPaymentSentWhatsApp('${B.payment_phone}','${B.plans[B.pending_request.plan]?.name}','${escapeHtml(B.merchant_whatsapp||'')}')">✅ ${t('btn_notify_payment_sent')}</button>
         </div>` : ''}
       <label style="display:flex;align-items:center;gap:8px;margin-bottom:14px;cursor:pointer">
         <input type="checkbox" id="annualToggle" onchange="toggleAnnualMode()" ${ANNUAL_MODE?'checked':''}>
@@ -4019,9 +4028,10 @@ function copyPaymentPhone(phone) {
 // Notifie immediatement l'operateur par WhatsApp plutot que d'attendre
 // qu'il remarque la demande dans le panneau admin - potentiellement plus
 // rapide que les 24h annoncees dans les instructions de paiement.
-function notifyPaymentSentWhatsApp(phone, planName) {
+function notifyPaymentSentWhatsApp(phone, planName, merchantWhatsapp) {
   const digits = phone.replace(/\D/g, '');
-  const text = 'Bonjour MYBOUTIK, je viens d\'envoyer le paiement pour le plan '+planName+'.\nMon email : '+(USER.email||'')+'\nMerci de verifier et activer mon abonnement.';
+  const whatsappLine = merchantWhatsapp ? '\nMon numero WhatsApp : '+merchantWhatsapp : '\n(Ajoutez votre numero WhatsApp dans Profil pour qu\'il apparaisse ici automatiquement.)';
+  const text = 'Bonjour MYBOUTIK, je viens d\'envoyer le paiement pour le plan '+planName+'.\nMon email : '+(USER.email||'')+whatsappLine+'\nMerci de verifier et activer mon abonnement.';
   window.open('https://wa.me/'+digits+'?text='+encodeURIComponent(text), '_blank');
 }
 
