@@ -211,6 +211,7 @@ const I18N = {
     confirm_order_btn: 'Confirmer la commande (paiement à la livraison)',
     confirm_order_digital_btn: 'Confirmer la commande',
     back_to_cart_btn: '← Retour au panier',
+    back_btn: 'Retour',
     order_confirmed_title: 'Commande confirmée',
     order_ref_label: 'Référence : ',
     order_confirmed_note: 'Vous serez contacté(e) pour la livraison. Paiement à la réception.',
@@ -305,6 +306,7 @@ const I18N = {
     confirm_order_btn: 'Confirm order (cash on delivery)',
     confirm_order_digital_btn: 'Confirm order',
     back_to_cart_btn: '← Back to cart',
+    back_btn: 'Back',
     order_confirmed_title: 'Order confirmed',
     order_ref_label: 'Reference: ',
     order_confirmed_note: "You'll be contacted for delivery. Payment on receipt.",
@@ -517,7 +519,10 @@ function openProduct(id) {
     <div id="pdPrice">${renderPriceHtml(p.price, p.compare_at_price)}</div>
     ${variantHtml}
     <div class="qty-row"><button onclick="stepQty(-1)">-</button><span id="pdQty">1</span><button onclick="stepQty(1)">+</button></div>
-    <button class="btn btn-primary" id="pdAddBtn" onclick="addToCart('${p.id}')">${t('add_to_cart_btn')}</button>
+    <div style="display:flex;gap:8px;align-items:stretch">
+      <button class="btn btn-ghost" style="width:auto;flex-shrink:0;padding:11px 14px" onclick="closeOverlay('productOverlay')">← ${t('back_btn')}</button>
+      <button class="btn btn-primary" id="pdAddBtn" style="flex:1" onclick="addToCart('${p.id}')">${t('add_to_cart_btn')}</button>
+    </div>
     <button class="btn btn-ghost" style="margin-top:8px" onclick="shareProductOnWhatsApp('${p.id}')">${t('share_whatsapp_btn')}</button>
     <div id="pdRelated"></div>
     <div id="pdReviewsSection"><button class="btn btn-ghost btn-sm" style="margin-top:14px" onclick="loadReviews('${p.id}')">${t('see_reviews_btn')}</button></div>
