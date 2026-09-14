@@ -2169,8 +2169,16 @@ function preview_html($title, $description, $imageUrl, $redirectUrl) {
         .'</body></html>';
     exit;
 }
+// Render/Cloudflare terminent le HTTPS a la frontiere et transmettent la
+// requete en HTTP simple a ce conteneur - $_SERVER['HTTPS'] est donc
+// toujours vide ici meme quand le vrai visiteur est en https, d'ou
+// l'en-tete standard X-Forwarded-Proto (pose par le proxy) verifie en
+// priorite. Sans ce correctif, og:image pointait vers un lien http:// que
+// WhatsApp/Facebook refusent d'afficher (image absente de l'apercu).
 function preview_self_base() {
-    $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+    $forwardedProto = $_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '';
+    $isHttps = strtolower($forwardedProto) === 'https' || (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off');
+    $scheme = $isHttps ? 'https' : 'http';
     return $scheme.'://'.$_SERVER['HTTP_HOST'];
 }
 function preview_shop() {
