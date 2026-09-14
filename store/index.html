@@ -16,8 +16,14 @@
   header .bar{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;row-gap:10px}
   header .bar > div{flex-wrap:nowrap}
   header .bar .btn,header .bar #cartBtn{width:auto;white-space:nowrap}
+  /* Le deuxieme groupe (langue/suivi/panier), une fois seul sur sa ligne
+     apres le retour a la ligne de l'entete, peut deborder du bord de
+     l'ecran sur un telephone etroit - il defile horizontalement dans ce
+     cas plutot que de laisser le badge du panier se faire couper (voir
+     #cartCount, positionne en dehors du bouton). */
+  header .bar > div:last-child{overflow-x:auto;padding:4px 4px 4px 0;-webkit-overflow-scrolling:touch}
   .shop-name{font-weight:800;font-size:18px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:50vw}
-  #cartBtn{position:relative;border:1px solid var(--border);background:#fff;border-radius:10px;padding:9px 14px;font-weight:600;cursor:pointer}
+  #cartBtn{position:relative;border:1px solid var(--border);background:#fff;border-radius:10px;padding:9px 14px;font-weight:600;cursor:pointer;margin-right:6px}
   #cartCount{position:absolute;top:-8px;right:-8px;background:var(--blue);color:#fff;border-radius:999px;font-size:11px;padding:1px 6px}
   .lang-switch{display:flex;gap:3px;background:var(--bg);border:1px solid var(--border);border-radius:999px;padding:3px}
   .lang-switch button{background:none;color:var(--gray);border:none;padding:6px 10px;font-size:11px;font-weight:700;border-radius:999px;cursor:pointer}
