@@ -1018,6 +1018,7 @@ const I18N = {
     gsheets_subtitle: 'Publiez votre feuille en CSV (Fichier → Partager → Publier sur le web → CSV) puis collez le lien ici.',
     label_sheet_link: 'Lien de votre Google Sheet (CSV)',
     checkbox_enable_integration: 'Activer cette intégration',
+    sheet_auto_sync_note: 'Une fois activée, la feuille est importée automatiquement toutes les heures — inutile de cliquer sur "Importer maintenant" à chaque fois.',
     btn_import_now: 'Importer maintenant',
     expected_columns_title: 'Colonnes attendues',
     col_column: 'Colonne',
@@ -1664,6 +1665,7 @@ const I18N = {
     gsheets_subtitle: 'Publish your sheet as CSV (File → Share → Publish to web → CSV) then paste the link here.',
     label_sheet_link: 'Your Google Sheet link (CSV)',
     checkbox_enable_integration: 'Enable this integration',
+    sheet_auto_sync_note: 'Once enabled, the sheet is imported automatically every hour — no need to click "Import now" each time.',
     btn_import_now: 'Import now',
     expected_columns_title: 'Expected columns',
     col_column: 'Column',
@@ -4069,7 +4071,8 @@ function renderIntegrations(bt) {
         <div class="page-sub">${t('gsheets_subtitle')}</div>
         <div id="sheetMsg"></div>
         <div class="field"><label>${t('label_sheet_link')}</label><input id="sheetUrl" value="${escapeHtml(S.sheet_url||'')}" placeholder="https://docs.google.com/spreadsheets/d/.../pub?output=csv"></div>
-        <label style="display:flex;align-items:center;gap:8px;margin-bottom:14px"><input type="checkbox" id="sheetEnabled" ${S.sheet_sync_enabled?'checked':''}> ${t('checkbox_enable_integration')}</label>
+        <label style="display:flex;align-items:center;gap:8px"><input type="checkbox" id="sheetEnabled" ${S.sheet_sync_enabled?'checked':''}> ${t('checkbox_enable_integration')}</label>
+        <div class="muted" style="font-size:12px;margin:4px 0 14px">${t('sheet_auto_sync_note')}</div>
         <div style="display:flex;gap:8px">
           <button class="btn btn-primary" onclick="saveSheetSettings()">${t('btn_save')}</button>
           <button class="btn btn-ghost" onclick="importSheetNow()">${t('btn_import_now')}</button>

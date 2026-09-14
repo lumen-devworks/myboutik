@@ -4330,15 +4330,28 @@ function csv_alias($row, $aliases) {
 
 function integrations_sheet_import($pl) {
     $bt = require_boutique_admin(bg('boutique_id'), $pl['sub']);
+    $result = sheet_import_run($bt, $pl['sub']);
+    if (isset($result['error'])) fail($result['error']);
+    ok($result, $result['imported'].' commande(s) importee(s), '.count($result['skipped']).' ligne(s) ignoree(s)');
+}
+
+// Coeur de l'import CSV, partage entre le bouton "Importer maintenant"
+// (marchand connecte, $actorUserId renseigne pour l'historique) et le cron
+// horaire cron_sheet_sync() (aucun marchand connecte, $actorUserId null -
+// voir log_activity()).
+function sheet_import_run($bt, $actorUserId = null) {
+    // Retourne toujours un tableau (jamais fail(), qui coupe la reponse
+    // HTTP) - le cron traite plusieurs boutiques d'affilee et une feuille
+    // en erreur pour l'une ne doit pas interrompre les autres.
     $url = trim($bt['sheet_url'] ?? '');
-    if ($url === '') fail('Aucun lien de feuille configure');
+    if ($url === '') return ['imported' => 0, 'skipped' => [], 'error' => 'Aucun lien de feuille configure'];
     $context = stream_context_create(['http' => ['timeout' => 15], 'https' => ['timeout' => 15]]);
     $csvRaw = @file_get_contents($url, false, $context);
     if ($csvRaw === false || trim($csvRaw) === '') {
-        fail('Impossible de recuperer la feuille (verifiez que le lien est bien publie en CSV et accessible publiquement)');
+        return ['imported' => 0, 'skipped' => [], 'error' => 'Impossible de recuperer la feuille (verifiez que le lien est bien publie en CSV et accessible publiquement)'];
     }
     $lines = preg_split('/\r\n|\r|\n/', trim($csvRaw));
-    if (count($lines) < 2) fail('La feuille est vide (juste l\'entete ou aucune ligne)');
+    if (count($lines) < 2) return ['imported' => 0, 'skipped' => [], 'error' => 'La feuille est vide (juste l\'entete ou aucune ligne)'];
     $header = array_map(fn($h) => strtolower(trim($h)), str_getcsv(array_shift($lines)));
 
     $groups = [];
@@ -4404,13 +4417,13 @@ function integrations_sheet_import($pl) {
             q("INSERT INTO delivery_assignments (id,order_id,boutique_id,status) VALUES (?,?,?,?)", [uid(), $orderId, $bt['id'], 'to_assign']);
             $pdo->commit();
             $imported++;
-            log_activity($bt['id'], 'Commande importee depuis Google Sheets: '.$ref, $pl['sub']);
+            log_activity($bt['id'], 'Commande importee depuis Google Sheets: '.$ref, $actorUserId);
         } catch (Exception $e) {
             $pdo->rollBack();
             $skipped[] = "$extRef: erreur d'import";
         }
     }
-    ok(['imported' => $imported, 'skipped' => $skipped], $imported.' commande(s) importee(s), '.count($skipped).' ligne(s) ignoree(s)');
+    return ['imported' => $imported, 'skipped' => $skipped];
 }
 
 // ============================================================
@@ -4425,6 +4438,7 @@ function route_cron($action) {
     switch ($action) {
         case 'abandoned_reminders': cron_abandoned_reminders(); break;
         case 'stock_alerts':        cron_stock_alerts(); break;
+        case 'sheet_sync':          cron_sheet_sync(); break;
         default: fail('Action inconnue', 404);
     }
 }
@@ -4493,4 +4507,21 @@ function cron_stock_alerts() {
         $sent++;
     }
     ok(['boutiques_alerted' => $sent]);
+}
+
+// Import automatique horaire pour chaque boutique qui a coche "Activer
+// cette integration" (sheet_sync_enabled) - reutilise exactement le meme
+// import que le bouton "Importer maintenant" (voir sheet_import_run()),
+// juste applique a toutes les boutiques concernees d'un coup plutot qu'a
+// une seule a la demande. Une feuille en erreur pour une boutique
+// n'empeche pas l'import des autres.
+function cron_sheet_sync() {
+    $boutiques = q("SELECT * FROM boutiques WHERE status='active' AND sheet_sync_enabled=1 AND sheet_url IS NOT NULL AND sheet_url<>''")->fetchAll();
+    $totalImported = 0; $results = [];
+    foreach ($boutiques as $bt) {
+        $r = sheet_import_run($bt, null);
+        $totalImported += $r['imported'];
+        $results[] = ['boutique' => $bt['name'], 'imported' => $r['imported'], 'skipped' => count($r['skipped']), 'error' => $r['error'] ?? null];
+    }
+    ok(['boutiques_synced' => count($boutiques), 'total_imported' => $totalImported, 'details' => $results]);
 }

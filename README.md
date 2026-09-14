@@ -139,8 +139,13 @@ déclenchées de l'extérieur par un service de cron gratuit (ex:
   — toutes les heures (l'envoi réel reste limité à 1 fois/jour par boutique
   côté serveur, un appel plus fréquent est donc sans danger). Alerte le
   marchand par email/WhatsApp des produits en stock limité.
+- `https://votre-backend.example.com/cron?action=sheet_sync&key=VOTRE_CRON_KEY`
+  — toutes les heures. Importe automatiquement les nouvelles commandes de
+  chaque boutique ayant activé "Activer cette intégration" dans
+  Intégrations → Google Sheets (même import que le bouton "Importer
+  maintenant", appliqué à toutes les boutiques concernées).
 
-Ces deux routes ne répondent qu'un petit JSON de confirmation — elles ne sont
+Ces trois routes ne répondent qu'un petit JSON de confirmation — elles ne sont
 pas destinées à être visitées par un humain, seulement appelées par le
 service de cron.
 
