@@ -3914,16 +3914,17 @@ function saveProfile() {
 // ============================================================
 // Abonnement
 // ============================================================
-// Badges colores (pas de vraie image externe, pour ne pas dependre d'un
-// hebergeur de logo tiers qui pourrait bloquer le hotlink) reprenant la
-// couleur de marque de chaque moyen de paiement mentionne dans les
-// instructions - plus reconnaissable visuellement qu'un simple texte.
+// Vrais logos (fichiers dans dashboard/img/, fournis par le marchand),
+// servis depuis notre propre site plutot qu'hotlinkes depuis un site tiers
+// - aucune depedance externe qui pourrait casser silencieusement. Chaque
+// logo garde son fond d'origine (blanc/cyan/noir) mais tous sont places
+// dans une meme carte blanche a bordure pour rester coherents cote a cote.
 function paymentMethodBadgesHtml() {
-  const badge = (bg, fg, label) => `<span style="display:inline-flex;align-items:center;background:${bg};color:${fg};font-weight:700;font-size:12px;padding:5px 12px;border-radius:999px;white-space:nowrap">${label}</span>`;
-  return `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
-    ${badge('#FF6600', '#fff', '🟠 Orange Money')}
-    ${badge('#1DC8DA', '#00303a', '🌊 Wave')}
-    ${badge('#5B3DF6', '#fff', '💜 Djamo')}
+  const logo = (src, alt) => `<span style="display:inline-flex;align-items:center;background:#fff;border:1px solid var(--border);border-radius:10px;padding:4px 10px;height:34px"><img src="img/${src}" alt="${alt}" style="height:100%;width:auto;object-fit:contain"></span>`;
+  return `<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:10px;align-items:center">
+    ${logo('orange-money.png', 'Orange Money')}
+    ${logo('wave.png', 'Wave')}
+    ${logo('djamo.png', 'Djamo')}
   </div>`;
 }
 function renderBilling() {
