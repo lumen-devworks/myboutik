@@ -65,6 +65,10 @@ define('BREVO_SENDER_NAME', getenv('BREVO_SENDER_NAME') ?: 'MYBOUTIK');
 // pour le CTA de l'annuaire. Configurable par env var pour ne pas casser au
 // prochain demenagement d'hebergement (deja arrive une fois cette session).
 define('FRONTEND_BASE_URL', rtrim(getenv('FRONTEND_BASE_URL') ?: 'https://lumen-devworks.github.io/myboutik', '/'));
+// Numero unique reutilise partout (instructions de paiement, bouton
+// WhatsApp "J'ai paye", copie en un clic cote tableau de bord) - un seul
+// endroit a modifier si ce numero change un jour.
+define('PAYMENT_PHONE_DISPLAY', '+225 07 78 79 83 19');
 // CORS restreint : seules les origines listees ici peuvent appeler l'API
 // directement depuis un navigateur. A completer avec le(s) domaine(s) ou
 // sont hebergees index.html / dashboard / store une fois deployees.
@@ -3985,10 +3989,6 @@ function route_billing($action) {
 function user_ever_had_approved_subscription($userId) {
     return (bool) q("SELECT 1 FROM subscription_requests WHERE user_id=? AND status='approved' LIMIT 1", [$userId])->fetch();
 }
-// Numero unique reutilise partout (instructions, bouton WhatsApp "J'ai
-// paye", copie en un clic cote tableau de bord) - un seul endroit a
-// modifier si ce numero change un jour.
-define('PAYMENT_PHONE_DISPLAY', '+225 07 78 79 83 19');
 
 function billing_plans($pl) {
     $user = q("SELECT plan, plan_status, plan_valid_until FROM users WHERE id=?", [$pl['sub']])->fetch();
