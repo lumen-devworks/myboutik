@@ -910,6 +910,8 @@ const I18N = {
     label_public_description: 'Description publique',
     label_logo: 'Logo',
     label_public_store_link: 'Lien public de la boutique',
+    label_preview_store_link: 'Lien avec aperçu (recommandé pour les statuts/réseaux sociaux)',
+    preview_link_note: 'Utilisez ce lien (au lieu du lien simple ci-dessus) partout où vous collez le lien vous-même — Statut WhatsApp, story Instagram, etc. — pour que la photo, le nom et la description de votre boutique s\'affichent. Les boutons de partage ci-dessus l\'utilisent déjà automatiquement.',
     btn_copy: 'Copier',
     share_note: 'Chaque bouton ouvre le réseau avec le lien déjà rempli — plus besoin de le recopier à la main. Instagram et TikTok ne permettent pas ce pré-remplissage depuis un site : le lien est copié automatiquement, il ne reste qu\'à le coller dans votre bio ou une story/vidéo.',
     label_default_delivery_fee: 'Frais de livraison par défaut (facturé au client)',
@@ -1569,6 +1571,8 @@ const I18N = {
     label_public_description: 'Public description',
     label_logo: 'Logo',
     label_public_store_link: 'Public shop link',
+    label_preview_store_link: 'Link with preview (recommended for statuses/social media)',
+    preview_link_note: 'Use this link (instead of the plain link above) anywhere you paste the link yourself - WhatsApp Status, Instagram story, etc. - so your shop\'s photo, name and description show up. The share buttons above already use it automatically.',
     btn_copy: 'Copy',
     share_note: 'Each button opens the network with the link already filled in — no need to copy it by hand. Instagram and TikTok don\'t allow this pre-filling from a website: the link is copied automatically, just paste it into your bio or a story/video.',
     label_default_delivery_fee: 'Default delivery fee (charged to the customer)',
@@ -3736,6 +3740,14 @@ function renderSettings(bt) {
           <button type="button" class="btn btn-ghost btn-sm" onclick="shareStoreOn('tiktok')">🎵 TikTok</button>
         </div>
         <div class="muted" style="font-size:12px;margin-top:6px">${t('share_note')}</div>
+      </div>
+      <div class="field">
+        <label>${t('label_preview_store_link')}</label>
+        <div class="field-row">
+          <input id="previewLinkInput" value="${API_URL}/preview?action=shop&slug=${escapeHtml(bt.slug)}" readonly>
+          <button type="button" class="btn btn-ghost" onclick="copyInput('previewLinkInput')">${t('btn_copy')}</button>
+        </div>
+        <div class="muted" style="font-size:12px;margin-top:6px">${t('preview_link_note')}</div>
       </div>
       <div class="field-row">
         <div class="field"><label>${t('label_default_delivery_fee')}</label><input id="setDeliveryFee" type="number" min="0" value="${bt.default_delivery_fee||0}"></div>
