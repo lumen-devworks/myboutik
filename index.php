@@ -4293,65 +4293,49 @@ function admin_boutique_set_status() {
 // compte n'est jamais cense se connecter normalement.
 function demo_seed_catalog() {
     return [
-        ['name'=>'Chez Awa Mode', 'category'=>'mode', 'city'=>'Abidjan', 'country'=>'Côte d\'Ivoire', 'products'=>[
+        ['name'=>'Chez Awa Mode', 'category'=>'mode', 'city'=>'Abidjan', 'country'=>'Côte d\'Ivoire', 'photo'=>'clothing', 'products'=>[
             ['Robe wax bleue',15000],['Chemise homme blanche',8000],['Jean slim noir',12000],['Boubou traditionnel',25000],['Ceinture cuir',5000]]],
-        ['name'=>'TechPlus Abidjan', 'category'=>'electronique', 'city'=>'Abidjan', 'country'=>'Côte d\'Ivoire', 'products'=>[
+        ['name'=>'TechPlus Abidjan', 'category'=>'electronique', 'city'=>'Abidjan', 'country'=>'Côte d\'Ivoire', 'photo'=>'electronics,gadget', 'products'=>[
             ['Casque Bluetooth',12000],['Chargeur rapide type-C',3500],['Powerbank 10000mAh',15000],['Écouteurs sans fil',8000],['Câble USB-C',2000]]],
-        ['name'=>'Ivoire Beauté', 'category'=>'beaute', 'city'=>'Abidjan', 'country'=>'Côte d\'Ivoire', 'products'=>[
+        ['name'=>'Ivoire Beauté', 'category'=>'beaute', 'city'=>'Abidjan', 'country'=>'Côte d\'Ivoire', 'photo'=>'makeup', 'products'=>[
             ['Huile de karité',3000],['Savon noir africain',1500],['Crème éclaircissante naturelle',5000],['Parfum femme',10000],['Kit soin visage',7000]]],
-        ['name'=>'Sénégal Saveurs', 'category'=>'alimentation', 'city'=>'Dakar', 'country'=>'Sénégal', 'products'=>[
+        ['name'=>'Sénégal Saveurs', 'category'=>'alimentation', 'city'=>'Dakar', 'country'=>'Sénégal', 'photo'=>'meal', 'products'=>[
             ['Thiéboudienne prêt à cuire',5000],['Épices Yassa',2000],['Jus de bissap',1000],['Arachides grillées',1500],['Miel local',3500]]],
-        ['name'=>'La Maison du Wax', 'category'=>'mode', 'city'=>'Bouaké', 'country'=>'Côte d\'Ivoire', 'products'=>[
+        ['name'=>'La Maison du Wax', 'category'=>'mode', 'city'=>'Bouaké', 'country'=>'Côte d\'Ivoire', 'photo'=>'clothing', 'products'=>[
             ['Tissu wax 6 yards',18000],['Robe pagne',20000],['Foulard assorti',3000],['Sac à main pagne',8000],['Turban wax',2500]]],
-        ['name'=>'Bijoux d\'Afrique', 'category'=>'mode', 'city'=>'Cotonou', 'country'=>'Bénin', 'products'=>[
+        ['name'=>'Bijoux d\'Afrique', 'category'=>'mode', 'city'=>'Cotonou', 'country'=>'Bénin', 'photo'=>'jewelry', 'products'=>[
             ['Collier perles',4000],['Bracelet assorti',2000],['Bague ethnique',3500],['Boucles d\'oreilles',2500],['Coffret bijoux',12000]]],
-        ['name'=>'Sport Elite CI', 'category'=>'autre', 'city'=>'Abidjan', 'country'=>'Côte d\'Ivoire', 'products'=>[
+        ['name'=>'Sport Elite CI', 'category'=>'autre', 'city'=>'Abidjan', 'country'=>'Côte d\'Ivoire', 'photo'=>'sport', 'products'=>[
             ['Maillot de foot',9000],['Ballon de football',7000],['Chaussures de sport',20000],['Short d\'entraînement',5000],['Gourde sport',2500]]],
-        ['name'=>'Cosmétiques Nature', 'category'=>'beaute', 'city'=>'Lomé', 'country'=>'Togo', 'products'=>[
+        ['name'=>'Cosmétiques Nature', 'category'=>'beaute', 'city'=>'Lomé', 'country'=>'Togo', 'photo'=>'makeup', 'products'=>[
             ['Gel douche naturel',2500],['Shampoing karité',3000],['Masque argile',2000],['Baume à lèvres',1000],['Gommage corps',4000]]],
-        ['name'=>'Deco & Style', 'category'=>'maison', 'city'=>'Abidjan', 'country'=>'Côte d\'Ivoire', 'products'=>[
+        ['name'=>'Deco & Style', 'category'=>'maison', 'city'=>'Abidjan', 'country'=>'Côte d\'Ivoire', 'photo'=>'furniture,home', 'products'=>[
             ['Coussin décoratif',4000],['Vase artisanal',8000],['Tapis salon',25000],['Lampe design',15000],['Cadre photo',3000]]],
-        ['name'=>'Mobile Store 225', 'category'=>'electronique', 'city'=>'Abidjan', 'country'=>'Côte d\'Ivoire', 'products'=>[
+        ['name'=>'Mobile Store 225', 'category'=>'electronique', 'city'=>'Abidjan', 'country'=>'Côte d\'Ivoire', 'photo'=>'electronics,gadget', 'products'=>[
             ['Coque téléphone',2000],['Film protecteur écran',1500],['Support téléphone voiture',3000],['Enceinte portable',12000],['Adaptateur SIM',500]]],
-        ['name'=>'Chaussures Prestige', 'category'=>'mode', 'city'=>'Yamoussoukro', 'country'=>'Côte d\'Ivoire', 'products'=>[
+        ['name'=>'Chaussures Prestige', 'category'=>'mode', 'city'=>'Yamoussoukro', 'country'=>'Côte d\'Ivoire', 'photo'=>'shoes', 'products'=>[
             ['Sandales cuir homme',10000],['Escarpins femme',15000],['Baskets tendance',18000],['Mocassins',12000],['Sandales enfant',6000]]],
-        ['name'=>'Miel & Épices', 'category'=>'alimentation', 'city'=>'Ouagadougou', 'country'=>'Burkina Faso', 'products'=>[
+        ['name'=>'Miel & Épices', 'category'=>'alimentation', 'city'=>'Ouagadougou', 'country'=>'Burkina Faso', 'photo'=>'meal', 'products'=>[
             ['Miel pur',3000],['Poivre de Guinée',1500],['Gingembre séché',1000],['Attiéké prêt',2000],['Piment en poudre',800]]],
-        ['name'=>'Baby Kids Shop', 'category'=>'autre', 'city'=>'Abidjan', 'country'=>'Côte d\'Ivoire', 'products'=>[
+        ['name'=>'Baby Kids Shop', 'category'=>'autre', 'city'=>'Abidjan', 'country'=>'Côte d\'Ivoire', 'photo'=>'baby', 'products'=>[
             ['Body bébé coton',3000],['Couches lavables',8000],['Jouet éducatif',6000],['Biberon anti-colique',4000],['Peluche douce',5000]]],
-        ['name'=>'Électro Ménager Plus', 'category'=>'electronique', 'city'=>'Dakar', 'country'=>'Sénégal', 'products'=>[
+        ['name'=>'Électro Ménager Plus', 'category'=>'electronique', 'city'=>'Dakar', 'country'=>'Sénégal', 'photo'=>'electronics,gadget', 'products'=>[
             ['Mixeur électrique',15000],['Bouilloire',10000],['Ventilateur de table',12000],['Fer à repasser',9000],['Lampe torche rechargeable',5000]]],
-        ['name'=>'Fashion Corner', 'category'=>'mode', 'city'=>'Abidjan', 'country'=>'Côte d\'Ivoire', 'products'=>[
+        ['name'=>'Fashion Corner', 'category'=>'mode', 'city'=>'Abidjan', 'country'=>'Côte d\'Ivoire', 'photo'=>'clothing', 'products'=>[
             ['T-shirt imprimé',5000],['Casquette tendance',3000],['Veste jean',15000],['Legging sport',4000],['Sac à dos',10000]]],
     ];
 }
 
-// Vignette generee localement (SVG encode en data URI) plutot qu'une
-// vraie photo - aucune dependance a un hebergeur d'images externe (voir
-// l'incident og:image/hotlink precedent), s'affiche instantanement et
-// disparait avec le reste quand admin_delete_demo_data() nettoie tout.
-// Fond tire d'une petite palette (choisi par hash du nom, stable et varie
-// d'un produit a l'autre) avec le nom du produit reparti sur 1-2 lignes.
-function demo_placeholder_image($text) {
-    $palette = ['#FDE9D9','#DCEEFB','#E8F8EE','#FCE8F3','#F3E8FD','#FFF6D9','#E0F2FE','#FEF3C7'];
-    $bg = $palette[abs(crc32($text)) % count($palette)];
-    $words = explode(' ', $text);
-    $lines = []; $current = '';
-    foreach ($words as $w) {
-        $test = trim($current.' '.$w);
-        if (strlen($test) > 16 && $current !== '') { $lines[] = $current; $current = $w; }
-        else { $current = $test; }
-    }
-    if ($current !== '') $lines[] = $current;
-    $lineHeight = 34;
-    $startY = 200 - (count($lines) - 1) * $lineHeight / 2;
-    $texts = '';
-    foreach ($lines as $i => $line) {
-        $y = $startY + $i * $lineHeight;
-        $texts .= '<text x="200" y="'.$y.'" font-family="Arial, sans-serif" font-size="26" font-weight="700" fill="#334155" text-anchor="middle" dominant-baseline="middle">'.htmlspecialchars($line, ENT_QUOTES, 'UTF-8').'</text>';
-    }
-    $svg = '<svg xmlns="http://www.w3.org/2000/svg" width="400" height="400"><rect width="400" height="400" fill="'.$bg.'"/>'.$texts.'</svg>';
-    return 'data:image/svg+xml;base64,'.base64_encode($svg);
+// Vraie photo choisie par categorie (mot-cle "photo" de la boutique, voir
+// demo_seed_catalog()) via loremflickr.com - certains mots-cles testes
+// renvoyaient des erreurs 500 chez ce service (ex: "food", "cosmetics"),
+// d'ou le choix de mots-cles alternatifs verifies fiables ("meal",
+// "makeup", etc.) pour chaque categorie utilisee ici. &lock=N fixe une
+// photo precise (calculee a partir du nom du produit) au lieu d'une photo
+// differente a chaque affichage - chaque produit garde toujours la meme.
+function demo_photo_url($keyword, $seedText) {
+    $lock = (abs(crc32($seedText)) % 90) + 2; // evite lock=1 (image de secours generique cote service)
+    return 'https://loremflickr.com/400/400/'.rawurlencode($keyword).'?lock='.$lock;
 }
 
 function admin_seed_demo_data() {
@@ -4373,7 +4357,7 @@ function admin_seed_demo_data() {
             $pSlug = unique_product_slug($btId, slugify($pname));
             q("INSERT INTO products (id,boutique_id,name,price,stock_qty,status,slug,is_physical,track_inventory,image_url)
                VALUES (?,?,?,?,?,'active',?,1,1,?)",
-              [uid(), $btId, $pname, $price, rand(5,40), $pSlug, demo_placeholder_image($pname)]);
+              [uid(), $btId, $pname, $price, rand(5,40), $pSlug, demo_photo_url($b['photo'], $pname)]);
             $productsCreated++;
         }
     }
