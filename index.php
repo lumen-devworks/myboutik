@@ -4293,40 +4293,65 @@ function admin_boutique_set_status() {
 // compte n'est jamais cense se connecter normalement.
 function demo_seed_catalog() {
     return [
-        ['name'=>'Chez Awa Mode', 'category'=>'mode', 'city'=>'Abidjan', 'country'=>'Côte d\'Ivoire', 'photo'=>'clothing', 'products'=>[
+        ['name'=>'Chez Awa Mode', 'category'=>'mode', 'city'=>'Abidjan', 'country'=>'Côte d\'Ivoire', 'photo'=>'clothing',
+         'desc'=>'Mode féminine et masculine tendance, livrée où que vous soyez.', 'products'=>[
             ['Robe wax bleue',15000],['Chemise homme blanche',8000],['Jean slim noir',12000],['Boubou traditionnel',25000],['Ceinture cuir',5000]]],
-        ['name'=>'TechPlus Abidjan', 'category'=>'electronique', 'city'=>'Abidjan', 'country'=>'Côte d\'Ivoire', 'photo'=>'electronics,gadget', 'products'=>[
+        ['name'=>'TechPlus Abidjan', 'category'=>'electronique', 'city'=>'Abidjan', 'country'=>'Côte d\'Ivoire', 'photo'=>'electronics,gadget',
+         'desc'=>'Accessoires et gadgets tech au meilleur prix.', 'products'=>[
             ['Casque Bluetooth',12000],['Chargeur rapide type-C',3500],['Powerbank 10000mAh',15000],['Écouteurs sans fil',8000],['Câble USB-C',2000]]],
-        ['name'=>'Ivoire Beauté', 'category'=>'beaute', 'city'=>'Abidjan', 'country'=>'Côte d\'Ivoire', 'photo'=>'makeup', 'products'=>[
+        ['name'=>'Ivoire Beauté', 'category'=>'beaute', 'city'=>'Abidjan', 'country'=>'Côte d\'Ivoire', 'photo'=>'makeup',
+         'desc'=>'Cosmétiques et soins naturels 100% africains.', 'products'=>[
             ['Huile de karité',3000],['Savon noir africain',1500],['Crème éclaircissante naturelle',5000],['Parfum femme',10000],['Kit soin visage',7000]]],
-        ['name'=>'Sénégal Saveurs', 'category'=>'alimentation', 'city'=>'Dakar', 'country'=>'Sénégal', 'photo'=>'meal', 'products'=>[
+        ['name'=>'Sénégal Saveurs', 'category'=>'alimentation', 'city'=>'Dakar', 'country'=>'Sénégal', 'photo'=>'meal',
+         'desc'=>'Plats et épices sénégalais faits maison.', 'products'=>[
             ['Thiéboudienne prêt à cuire',5000],['Épices Yassa',2000],['Jus de bissap',1000],['Arachides grillées',1500],['Miel local',3500]]],
-        ['name'=>'La Maison du Wax', 'category'=>'mode', 'city'=>'Bouaké', 'country'=>'Côte d\'Ivoire', 'photo'=>'clothing', 'products'=>[
+        ['name'=>'La Maison du Wax', 'category'=>'mode', 'city'=>'Bouaké', 'country'=>'Côte d\'Ivoire', 'photo'=>'clothing',
+         'desc'=>'Le wax authentique, en tissu ou déjà cousu.', 'products'=>[
             ['Tissu wax 6 yards',18000],['Robe pagne',20000],['Foulard assorti',3000],['Sac à main pagne',8000],['Turban wax',2500]]],
-        ['name'=>'Bijoux d\'Afrique', 'category'=>'mode', 'city'=>'Cotonou', 'country'=>'Bénin', 'photo'=>'jewelry', 'products'=>[
+        ['name'=>'Bijoux d\'Afrique', 'category'=>'mode', 'city'=>'Cotonou', 'country'=>'Bénin', 'photo'=>'jewelry',
+         'desc'=>'Bijoux artisanaux inspirés des traditions africaines.', 'products'=>[
             ['Collier perles',4000],['Bracelet assorti',2000],['Bague ethnique',3500],['Boucles d\'oreilles',2500],['Coffret bijoux',12000]]],
-        ['name'=>'Sport Elite CI', 'category'=>'autre', 'city'=>'Abidjan', 'country'=>'Côte d\'Ivoire', 'photo'=>'sport', 'products'=>[
+        ['name'=>'Sport Elite CI', 'category'=>'autre', 'city'=>'Abidjan', 'country'=>'Côte d\'Ivoire', 'photo'=>'sport',
+         'desc'=>'Tout l\'équipement pour vos entraînements et matchs.', 'products'=>[
             ['Maillot de foot',9000],['Ballon de football',7000],['Chaussures de sport',20000],['Short d\'entraînement',5000],['Gourde sport',2500]]],
-        ['name'=>'Cosmétiques Nature', 'category'=>'beaute', 'city'=>'Lomé', 'country'=>'Togo', 'photo'=>'makeup', 'products'=>[
+        ['name'=>'Cosmétiques Nature', 'category'=>'beaute', 'city'=>'Lomé', 'country'=>'Togo', 'photo'=>'makeup',
+         'desc'=>'Produits de beauté naturels et bio.', 'products'=>[
             ['Gel douche naturel',2500],['Shampoing karité',3000],['Masque argile',2000],['Baume à lèvres',1000],['Gommage corps',4000]]],
-        ['name'=>'Deco & Style', 'category'=>'maison', 'city'=>'Abidjan', 'country'=>'Côte d\'Ivoire', 'photo'=>'furniture,home', 'products'=>[
+        ['name'=>'Deco & Style', 'category'=>'maison', 'city'=>'Abidjan', 'country'=>'Côte d\'Ivoire', 'photo'=>'furniture,home',
+         'desc'=>'Décorez votre intérieur avec style et originalité.', 'products'=>[
             ['Coussin décoratif',4000],['Vase artisanal',8000],['Tapis salon',25000],['Lampe design',15000],['Cadre photo',3000]]],
-        ['name'=>'Mobile Store 225', 'category'=>'electronique', 'city'=>'Abidjan', 'country'=>'Côte d\'Ivoire', 'photo'=>'electronics,gadget', 'products'=>[
+        ['name'=>'Mobile Store 225', 'category'=>'electronique', 'city'=>'Abidjan', 'country'=>'Côte d\'Ivoire', 'photo'=>'electronics,gadget',
+         'desc'=>'Accessoires téléphone et petits gadgets électroniques.', 'products'=>[
             ['Coque téléphone',2000],['Film protecteur écran',1500],['Support téléphone voiture',3000],['Enceinte portable',12000],['Adaptateur SIM',500]]],
-        ['name'=>'Chaussures Prestige', 'category'=>'mode', 'city'=>'Yamoussoukro', 'country'=>'Côte d\'Ivoire', 'photo'=>'shoes', 'products'=>[
+        ['name'=>'Chaussures Prestige', 'category'=>'mode', 'city'=>'Yamoussoukro', 'country'=>'Côte d\'Ivoire', 'photo'=>'shoes',
+         'desc'=>'Chaussures élégantes pour toute la famille.', 'products'=>[
             ['Sandales cuir homme',10000],['Escarpins femme',15000],['Baskets tendance',18000],['Mocassins',12000],['Sandales enfant',6000]]],
-        ['name'=>'Miel & Épices', 'category'=>'alimentation', 'city'=>'Ouagadougou', 'country'=>'Burkina Faso', 'photo'=>'meal', 'products'=>[
+        ['name'=>'Miel & Épices', 'category'=>'alimentation', 'city'=>'Ouagadougou', 'country'=>'Burkina Faso', 'photo'=>'meal',
+         'desc'=>'Miel pur et épices locales, directement du producteur.', 'products'=>[
             ['Miel pur',3000],['Poivre de Guinée',1500],['Gingembre séché',1000],['Attiéké prêt',2000],['Piment en poudre',800]]],
-        ['name'=>'Baby Kids Shop', 'category'=>'autre', 'city'=>'Abidjan', 'country'=>'Côte d\'Ivoire', 'photo'=>'baby', 'products'=>[
+        ['name'=>'Baby Kids Shop', 'category'=>'autre', 'city'=>'Abidjan', 'country'=>'Côte d\'Ivoire', 'photo'=>'baby',
+         'desc'=>'Tout pour bébé et les tout-petits, qualité et douceur.', 'products'=>[
             ['Body bébé coton',3000],['Couches lavables',8000],['Jouet éducatif',6000],['Biberon anti-colique',4000],['Peluche douce',5000]]],
-        ['name'=>'Électro Ménager Plus', 'category'=>'electronique', 'city'=>'Dakar', 'country'=>'Sénégal', 'photo'=>'electronics,gadget', 'products'=>[
+        ['name'=>'Électro Ménager Plus', 'category'=>'electronique', 'city'=>'Dakar', 'country'=>'Sénégal', 'photo'=>'electronics,gadget',
+         'desc'=>'Électroménager fiable pour la maison au quotidien.', 'products'=>[
             ['Mixeur électrique',15000],['Bouilloire',10000],['Ventilateur de table',12000],['Fer à repasser',9000],['Lampe torche rechargeable',5000]]],
-        ['name'=>'Fashion Corner', 'category'=>'mode', 'city'=>'Abidjan', 'country'=>'Côte d\'Ivoire', 'photo'=>'clothing', 'products'=>[
+        ['name'=>'Fashion Corner', 'category'=>'mode', 'city'=>'Abidjan', 'country'=>'Côte d\'Ivoire', 'photo'=>'clothing',
+         'desc'=>'Style urbain et streetwear pour homme et femme.', 'products'=>[
             ['T-shirt imprimé',5000],['Casquette tendance',3000],['Veste jean',15000],['Legging sport',4000],['Sac à dos',10000]]],
-        ['name'=>'Cartables & Sacs Écoliers', 'category'=>'autre', 'city'=>'Abidjan', 'country'=>'Côte d\'Ivoire', 'photo'=>'schoolbag', 'products'=>[
+        ['name'=>'Cartables & Sacs Écoliers', 'category'=>'autre', 'city'=>'Abidjan', 'country'=>'Côte d\'Ivoire', 'photo'=>'schoolbag',
+         'desc'=>'Sacs et cartables solides pour la rentrée scolaire.', 'products'=>[
             ['Cartable primaire',8000],['Sac à dos collège',12000],['Trousse scolaire',3000],['Sac à roulettes',15000],['Sac de sport écolier',6000]]],
-        ['name'=>'Papeterie Scolaire Plus', 'category'=>'autre', 'city'=>'Abidjan', 'country'=>'Côte d\'Ivoire', 'photo'=>'notebook', 'products'=>[
+        ['name'=>'Papeterie Scolaire Plus', 'category'=>'autre', 'city'=>'Abidjan', 'country'=>'Côte d\'Ivoire', 'photo'=>'notebook',
+         'desc'=>'Cahiers et fournitures scolaires à petit prix.', 'products'=>[
             ['Cahier 200 pages',1000],['Lot de 5 cahiers',4000],['Cahier de dessin',1500],['Classeur A4',3500],['Ramette de papier',5000]]],
+    ];
+}
+function demo_review_pool() {
+    return [
+        'names' => ['Awa Koné','Yves Bamba','Fatou Diarra','Ibrahim Touré','Aïcha N\'Guessan','Moussa Fofana','Sarah Coulibaly','Kader Traoré','Mariam Cissé','Junior Kouassi','Aminata Bah','Rachid Ouattara','Grace Adjoumani','Salif Doumbia','Nadège Konaté'],
+        'comments' => [5=>['Très satisfait, livraison rapide !','Exactement ce que je cherchais.','Qualité au rendez-vous, merci !','Je suis ravie de mon achat, je recommande.','Service impeccable, je repasserai commande.'],
+                       4=>['Produit conforme à la description, je recommande.','Bon rapport qualité-prix.','Article reçu en bon état, très content.','Belle qualité, un peu long à recevoir.'],
+                       3=>['Correct sans plus.','Ça fait le job, rien d\'exceptionnel.']],
     ];
 }
 
@@ -4349,21 +4374,27 @@ function admin_seed_demo_data() {
         q("INSERT INTO users (id,email,password_hash,full_name,status,plan,plan_status,plan_valid_until) VALUES (?,?,?,?,?,?,?,NOW()+INTERVAL '3650 days')",
           [$userId, DEMO_SEED_EMAIL, password_hash(bin2hex(random_bytes(24)), PASSWORD_DEFAULT), 'Demo Seed', 'active', 'premium', 'active']);
     }
-    $boutiquesCreated = 0; $productsCreated = 0;
+    $reviewPool = demo_review_pool();
+    $boutiquesCreated = 0; $productsCreated = 0; $reviewsCreated = 0;
     foreach (demo_seed_catalog() as $b) {
         $slug = unique_boutique_slug(slugify($b['name']));
         $btId = uid();
-        q("INSERT INTO boutiques (id,owner_user_id,slug,name,category,city,country,public_listed,status,currency,cod_enabled)
-           VALUES (?,?,?,?,?,?,?,1,'active','XOF',1)",
-          [$btId, $userId, $slug, $b['name'], $b['category'], $b['city'], $b['country']]);
+        $logoUrl = demo_photo_url($b['photo'], $b['name'].'-logo');
+        q("INSERT INTO boutiques (id,owner_user_id,slug,name,description,logo_url,category,city,country,public_listed,status,currency,cod_enabled)
+           VALUES (?,?,?,?,?,?,?,?,?,1,'active','XOF',1)",
+          [$btId, $userId, $slug, $b['name'], $b['desc'], $logoUrl, $b['category'], $b['city'], $b['country']]);
         $boutiquesCreated++;
-        foreach ($b['products'] as [$pname, $price]) {
+        foreach ($b['products'] as $index => [$pname, $price]) {
             $pSlug = unique_product_slug($btId, slugify($pname));
             $pId = uid();
             $mainPhoto = demo_photo_url($b['photo'], $pname.'-0');
-            q("INSERT INTO products (id,boutique_id,name,price,stock_qty,status,slug,is_physical,track_inventory,image_url)
-               VALUES (?,?,?,?,?,'active',?,1,1,?)",
-              [$pId, $btId, $pname, $price, rand(5,40), $pSlug, $mainPhoto]);
+            // Un produit sur deux affiche un prix barre (compare_at_price)
+            // un peu plus haut - donne une impression de promotions actives
+            // plutot qu'un catalogue au prix fixe partout.
+            $compareAt = ($index % 2 === 0) ? $price + (rand(2,6) * 500) : null;
+            q("INSERT INTO products (id,boutique_id,name,price,compare_at_price,stock_qty,status,slug,is_physical,track_inventory,image_url)
+               VALUES (?,?,?,?,?,?,'active',?,1,1,?)",
+              [$pId, $btId, $pname, $price, $compareAt, rand(5,40), $pSlug, $mainPhoto]);
             // Galerie de plusieurs photos (comme un vrai marchand peut en
             // ajouter jusqu'a 5) - meme premiere photo que image_url pour
             // rester coherent, position 0 = principale (is_primary=1),
@@ -4375,10 +4406,22 @@ function admin_seed_demo_data() {
                   [uid(), $pId, $btId, demo_photo_url($b['photo'], $pname.'-'.$i), $i]);
             }
             $productsCreated++;
+            // 1 a 2 avis par produit, majoritairement positifs (une note de
+            // 3 de temps en temps pour rester credible) - deja 'approved',
+            // comme n'importe quel avis client publie instantanement.
+            $reviewCount = rand(1, 2);
+            for ($r = 0; $r < $reviewCount; $r++) {
+                $rating = rand(1, 10) <= 8 ? (rand(0,1) ? 5 : 4) : 3;
+                $name = $reviewPool['names'][array_rand($reviewPool['names'])];
+                $comment = $reviewPool['comments'][$rating][array_rand($reviewPool['comments'][$rating])];
+                q("INSERT INTO product_reviews (id,boutique_id,product_id,customer_name,rating,comment,status) VALUES (?,?,?,?,?,?,'approved')",
+                  [uid(), $btId, $pId, $name, $rating, $comment]);
+                $reviewsCreated++;
+            }
         }
     }
-    ok(['boutiques_created' => $boutiquesCreated, 'products_created' => $productsCreated],
-       $boutiquesCreated.' boutiques et '.$productsCreated.' produits de demonstration crees.');
+    ok(['boutiques_created' => $boutiquesCreated, 'products_created' => $productsCreated, 'reviews_created' => $reviewsCreated],
+       $boutiquesCreated.' boutiques, '.$productsCreated.' produits et '.$reviewsCreated.' avis de demonstration crees.');
 }
 
 function admin_delete_demo_data() {
