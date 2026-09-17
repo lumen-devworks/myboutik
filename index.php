@@ -4326,6 +4326,34 @@ function demo_seed_catalog() {
     ];
 }
 
+// Vignette generee localement (SVG encode en data URI) plutot qu'une
+// vraie photo - aucune dependance a un hebergeur d'images externe (voir
+// l'incident og:image/hotlink precedent), s'affiche instantanement et
+// disparait avec le reste quand admin_delete_demo_data() nettoie tout.
+// Fond tire d'une petite palette (choisi par hash du nom, stable et varie
+// d'un produit a l'autre) avec le nom du produit reparti sur 1-2 lignes.
+function demo_placeholder_image($text) {
+    $palette = ['#FDE9D9','#DCEEFB','#E8F8EE','#FCE8F3','#F3E8FD','#FFF6D9','#E0F2FE','#FEF3C7'];
+    $bg = $palette[abs(crc32($text)) % count($palette)];
+    $words = explode(' ', $text);
+    $lines = []; $current = '';
+    foreach ($words as $w) {
+        $test = trim($current.' '.$w);
+        if (strlen($test) > 16 && $current !== '') { $lines[] = $current; $current = $w; }
+        else { $current = $test; }
+    }
+    if ($current !== '') $lines[] = $current;
+    $lineHeight = 34;
+    $startY = 200 - (count($lines) - 1) * $lineHeight / 2;
+    $texts = '';
+    foreach ($lines as $i => $line) {
+        $y = $startY + $i * $lineHeight;
+        $texts .= '<text x="200" y="'.$y.'" font-family="Arial, sans-serif" font-size="26" font-weight="700" fill="#334155" text-anchor="middle" dominant-baseline="middle">'.htmlspecialchars($line, ENT_QUOTES, 'UTF-8').'</text>';
+    }
+    $svg = '<svg xmlns="http://www.w3.org/2000/svg" width="400" height="400"><rect width="400" height="400" fill="'.$bg.'"/>'.$texts.'</svg>';
+    return 'data:image/svg+xml;base64,'.base64_encode($svg);
+}
+
 function admin_seed_demo_data() {
     $user = q("SELECT id FROM users WHERE email=?", [DEMO_SEED_EMAIL])->fetch();
     $userId = $user['id'] ?? uid();
@@ -4343,9 +4371,9 @@ function admin_seed_demo_data() {
         $boutiquesCreated++;
         foreach ($b['products'] as [$pname, $price]) {
             $pSlug = unique_product_slug($btId, slugify($pname));
-            q("INSERT INTO products (id,boutique_id,name,price,stock_qty,status,slug,is_physical,track_inventory)
-               VALUES (?,?,?,?,?,'active',?,1,1)",
-              [uid(), $btId, $pname, $price, rand(5,40), $pSlug]);
+            q("INSERT INTO products (id,boutique_id,name,price,stock_qty,status,slug,is_physical,track_inventory,image_url)
+               VALUES (?,?,?,?,?,'active',?,1,1,?)",
+              [uid(), $btId, $pname, $price, rand(5,40), $pSlug, demo_placeholder_image($pname)]);
             $productsCreated++;
         }
     }
