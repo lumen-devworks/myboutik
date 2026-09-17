@@ -4179,6 +4179,8 @@ function route_admin($action) {
         case 'feedback_mark_replied': admin_feedback_mark_replied(); break;
         case 'boutiques_list':        admin_boutiques_list(); break;
         case 'boutique_set_status':   admin_boutique_set_status(); break;
+        case 'seed_demo_data':        admin_seed_demo_data(); break;
+        case 'delete_demo_data':      admin_delete_demo_data(); break;
         default: fail('Action inconnue', 404);
     }
 }
@@ -4277,6 +4279,95 @@ function admin_boutique_set_status() {
     if (!$row) fail('Boutique introuvable', 404);
     q("UPDATE boutiques SET status=? WHERE id=?", [$status, $id]);
     ok(null, $status === 'suspended' ? 'Boutique suspendue' : 'Boutique reactivee');
+}
+
+// Donnees de demonstration (pub/captures d'ecran) - toutes regroupees sous
+// UN SEUL compte marchand dedie (DEMO_SEED_EMAIL), jamais melangees aux
+// vrais comptes, pour qu'admin_delete_demo_data() puisse tout retirer en
+// un clic en ne touchant qu'a ce compte. Insertion directe en SQL (pas via
+// boutiques_create()) pour ignorer la limite de boutiques par plan - ce
+// compte n'est jamais cense se connecter normalement.
+define('DEMO_SEED_EMAIL', 'demo-seed@myboutik.internal');
+
+function demo_seed_catalog() {
+    return [
+        ['name'=>'Chez Awa Mode', 'category'=>'mode', 'city'=>'Abidjan', 'country'=>'Côte d\'Ivoire', 'products'=>[
+            ['Robe wax bleue',15000],['Chemise homme blanche',8000],['Jean slim noir',12000],['Boubou traditionnel',25000],['Ceinture cuir',5000]]],
+        ['name'=>'TechPlus Abidjan', 'category'=>'electronique', 'city'=>'Abidjan', 'country'=>'Côte d\'Ivoire', 'products'=>[
+            ['Casque Bluetooth',12000],['Chargeur rapide type-C',3500],['Powerbank 10000mAh',15000],['Écouteurs sans fil',8000],['Câble USB-C',2000]]],
+        ['name'=>'Ivoire Beauté', 'category'=>'beaute', 'city'=>'Abidjan', 'country'=>'Côte d\'Ivoire', 'products'=>[
+            ['Huile de karité',3000],['Savon noir africain',1500],['Crème éclaircissante naturelle',5000],['Parfum femme',10000],['Kit soin visage',7000]]],
+        ['name'=>'Sénégal Saveurs', 'category'=>'alimentation', 'city'=>'Dakar', 'country'=>'Sénégal', 'products'=>[
+            ['Thiéboudienne prêt à cuire',5000],['Épices Yassa',2000],['Jus de bissap',1000],['Arachides grillées',1500],['Miel local',3500]]],
+        ['name'=>'La Maison du Wax', 'category'=>'mode', 'city'=>'Bouaké', 'country'=>'Côte d\'Ivoire', 'products'=>[
+            ['Tissu wax 6 yards',18000],['Robe pagne',20000],['Foulard assorti',3000],['Sac à main pagne',8000],['Turban wax',2500]]],
+        ['name'=>'Bijoux d\'Afrique', 'category'=>'mode', 'city'=>'Cotonou', 'country'=>'Bénin', 'products'=>[
+            ['Collier perles',4000],['Bracelet assorti',2000],['Bague ethnique',3500],['Boucles d\'oreilles',2500],['Coffret bijoux',12000]]],
+        ['name'=>'Sport Elite CI', 'category'=>'autre', 'city'=>'Abidjan', 'country'=>'Côte d\'Ivoire', 'products'=>[
+            ['Maillot de foot',9000],['Ballon de football',7000],['Chaussures de sport',20000],['Short d\'entraînement',5000],['Gourde sport',2500]]],
+        ['name'=>'Cosmétiques Nature', 'category'=>'beaute', 'city'=>'Lomé', 'country'=>'Togo', 'products'=>[
+            ['Gel douche naturel',2500],['Shampoing karité',3000],['Masque argile',2000],['Baume à lèvres',1000],['Gommage corps',4000]]],
+        ['name'=>'Deco & Style', 'category'=>'maison', 'city'=>'Abidjan', 'country'=>'Côte d\'Ivoire', 'products'=>[
+            ['Coussin décoratif',4000],['Vase artisanal',8000],['Tapis salon',25000],['Lampe design',15000],['Cadre photo',3000]]],
+        ['name'=>'Mobile Store 225', 'category'=>'electronique', 'city'=>'Abidjan', 'country'=>'Côte d\'Ivoire', 'products'=>[
+            ['Coque téléphone',2000],['Film protecteur écran',1500],['Support téléphone voiture',3000],['Enceinte portable',12000],['Adaptateur SIM',500]]],
+        ['name'=>'Chaussures Prestige', 'category'=>'mode', 'city'=>'Yamoussoukro', 'country'=>'Côte d\'Ivoire', 'products'=>[
+            ['Sandales cuir homme',10000],['Escarpins femme',15000],['Baskets tendance',18000],['Mocassins',12000],['Sandales enfant',6000]]],
+        ['name'=>'Miel & Épices', 'category'=>'alimentation', 'city'=>'Ouagadougou', 'country'=>'Burkina Faso', 'products'=>[
+            ['Miel pur',3000],['Poivre de Guinée',1500],['Gingembre séché',1000],['Attiéké prêt',2000],['Piment en poudre',800]]],
+        ['name'=>'Baby Kids Shop', 'category'=>'autre', 'city'=>'Abidjan', 'country'=>'Côte d\'Ivoire', 'products'=>[
+            ['Body bébé coton',3000],['Couches lavables',8000],['Jouet éducatif',6000],['Biberon anti-colique',4000],['Peluche douce',5000]]],
+        ['name'=>'Électro Ménager Plus', 'category'=>'electronique', 'city'=>'Dakar', 'country'=>'Sénégal', 'products'=>[
+            ['Mixeur électrique',15000],['Bouilloire',10000],['Ventilateur de table',12000],['Fer à repasser',9000],['Lampe torche rechargeable',5000]]],
+        ['name'=>'Fashion Corner', 'category'=>'mode', 'city'=>'Abidjan', 'country'=>'Côte d\'Ivoire', 'products'=>[
+            ['T-shirt imprimé',5000],['Casquette tendance',3000],['Veste jean',15000],['Legging sport',4000],['Sac à dos',10000]]],
+    ];
+}
+
+function admin_seed_demo_data() {
+    $user = q("SELECT id FROM users WHERE email=?", [DEMO_SEED_EMAIL])->fetch();
+    $userId = $user['id'] ?? uid();
+    if (!$user) {
+        q("INSERT INTO users (id,email,password_hash,full_name,status,plan,plan_status,plan_valid_until) VALUES (?,?,?,?,?,?,?,NOW()+INTERVAL '3650 days')",
+          [$userId, DEMO_SEED_EMAIL, password_hash(bin2hex(random_bytes(24)), PASSWORD_DEFAULT), 'Demo Seed', 'active', 'premium', 'active']);
+    }
+    $boutiquesCreated = 0; $productsCreated = 0;
+    foreach (demo_seed_catalog() as $b) {
+        $slug = unique_boutique_slug(slugify($b['name']));
+        $btId = uid();
+        q("INSERT INTO boutiques (id,owner_user_id,slug,name,category,city,country,public_listed,status,currency,cod_enabled)
+           VALUES (?,?,?,?,?,?,?,1,'active','XOF',1)",
+          [$btId, $userId, $slug, $b['name'], $b['category'], $b['city'], $b['country']]);
+        $boutiquesCreated++;
+        foreach ($b['products'] as [$pname, $price]) {
+            $pSlug = unique_product_slug($btId, slugify($pname));
+            q("INSERT INTO products (id,boutique_id,name,price,stock_qty,status,slug,is_physical,track_inventory)
+               VALUES (?,?,?,?,?,'active',?,1,1)",
+              [uid(), $btId, $pname, $price, rand(5,40), $pSlug]);
+            $productsCreated++;
+        }
+    }
+    ok(['boutiques_created' => $boutiquesCreated, 'products_created' => $productsCreated],
+       $boutiquesCreated.' boutiques et '.$productsCreated.' produits de demonstration crees.');
+}
+
+function admin_delete_demo_data() {
+    $user = q("SELECT id FROM users WHERE email=?", [DEMO_SEED_EMAIL])->fetch();
+    if (!$user) { ok(['boutiques_deleted' => 0], 'Aucune donnee de demonstration trouvee.'); return; }
+    $boutiques = q("SELECT id FROM boutiques WHERE owner_user_id=?", [$user['id']])->fetchAll();
+    foreach ($boutiques as $bt) {
+        $productIds = q("SELECT id FROM products WHERE boutique_id=?", [$bt['id']])->fetchAll(PDO::FETCH_COLUMN);
+        foreach ($productIds as $pid) {
+            q("DELETE FROM product_variants WHERE product_id=?", [$pid]);
+            q("DELETE FROM product_images WHERE product_id=?", [$pid]);
+            q("DELETE FROM product_digital_codes WHERE product_id=?", [$pid]);
+            q("DELETE FROM product_reviews WHERE product_id=?", [$pid]);
+        }
+        q("DELETE FROM products WHERE boutique_id=?", [$bt['id']]);
+        q("DELETE FROM boutiques WHERE id=?", [$bt['id']]);
+    }
+    q("DELETE FROM users WHERE id=?", [$user['id']]);
+    ok(['boutiques_deleted' => count($boutiques)], count($boutiques).' boutiques de demonstration supprimees.');
 }
 
 // Montant reellement paye pour une demande, selon son billing_cycle -
