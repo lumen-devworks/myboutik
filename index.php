@@ -4384,6 +4384,7 @@ function admin_seed_demo_data() {
            VALUES (?,?,?,?,?,?,?,?,?,1,'active','XOF',1)",
           [$btId, $userId, $slug, $b['name'], $b['desc'], $logoUrl, $b['category'], $b['city'], $b['country']]);
         $boutiquesCreated++;
+        $boutiqueProductIds = [];
         foreach ($b['products'] as $index => [$pname, $price]) {
             $pSlug = unique_product_slug($btId, slugify($pname));
             $pId = uid();
@@ -4406,6 +4407,7 @@ function admin_seed_demo_data() {
                   [uid(), $pId, $btId, demo_photo_url($b['photo'], $pname.'-'.$i), $i]);
             }
             $productsCreated++;
+            $boutiqueProductIds[] = $pId;
             // 1 a 2 avis par produit, majoritairement positifs (une note de
             // 3 de temps en temps pour rester credible) - deja 'approved',
             // comme n'importe quel avis client publie instantanement.
@@ -4418,6 +4420,15 @@ function admin_seed_demo_data() {
                   [uid(), $btId, $pId, $name, $rating, $comment]);
                 $reviewsCreated++;
             }
+        }
+        // Produits associes (upsell sur la fiche produit de la vitrine) -
+        // jusqu'a 3 autres produits de la MEME boutique, tires au sort une
+        // fois tous les produits de la boutique crees (il en faut au moins
+        // 2 pour avoir quelque chose a proposer).
+        foreach ($boutiqueProductIds as $pid) {
+            $others = array_values(array_diff($boutiqueProductIds, [$pid]));
+            shuffle($others);
+            q("UPDATE products SET related_product_ids=? WHERE id=?", [json_encode(array_slice($others, 0, 3)), $pid]);
         }
     }
     ok(['boutiques_created' => $boutiquesCreated, 'products_created' => $productsCreated, 'reviews_created' => $reviewsCreated],
