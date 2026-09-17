@@ -4323,6 +4323,10 @@ function demo_seed_catalog() {
             ['Mixeur électrique',15000],['Bouilloire',10000],['Ventilateur de table',12000],['Fer à repasser',9000],['Lampe torche rechargeable',5000]]],
         ['name'=>'Fashion Corner', 'category'=>'mode', 'city'=>'Abidjan', 'country'=>'Côte d\'Ivoire', 'photo'=>'clothing', 'products'=>[
             ['T-shirt imprimé',5000],['Casquette tendance',3000],['Veste jean',15000],['Legging sport',4000],['Sac à dos',10000]]],
+        ['name'=>'Cartables & Sacs Écoliers', 'category'=>'autre', 'city'=>'Abidjan', 'country'=>'Côte d\'Ivoire', 'photo'=>'schoolbag', 'products'=>[
+            ['Cartable primaire',8000],['Sac à dos collège',12000],['Trousse scolaire',3000],['Sac à roulettes',15000],['Sac de sport écolier',6000]]],
+        ['name'=>'Papeterie Scolaire Plus', 'category'=>'autre', 'city'=>'Abidjan', 'country'=>'Côte d\'Ivoire', 'photo'=>'notebook', 'products'=>[
+            ['Cahier 200 pages',1000],['Lot de 5 cahiers',4000],['Cahier de dessin',1500],['Classeur A4',3500],['Ramette de papier',5000]]],
     ];
 }
 
@@ -4355,9 +4359,21 @@ function admin_seed_demo_data() {
         $boutiquesCreated++;
         foreach ($b['products'] as [$pname, $price]) {
             $pSlug = unique_product_slug($btId, slugify($pname));
+            $pId = uid();
+            $mainPhoto = demo_photo_url($b['photo'], $pname.'-0');
             q("INSERT INTO products (id,boutique_id,name,price,stock_qty,status,slug,is_physical,track_inventory,image_url)
                VALUES (?,?,?,?,?,'active',?,1,1,?)",
-              [uid(), $btId, $pname, $price, rand(5,40), $pSlug, demo_photo_url($b['photo'], $pname)]);
+              [$pId, $btId, $pname, $price, rand(5,40), $pSlug, $mainPhoto]);
+            // Galerie de plusieurs photos (comme un vrai marchand peut en
+            // ajouter jusqu'a 5) - meme premiere photo que image_url pour
+            // rester coherent, position 0 = principale (is_primary=1),
+            // puis 3 photos supplementaires avec un seed different chacune.
+            q("INSERT INTO product_images (id,product_id,boutique_id,data,position,is_primary) VALUES (?,?,?,?,0,1)",
+              [uid(), $pId, $btId, $mainPhoto]);
+            for ($i = 1; $i <= 3; $i++) {
+                q("INSERT INTO product_images (id,product_id,boutique_id,data,position,is_primary) VALUES (?,?,?,?,?,0)",
+                  [uid(), $pId, $btId, demo_photo_url($b['photo'], $pname.'-'.$i), $i]);
+            }
             $productsCreated++;
         }
     }
