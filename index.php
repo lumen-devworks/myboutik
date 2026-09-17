@@ -69,6 +69,10 @@ define('FRONTEND_BASE_URL', rtrim(getenv('FRONTEND_BASE_URL') ?: 'https://lumen-
 // WhatsApp "J'ai paye", copie en un clic cote tableau de bord) - un seul
 // endroit a modifier si ce numero change un jour.
 define('PAYMENT_PHONE_DISPLAY', '+225 07 78 79 83 19');
+// Compte dedie aux boutiques de demonstration (admin_seed_demo_data()) -
+// jamais un vrai marchand, sert uniquement a regrouper ces boutiques pour
+// pouvoir tout supprimer d'un coup (admin_delete_demo_data()).
+define('DEMO_SEED_EMAIL', 'demo-seed@myboutik.internal');
 // CORS restreint : seules les origines listees ici peuvent appeler l'API
 // directement depuis un navigateur. A completer avec le(s) domaine(s) ou
 // sont hebergees index.html / dashboard / store une fois deployees.
@@ -4287,8 +4291,6 @@ function admin_boutique_set_status() {
 // un clic en ne touchant qu'a ce compte. Insertion directe en SQL (pas via
 // boutiques_create()) pour ignorer la limite de boutiques par plan - ce
 // compte n'est jamais cense se connecter normalement.
-define('DEMO_SEED_EMAIL', 'demo-seed@myboutik.internal');
-
 function demo_seed_catalog() {
     return [
         ['name'=>'Chez Awa Mode', 'category'=>'mode', 'city'=>'Abidjan', 'country'=>'Côte d\'Ivoire', 'products'=>[
