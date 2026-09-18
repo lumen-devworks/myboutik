@@ -10,6 +10,9 @@
 <meta property="og:image" content="directory/icon.svg">
 <meta property="og:type" content="website">
 <meta name="twitter:card" content="summary">
+<meta name="theme-color" content="#ea580c">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon.svg">
 <style>
   :root{
     --blue:#ea580c; --blue-dark:#c2410c; --ink:#0f172a; --gray:#64748b;
@@ -75,6 +78,7 @@
   .lang-switch{display:flex;gap:3px;background:var(--bg);border:1px solid var(--border);border-radius:999px;padding:3px}
   .lang-switch button{background:none;color:var(--gray);border:none;padding:6px 10px;font-size:11px;font-weight:700;border-radius:999px;cursor:pointer}
   .lang-switch button.active{background:var(--blue);color:#fff}
+  #installBtn{display:none}
 </style>
 </head>
 <body>
@@ -84,6 +88,7 @@
     <div class="logo"><div class="mark">MB</div> MYBOUTIK</div>
     <nav>
       <div class="lang-switch"><button type="button" id="langFr" onclick="setLang('fr')">FR</button><button type="button" id="langEn" onclick="setLang('en')">EN</button></div>
+      <button class="btn btn-ghost" onclick="installApp()" id="installBtn">📲 <span id="installBtnText"></span></button>
       <a class="btn btn-ghost" href="directory/index.html" id="navDirectoryBtn">Découvrir les boutiques</a>
       <button class="btn btn-ghost" onclick="openAuth('login')" id="navLoginBtn">Se connecter</button>
       <button class="btn btn-primary" onclick="openAuth('register')" id="navRegisterBtn">Démarrer gratuitement</button>
@@ -236,6 +241,7 @@ const I18N = {
     resend_fallback: 'Si un compte existe avec cet email, un nouveau lien vient d\'etre envoye.',
     team_invite_message: 'Vous avez ete invite(e) a rejoindre une boutique. Connectez-vous (ou creez un compte avec la meme adresse email) pour la rejoindre automatiquement.',
     session_expired_message: 'Votre session a expire. Reconnectez-vous pour continuer.',
+    install_btn: 'Installer l\'appli', installed_toast: 'MYBOUTIK est maintenant installé sur votre appareil !',
   },
   en: {
     nav_login: 'Log in', nav_register: 'Start for free', nav_directory: 'Discover shops',
@@ -275,6 +281,7 @@ const I18N = {
     resend_fallback: 'If an account exists with this email, a new link has just been sent.',
     team_invite_message: 'You have been invited to join a shop. Log in (or create an account with the same email address) to join it automatically.',
     session_expired_message: 'Your session has expired. Please log in again to continue.',
+    install_btn: 'Install app', installed_toast: 'MYBOUTIK is now installed on your device!',
   },
 };
 function t(key) { return (I18N[LANG] && I18N[LANG][key]) ?? I18N.fr[key] ?? key; }
@@ -288,6 +295,7 @@ function applyStaticTranslations() {
   document.getElementById('langFr').classList.toggle('active', LANG === 'fr');
   document.getElementById('langEn').classList.toggle('active', LANG === 'en');
   document.getElementById('navDirectoryBtn').textContent = t('nav_directory');
+  document.getElementById('installBtnText').textContent = t('install_btn');
   document.getElementById('navLoginBtn').textContent = t('nav_login');
   document.getElementById('navRegisterBtn').textContent = t('nav_register');
   document.getElementById('heroBadge').textContent = t('hero_badge');
@@ -507,6 +515,30 @@ if (new URLSearchParams(window.location.search).get('team_invite') && !localStor
 if (new URLSearchParams(window.location.search).get('session_expired')) {
   openAuth('login');
   setMsg('loginMsg', t('session_expired_message'), 'error');
+}
+
+// Installation PWA : Chrome/Edge/Android declenchent beforeinstallprompt
+// quand les criteres (manifest + service worker + https) sont remplis - on
+// garde l'evenement pour le rejouer au clic sur notre propre bouton plutot
+// que de compter sur le mini-infobar natif du navigateur.
+let deferredInstallPrompt = null;
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  deferredInstallPrompt = e;
+  document.getElementById('installBtn').style.display = 'inline-flex';
+});
+function installApp() {
+  if (!deferredInstallPrompt) return;
+  deferredInstallPrompt.prompt();
+  deferredInstallPrompt.userChoice.then((choice) => {
+    if (choice.outcome === 'accepted') showToast(t('installed_toast'), 'info');
+    deferredInstallPrompt = null;
+    document.getElementById('installBtn').style.display = 'none';
+  });
+}
+window.addEventListener('appinstalled', () => { document.getElementById('installBtn').style.display = 'none'; });
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => { navigator.serviceWorker.register('sw.js').catch(() => {}); });
 }
 </script>
 </body>

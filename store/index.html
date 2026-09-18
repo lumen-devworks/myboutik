@@ -4,6 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Boutique</title>
+<meta name="theme-color" content="#ea580c">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon.svg">
 <style>
   :root{ --blue:#ea580c; --blue-dark:#c2410c; --ink:#0f172a; --gray:#64748b; --border:#e2e8f0; --bg:#f8fafc; --green:#16a34a; --green-bg:#ecfdf5; }
   *{box-sizing:border-box;margin:0;padding:0}
@@ -28,6 +31,7 @@
   .lang-switch{display:flex;gap:3px;background:var(--bg);border:1px solid var(--border);border-radius:999px;padding:3px}
   .lang-switch button{background:none;color:var(--gray);border:none;padding:6px 10px;font-size:11px;font-weight:700;border-radius:999px;cursor:pointer}
   .lang-switch button.active{background:var(--blue);color:#fff}
+  #installBtn{display:none;border:1px solid var(--border);background:#fff;border-radius:999px;padding:7px 10px;font-size:13px;cursor:pointer;flex-shrink:0}
   #toastContainer{position:fixed;top:18px;left:50%;transform:translateX(-50%);z-index:200;display:flex;flex-direction:column;gap:8px;align-items:center;pointer-events:none;max-width:90vw}
   .toast{pointer-events:auto;padding:12px 20px;border-radius:10px;font-size:14px;font-weight:600;box-shadow:0 6px 18px rgba(15,23,42,.15);max-width:440px;text-align:center;opacity:0;transform:translateY(-8px);transition:opacity .2s,transform .2s}
   .toast.show{opacity:1;transform:translateY(0)}
@@ -250,6 +254,7 @@ const I18N = {
     status_delivered: 'Livrée', status_refused: 'Refusée', status_cancelled: 'Annulée',
     delivery_to_assign: "En attente d'un livreur", delivery_assigned: 'Livreur assigné',
     delivery_in_delivery: 'En cours de livraison', delivery_delivered: 'Livrée', delivery_refused: 'Refusée',
+    install_btn: 'Installer l\'appli', installed_toast: 'MYBOUTIK est maintenant installé sur votre appareil !',
   },
   en: {
     loading: 'Loading shop…',
@@ -345,6 +350,7 @@ const I18N = {
     status_delivered: 'Delivered', status_refused: 'Refused', status_cancelled: 'Cancelled',
     delivery_to_assign: 'Awaiting a delivery person', delivery_assigned: 'Delivery person assigned',
     delivery_in_delivery: 'Out for delivery', delivery_delivered: 'Delivered', delivery_refused: 'Refused',
+    install_btn: 'Install app', installed_toast: 'MYBOUTIK is now installed on your device!',
   },
 };
 function t(key) { return (I18N[LANG] && I18N[LANG][key]) ?? I18N.fr[key] ?? key; }
@@ -410,6 +416,7 @@ function renderShop() {
       </div>
       <div style="display:flex;align-items:center;gap:8px">
         <div class="lang-switch"><button type="button" onclick="setLang('fr')" class="${LANG==='fr'?'active':''}">FR</button><button type="button" onclick="setLang('en')" class="${LANG==='en'?'active':''}">EN</button></div>
+        <button id="installBtn" onclick="installApp()" title="${t('install_btn')}">📲</button>
         <button class="btn btn-ghost btn-sm" onclick="openTrackOrder()">${t('track_order_btn')}</button>
         <button id="cartBtn" onclick="openCart()">${t('cart_btn')}<span id="cartCount">0</span></button>
       </div>
@@ -450,6 +457,11 @@ function renderShop() {
   renderCartCount();
   renderCategoryPills();
   renderProductGrid();
+  // renderShop() reconstruit tout le header (langue, header dynamique par
+  // boutique...) - on reapplique l'etat d'installation deja connu plutot
+  // que de laisser le bouton reapparaitre a display:none par defaut.
+  const installBtnEl = document.getElementById('installBtn');
+  if (installBtnEl) installBtnEl.style.display = deferredInstallPrompt ? 'inline-flex' : 'none';
 }
 function renderCategoryPills() {
   const el = document.getElementById('categoryPills');
@@ -1088,6 +1100,37 @@ function submitPlatformFeedback() {
     if (!data.success) { msg.innerHTML = '<div class="msg error">'+data.message+'</div>'; return; }
     document.getElementById('platformFeedbackWrap').innerHTML = '<div class="msg success">'+data.message+'</div>';
   });
+}
+
+// Installation PWA : Chrome/Edge/Android declenchent beforeinstallprompt
+// quand les criteres (manifest + service worker + https) sont remplis - on
+// garde l'evenement pour le rejouer au clic sur notre propre bouton plutot
+// que de compter sur le mini-infobar natif du navigateur. Le bouton vit
+// dans le header genere par renderShop() (voir la synchro d'affichage a la
+// fin de cette fonction), pas dans le HTML statique de la page.
+let deferredInstallPrompt = null;
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  deferredInstallPrompt = e;
+  const btn = document.getElementById('installBtn');
+  if (btn) btn.style.display = 'inline-flex';
+});
+function installApp() {
+  if (!deferredInstallPrompt) return;
+  deferredInstallPrompt.prompt();
+  deferredInstallPrompt.userChoice.then((choice) => {
+    if (choice.outcome === 'accepted') showToast(t('installed_toast'), 'info');
+    deferredInstallPrompt = null;
+    const btn = document.getElementById('installBtn');
+    if (btn) btn.style.display = 'none';
+  });
+}
+window.addEventListener('appinstalled', () => {
+  const btn = document.getElementById('installBtn');
+  if (btn) btn.style.display = 'none';
+});
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => { navigator.serviceWorker.register('sw.js').catch(() => {}); });
 }
 </script>
 </body>

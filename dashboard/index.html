@@ -4,6 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>MYBOUTIK — Tableau de bord</title>
+<meta name="theme-color" content="#ea580c">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon.svg">
 <style>
   :root{
     --blue:#ea580c; --blue-dark:#c2410c; --ink:#0f172a; --gray:#64748b;
@@ -153,6 +156,7 @@
   .lang-switch{display:flex;gap:3px;background:var(--bg);border:1px solid var(--border);border-radius:999px;padding:3px}
   .lang-switch button{background:none;color:var(--gray);border:none;padding:6px 10px;font-size:11px;font-weight:700;border-radius:999px;cursor:pointer}
   .lang-switch button.active{background:var(--blue);color:#fff}
+  #installBtn{display:none}
 
   /* Telephones/petites tablettes : la barre laterale devient un tiroir qui
      se superpose au contenu au lieu de lui voler en permanence 230px de
@@ -217,6 +221,7 @@
       <span class="muted" id="userEmail" style="margin-left:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
       <div class="top-actions">
         <div class="lang-switch"><button type="button" id="langFr" onclick="setLang('fr')">FR</button><button type="button" id="langEn" onclick="setLang('en')">EN</button></div>
+        <button class="btn btn-ghost btn-sm" onclick="installApp()" id="installBtn">📲 <span id="installBtnText"></span></button>
         <button class="btn btn-ghost btn-sm" onclick="logout()" id="logoutBtn">Se déconnecter</button>
       </div>
     </div>
@@ -1077,6 +1082,7 @@ const I18N = {
     order_status_to_assign: 'À assigner',
     order_status_assigned: 'Assignée',
     order_status_in_delivery: 'En livraison',
+    install_btn: 'Installer l\'appli', installed_toast: 'MYBOUTIK est maintenant installé sur votre appareil !',
   },
   en: {
     btn_logout: 'Log out',
@@ -1746,6 +1752,7 @@ const I18N = {
     order_status_to_assign: 'To assign',
     order_status_assigned: 'Assigned',
     order_status_in_delivery: 'Out for delivery',
+    install_btn: 'Install app', installed_toast: 'MYBOUTIK is now installed on your device!',
   },
 };
 
@@ -1760,6 +1767,7 @@ function setLang(lang) {
   localStorage.setItem('myboutik_dash_lang', LANG);
   document.getElementById('langFr').classList.toggle('active', LANG === 'fr');
   document.getElementById('langEn').classList.toggle('active', LANG === 'en');
+  document.getElementById('installBtnText').textContent = t('install_btn');
   document.getElementById('logoutBtn').textContent = t('btn_logout');
   document.getElementById('sideBackAll').textContent = t('side_back_all_boutiques');
   document.getElementById('sideDirectoryLink').textContent = t('side_directory');
@@ -1865,6 +1873,7 @@ function showToast(message, type) {
 document.getElementById('userEmail').textContent = USER.email || '';
 document.getElementById('langFr').classList.toggle('active', LANG === 'fr');
 document.getElementById('langEn').classList.toggle('active', LANG === 'en');
+document.getElementById('installBtnText').textContent = t('install_btn');
 document.getElementById('logoutBtn').textContent = t('btn_logout');
 document.getElementById('sideBackAll').textContent = t('side_back_all_boutiques');
 document.getElementById('sideGuideLink').textContent = t('side_guide');
@@ -4301,6 +4310,30 @@ function importSheetNow() {
     card.innerHTML = '<h3>'+t('import_result_title')+'</h3><div class="msg success">'+data.message+'</div>' +
       (data.data.skipped.length ? '<div class="muted">'+t('skipped_rows_prefix')+'<br>'+data.data.skipped.map(escapeHtml).join('<br>')+'</div>' : '');
   });
+}
+
+// Installation PWA : Chrome/Edge/Android declenchent beforeinstallprompt
+// quand les criteres (manifest + service worker + https) sont remplis - on
+// garde l'evenement pour le rejouer au clic sur notre propre bouton plutot
+// que de compter sur le mini-infobar natif du navigateur.
+let deferredInstallPrompt = null;
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  deferredInstallPrompt = e;
+  document.getElementById('installBtn').style.display = 'inline-flex';
+});
+function installApp() {
+  if (!deferredInstallPrompt) return;
+  deferredInstallPrompt.prompt();
+  deferredInstallPrompt.userChoice.then((choice) => {
+    if (choice.outcome === 'accepted') showToast(t('installed_toast'), 'info');
+    deferredInstallPrompt = null;
+    document.getElementById('installBtn').style.display = 'none';
+  });
+}
+window.addEventListener('appinstalled', () => { document.getElementById('installBtn').style.display = 'none'; });
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => { navigator.serviceWorker.register('sw.js').catch(() => {}); });
 }
 </script>
 </body>
