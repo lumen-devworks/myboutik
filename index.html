@@ -127,6 +127,7 @@
           <button type="button" class="pw-toggle" onclick="togglePasswordVisibility('loginPassword', this)">🙈</button></div>
       </div>
       <button class="btn btn-primary btn-block" onclick="doLogin()" id="loginSubmitBtn">Se connecter</button>
+      <div style="text-align:center;margin-top:10px"><a onclick="openAuth('forgot')" style="font-size:13px;cursor:pointer" id="forgotPasswordLink">Mot de passe oublié ?</a></div>
       <div class="switch" id="loginSwitch">Pas encore de compte ? <a onclick="openAuth('register')">Créer un compte</a></div>
     </div>
 
@@ -163,6 +164,25 @@
       <div id="verifyMsg"></div>
       <button class="btn btn-primary btn-block" onclick="openAuth('login')" id="verifySubmitBtn">Se connecter</button>
     </div>
+
+    <div id="viewForgot" style="display:none">
+      <h2 id="forgotTitle">Mot de passe oublié</h2>
+      <div class="sub" id="forgotSub">On vous envoie un lien pour en choisir un nouveau</div>
+      <div id="forgotMsg"></div>
+      <div class="field"><label id="forgotEmailLabel">Email</label><input type="email" id="forgotEmail" autocomplete="email"></div>
+      <button class="btn btn-primary btn-block" onclick="doForgotPassword()" id="forgotSubmitBtn">Envoyer le lien</button>
+      <div class="switch" id="forgotSwitch">Retour à <a onclick="openAuth('login')">la connexion</a></div>
+    </div>
+
+    <div id="viewReset" style="display:none">
+      <h2 id="resetTitle">Nouveau mot de passe</h2>
+      <div id="resetMsg"></div>
+      <div class="field"><label id="resetPasswordLabel">Nouveau mot de passe</label>
+        <div class="password-wrap"><input type="password" id="resetPassword" autocomplete="new-password">
+          <button type="button" class="pw-toggle" onclick="togglePasswordVisibility('resetPassword', this)">🙈</button></div>
+      </div>
+      <button class="btn btn-primary btn-block" onclick="doResetPassword()" id="resetSubmitBtn">Réinitialiser le mot de passe</button>
+    </div>
   </div>
 </div>
 <div id="toastContainer"></div>
@@ -194,6 +214,14 @@ const I18N = {
     label_email: 'Email', label_password: 'Mot de passe',
     login_submit: 'Se connecter',
     login_switch_prefix: 'Pas encore de compte ? ', login_switch_link: 'Créer un compte',
+    forgot_password_link: 'Mot de passe oublié ?',
+    forgot_title: 'Mot de passe oublié',
+    forgot_sub: 'On vous envoie un lien pour en choisir un nouveau',
+    forgot_submit: 'Envoyer le lien',
+    forgot_switch_prefix: 'Retour à ', forgot_switch_link: 'la connexion',
+    reset_title: 'Nouveau mot de passe',
+    label_new_password_short: 'Nouveau mot de passe',
+    reset_submit: 'Réinitialiser le mot de passe',
     register_title: 'Créer un compte', register_sub: 'Lancez votre boutique en quelques minutes',
     label_full_name: 'Nom complet',
     register_submit: 'Créer mon compte',
@@ -225,6 +253,14 @@ const I18N = {
     label_email: 'Email', label_password: 'Password',
     login_submit: 'Log in',
     login_switch_prefix: 'No account yet? ', login_switch_link: 'Create an account',
+    forgot_password_link: 'Forgot your password?',
+    forgot_title: 'Forgot password',
+    forgot_sub: 'We\'ll send you a link to choose a new one',
+    forgot_submit: 'Send the link',
+    forgot_switch_prefix: 'Back to ', forgot_switch_link: 'login',
+    reset_title: 'New password',
+    label_new_password_short: 'New password',
+    reset_submit: 'Reset password',
     register_title: 'Create an account', register_sub: 'Launch your shop in a few minutes',
     label_full_name: 'Full name',
     register_submit: 'Create my account',
@@ -276,6 +312,15 @@ function applyStaticTranslations() {
   document.getElementById('loginPasswordLabel').textContent = t('label_password');
   document.getElementById('loginSubmitBtn').textContent = t('login_submit');
   document.getElementById('loginSwitch').innerHTML = t('login_switch_prefix')+'<a onclick="openAuth(\'register\')">'+t('login_switch_link')+'</a>';
+  document.getElementById('forgotPasswordLink').textContent = t('forgot_password_link');
+  document.getElementById('forgotTitle').textContent = t('forgot_title');
+  document.getElementById('forgotSub').textContent = t('forgot_sub');
+  document.getElementById('forgotEmailLabel').textContent = t('label_email');
+  document.getElementById('forgotSubmitBtn').textContent = t('forgot_submit');
+  document.getElementById('forgotSwitch').innerHTML = t('forgot_switch_prefix')+'<a onclick="openAuth(\'login\')">'+t('forgot_switch_link')+'</a>';
+  document.getElementById('resetTitle').textContent = t('reset_title');
+  document.getElementById('resetPasswordLabel').textContent = t('label_new_password_short');
+  document.getElementById('resetSubmitBtn').textContent = t('reset_submit');
   document.getElementById('registerTitle').textContent = t('register_title');
   document.getElementById('registerSub').textContent = t('register_sub');
   document.getElementById('regNameLabel').textContent = t('label_full_name');
@@ -323,7 +368,7 @@ function showToast(message, type) {
   }, 4000);
 }
 function showView(view) {
-  ['Login','Register','Pending','Verify'].forEach(v => {
+  ['Login','Register','Pending','Verify','Forgot','Reset'].forEach(v => {
     document.getElementById('view'+v).style.display = (v.toLowerCase() === view) ? 'block' : 'none';
   });
 }
@@ -363,6 +408,33 @@ function doLogin() {
     localStorage.setItem('myboutik_user', JSON.stringify(data.data.user));
     acceptTeamInviteIfPresent(data.data.token).then(() => { window.location.href = 'dashboard/index.html'; });
   });
+}
+
+function doForgotPassword() {
+  const email = document.getElementById('forgotEmail').value.trim();
+  const page_url = window.location.origin + window.location.pathname;
+  setMsg('forgotMsg','','');
+  api('/auth?action=forgot_password', {method:'POST', body:JSON.stringify({email, page_url})}).then(({data}) => {
+    setMsg('forgotMsg', data.message, data.success ? 'success' : 'error');
+  });
+}
+function doResetPassword() {
+  const new_password = document.getElementById('resetPassword').value;
+  setMsg('resetMsg','','');
+  api('/auth?action=reset_password', {method:'POST', body:JSON.stringify({token:window.__resetToken, new_password})}).then(({data}) => {
+    setMsg('resetMsg', data.message, data.success ? 'success' : 'error');
+    if (data.success) {
+      document.getElementById('resetSubmitBtn').style.display = 'none';
+      document.getElementById('resetPassword').disabled = true;
+      setTimeout(() => openAuth('login'), 1800);
+    }
+  });
+}
+function checkResetToken() {
+  const token = new URLSearchParams(window.location.search).get('reset_token');
+  if (!token) return;
+  window.__resetToken = token;
+  openAuth('reset');
 }
 
 function doRegister() {
@@ -405,6 +477,7 @@ function checkVerifyToken() {
 }
 applyStaticTranslations();
 checkVerifyToken();
+checkResetToken();
 
 // Lien d'affiliation (?ref=CODE) : memorise le code pour l'inscription et
 // compte le clic aupres du parrain, une seule fois par visite de session.
@@ -421,7 +494,7 @@ checkReferralCode();
 
 // Deja connecte ? on evite de re-proposer la page marketing (mais on traite
 // d'abord une invitation d'equipe presente dans l'URL, le cas echeant).
-if (localStorage.getItem('myboutik_token') && !new URLSearchParams(window.location.search).get('verify')) {
+if (localStorage.getItem('myboutik_token') && !new URLSearchParams(window.location.search).get('verify') && !new URLSearchParams(window.location.search).get('reset_token')) {
   acceptTeamInviteIfPresent(localStorage.getItem('myboutik_token')).then(() => { window.location.href = 'dashboard/index.html'; });
 }
 if (new URLSearchParams(window.location.search).get('team_invite') && !localStorage.getItem('myboutik_token')) {

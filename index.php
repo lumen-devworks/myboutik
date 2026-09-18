@@ -41,7 +41,7 @@ if (!JWT_SECRET) {
     echo json_encode(['success'=>false,'message'=>'Configuration serveur incomplete: JWT_SECRET non defini.'], JSON_UNESCAPED_UNICODE);
     exit;
 }
-define('JWT_EXPIRY', 43200); // 12h
+define('JWT_EXPIRY', 30 * 86400); // 30 jours (etait 12h) - voir token_version pour la revocation a distance
 // IMPORTANT: par defaut (variable absente) on retombe sur 'production'
 // (sur, ferme), jamais 'development' (permissif, ouvre le CORS a tout le
 // web et affiche les erreurs BDD brutes). 'development' ne doit s'activer
@@ -214,6 +214,12 @@ const EN_DICT = [
     'Le panier est vide' => 'The cart is empty',
     'Libelle et montant requis' => 'Label and amount required',
     'Lien de verification invalide ou deja utilise' => 'Invalid or already used verification link',
+    'Lien de reinitialisation invalide' => 'Invalid reset link',
+    'Lien de reinitialisation invalide ou expire' => 'Invalid or expired reset link',
+    'Si un compte existe avec cet email, un lien de reinitialisation vient d\'etre envoye.' => 'If an account exists with this email, a reset link has just been sent.',
+    'Mot de passe reinitialise. Vous pouvez maintenant vous connecter.' => 'Password reset. You can now log in.',
+    'Session invalidee, reconnectez-vous' => 'Session invalidated, please log in again',
+    'Deconnecte de tous les autres appareils. Cette session reste active.' => 'Logged out of all other devices. This session remains active.',
     'Livreur ajoute' => 'Delivery person added',
     'Livreur desactive' => 'Delivery person deactivated',
     'Livreur introuvable' => 'Delivery person not found',
@@ -324,9 +330,16 @@ function owner_auth() {
     if(!str_starts_with($h,'Bearer ')) fail('Token manquant',401);
     $pl = jwt_check(substr($h,7));
     if(!$pl || ($pl['typ']??'')!=='owner') fail('Token invalide ou expire',401);
-    $status = q("SELECT status FROM users WHERE id=?",[$pl['sub']])->fetchColumn();
-    if($status === false) fail('Compte introuvable',401);
-    if($status !== 'active') fail('Compte suspendu ou bloque', 403);
+    $row = q("SELECT status, token_version FROM users WHERE id=?",[$pl['sub']])->fetch();
+    if($row === false) fail('Compte introuvable',401);
+    if($row['status'] !== 'active') fail('Compte suspendu ou bloque', 403);
+    // La session de 30 jours (voir JWT_EXPIRY) reste valide tout ce temps
+    // SAUF si le compte a demande une deconnexion a distance entre-temps
+    // (auth_logout_other_devices()) ou reinitialise son mot de passe
+    // (auth_reset_password()) - les deux incrementent token_version, ce qui
+    // invalide immediatement tout jeton emis avant, sans attendre son
+    // expiration naturelle.
+    if ((int)($pl['tv'] ?? 0) !== (int)($row['token_version'] ?? 0)) fail('Session invalidee, reconnectez-vous', 401);
     return $pl;
 }
 function uid() { return bin2hex(random_bytes(8)); }
@@ -678,6 +691,18 @@ function route_install() {
     // utilise pour pre-remplir "Mon numero" dans le message WhatsApp
     // "J'ai paye" envoye a l'operateur (voir billing_plans()).
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS whatsapp_number VARCHAR(30)",
+    // Mot de passe oublie (auth_forgot_password()/auth_reset_password()) -
+    // meme principe que verification_token, mais avec expiration explicite
+    // (1h) puisqu'un lien de reinitialisation reste sensible plus longtemps.
+    "ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_token VARCHAR(64)",
+    "ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_token_expires_at TIMESTAMP",
+    // Incremente pour invalider tous les jetons de connexion deja emis (voir
+    // owner_auth() qui compare a la valeur 'tv' du jeton) - utilise par
+    // auth_logout_other_devices() (vol de telephone) et automatiquement par
+    // auth_reset_password() (un mot de passe reinitialise doit aussi couper
+    // l'acces a qui utilisait deja une session, potentiel signe de compte
+    // compromis).
+    "ALTER TABLE users ADD COLUMN IF NOT EXISTS token_version INT DEFAULT 0",
     // Un retrait couvre toujours la totalite du solde "disponible" au
     // moment de la demande (les commissions couvertes passent en
     // status='requested' pour ne pas etre comptees deux fois dans une
@@ -1279,6 +1304,9 @@ function route_auth($action) {
         case 'me':       auth_me(); break;
         case 'profile_update': auth_profile_update(); break;
         case 'track_ref_click': auth_track_ref_click(); break;
+        case 'forgot_password': auth_forgot_password(); break;
+        case 'reset_password':  auth_reset_password(); break;
+        case 'logout_other_devices': auth_logout_other_devices(); break;
         default: fail('Action inconnue', 404);
     }
 }
@@ -1387,10 +1415,68 @@ function auth_login() {
     if ($user['status'] !== 'active') fail('Compte suspendu ou bloque', 403);
     if (!$user['email_verified_at']) fail('Veuillez verifier votre email avant de vous connecter', 403);
 
-    $token = jwt_make(['sub'=>$user['id'], 'typ'=>'owner']);
+    $token = jwt_make(['sub'=>$user['id'], 'typ'=>'owner', 'tv'=>(int)($user['token_version'] ?? 0)]);
     ok(['token'=>$token, 'user'=>[
         'id'=>$user['id'], 'email'=>$user['email'], 'full_name'=>$user['full_name'],
     ]], 'Connecte');
+}
+
+// Meme construction que auth_verify_link() (voir ce commentaire pour le
+// detail du sous-dossier GitHub Pages), juste un parametre different.
+function auth_reset_link($token, $pageUrl = '') {
+    $pageUrl = trim($pageUrl);
+    if ($pageUrl !== '' && preg_match('#^https?://#i', $pageUrl)) {
+        $base = rtrim(strtok($pageUrl, '?#'), '/');
+    } else {
+        $base = rtrim($_SERVER['HTTP_ORIGIN'] ?? '', '/');
+    }
+    return $base.'?reset_token='.$token;
+}
+
+function auth_forgot_password() {
+    rate_limit_check('auth_forgot_password', 5, 300);
+    $email = strtolower(trim(bg('email','')));
+    $user = q("SELECT id FROM users WHERE email=?", [$email])->fetch();
+    // Meme reponse que l'email existe ou non (voir auth_resend()) - evite
+    // de laisser deviner quels emails sont inscrits sur la plateforme.
+    if ($user) {
+        $token = bin2hex(random_bytes(24));
+        q("UPDATE users SET reset_token=?, reset_token_expires_at=NOW() + INTERVAL '1 hour' WHERE id=?", [$token, $user['id']]);
+        send_email($email, 'Reinitialisation de votre mot de passe MYBOUTIK',
+            "Cliquez sur ce lien pour choisir un nouveau mot de passe (valable 1 heure) :\n".auth_reset_link($token, bg('page_url','')).
+            "\n\nSi vous n'etes pas a l'origine de cette demande, ignorez simplement cet email.");
+    }
+    ok(null, 'Si un compte existe avec cet email, un lien de reinitialisation vient d\'etre envoye.');
+}
+
+function auth_reset_password() {
+    rate_limit_check('auth_reset_password', 10, 300);
+    $b = body();
+    $token = trim($b['token'] ?? '');
+    $newPassword = (string)($b['new_password'] ?? '');
+    if ($token === '') fail('Lien de reinitialisation invalide');
+    if (strlen($newPassword) < 6) fail('Le nouveau mot de passe doit contenir au moins 6 caracteres');
+    $user = q("SELECT id FROM users WHERE reset_token=? AND reset_token_expires_at > NOW()", [$token])->fetch();
+    if (!$user) fail('Lien de reinitialisation invalide ou expire', 404);
+    // token_version incremente : un mot de passe oublie puis reinitialise
+    // est un signe possible de compte compromis - ca coupe aussi l'acces a
+    // qui aurait deja une session ouverte sur un appareil vole/perdu (voir
+    // owner_auth()), pas seulement a celui qui reinitialise.
+    q("UPDATE users SET password_hash=?, reset_token=NULL, reset_token_expires_at=NULL, token_version=token_version+1 WHERE id=?",
+      [password_hash($newPassword, PASSWORD_DEFAULT), $user['id']]);
+    ok(null, 'Mot de passe reinitialise. Vous pouvez maintenant vous connecter.');
+}
+
+// Invalide tous les jetons deja emis (autres appareils, y compris un
+// telephone vole) en incrementant token_version, puis renvoie un nouveau
+// jeton pour CET appareil-ci (sinon sa propre session, deja emise avec
+// l'ancienne valeur, se deconnecterait aussi au prochain appel).
+function auth_logout_other_devices() {
+    $pl = owner_auth();
+    q("UPDATE users SET token_version=token_version+1 WHERE id=?", [$pl['sub']]);
+    $newTv = (int)q("SELECT token_version FROM users WHERE id=?", [$pl['sub']])->fetchColumn();
+    $newToken = jwt_make(['sub'=>$pl['sub'], 'typ'=>'owner', 'tv'=>$newTv]);
+    ok(['token'=>$newToken], 'Deconnecte de tous les autres appareils. Cette session reste active.');
 }
 
 function auth_me() {

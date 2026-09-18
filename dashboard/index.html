@@ -231,7 +231,11 @@
 <script src="../config.js"></script>
 <script>
 const API_URL = window.MYBOUTIK_API_URL || 'http://localhost:8000';
-const TOKEN = localStorage.getItem('myboutik_token');
+// let (pas const) : logoutOtherDevices() remplace ce jeton par un nouveau
+// une fois l'ancien invalide, pour que CETTE session continue de
+// fonctionner sans recharger la page (voir api() plus bas, qui lit
+// toujours la valeur actuelle de TOKEN).
+let TOKEN = localStorage.getItem('myboutik_token');
 if (!TOKEN) window.location.href = '../index.html';
 const USER = JSON.parse(localStorage.getItem('myboutik_user') || '{}');
 
@@ -985,6 +989,10 @@ const I18N = {
     label_new_password: 'Nouveau mot de passe (laisser vide pour ne pas changer)',
     placeholder_min_6_chars: '6 caractères minimum',
     profile_updated: 'Profil mis à jour',
+    security_title: 'Sécurité',
+    logout_other_devices_note: 'Utile en cas de perte ou de vol de votre téléphone : ceci déconnecte immédiatement toute autre session ouverte avec votre compte, tout en gardant celle-ci active.',
+    btn_logout_other_devices: 'Se déconnecter de tous les autres appareils',
+    confirm_logout_other_devices: 'Déconnecter tous les autres appareils connectés à votre compte ?\n\nCette session-ci restera active.',
     feedback_title: 'Donner mon avis sur MYBOUTIK',
     feedback_intro: 'Une suggestion, un problème, un mot gentil ? Dites-le-nous — nous répondons directement à votre adresse email.',
     feedback_rating_label: 'Votre note',
@@ -1647,6 +1655,10 @@ const I18N = {
     label_new_password: 'New password (leave empty to keep it unchanged)',
     placeholder_min_6_chars: 'Minimum 6 characters',
     profile_updated: 'Profile updated',
+    security_title: 'Security',
+    logout_other_devices_note: 'Useful if your phone is lost or stolen: this immediately signs out any other session logged into your account, while keeping this one active.',
+    btn_logout_other_devices: 'Log out of all other devices',
+    confirm_logout_other_devices: 'Log out all other devices connected to your account?\n\nThis session will stay active.',
     feedback_title: 'Give feedback on MYBOUTIK',
     feedback_intro: 'A suggestion, an issue, a kind word? Let us know — we reply directly to your email address.',
     feedback_rating_label: 'Your rating',
@@ -3954,6 +3966,12 @@ function renderProfile() {
         <button class="btn btn-primary" onclick="saveProfile()">${t('btn_save')}</button>
       </div>
       <div class="card">
+        <h3 style="margin:0 0 4px">${t('security_title')}</h3>
+        <p class="muted" style="margin-bottom:14px">${t('logout_other_devices_note')}</p>
+        <div id="securityMsg"></div>
+        <button class="btn btn-ghost" onclick="logoutOtherDevices()">${t('btn_logout_other_devices')}</button>
+      </div>
+      <div class="card">
         <h3 style="margin:0 0 4px">${t('feedback_title')}</h3>
         <p class="muted" style="margin-bottom:14px">${t('feedback_intro')}</p>
         <div id="feedbackMsg"></div>
@@ -3986,6 +4004,21 @@ function saveProfile() {
     document.getElementById('profPassword').value = '';
     USER.full_name = payload.full_name;
     localStorage.setItem('myboutik_user', JSON.stringify(USER));
+  });
+}
+// Invalide toute session ouverte ailleurs (utile en cas de vol/perte de
+// telephone) - le serveur renvoie un nouveau jeton pour CET appareil-ci,
+// qu'on doit remplacer ici (memoire + localStorage) sinon le prochain
+// appel depuis cette meme session echouerait aussi avec l'ancien jeton.
+function logoutOtherDevices() {
+  customConfirm(t('confirm_logout_other_devices')).then(ok => {
+    if (!ok) return;
+    post('/auth?action=logout_other_devices', {}).then(({data}) => {
+      if (!data.success) { document.getElementById('securityMsg').innerHTML = '<div class="msg error">'+data.message+'</div>'; return; }
+      TOKEN = data.data.token;
+      localStorage.setItem('myboutik_token', TOKEN);
+      document.getElementById('securityMsg').innerHTML = '<div class="msg success">'+data.message+'</div>';
+    });
   });
 }
 
