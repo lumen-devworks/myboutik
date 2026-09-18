@@ -415,6 +415,9 @@ const I18N = {
     side_directory: '🏬 Annuaire des boutiques',
     side_guide: '📖 Guide d\'utilisation',
     no_boutique_option: 'Aucune boutique',
+    boutiques_load_error_title: 'Impossible de charger vos boutiques',
+    boutiques_load_error_desc: 'Vos boutiques existent toujours — c\'est la connexion au serveur qui a échoué. Vérifiez votre connexion internet et réessayez.',
+    btn_retry: 'Réessayer',
     my_boutiques_title: 'Mes boutiques',
     invalid_response: 'Reponse invalide',
     server_unreachable: 'Impossible de contacter le serveur.',
@@ -1081,6 +1084,9 @@ const I18N = {
     side_directory: '🏬 Shop directory',
     side_guide: '📖 User guide',
     no_boutique_option: 'No shop',
+    boutiques_load_error_title: 'Unable to load your shops',
+    boutiques_load_error_desc: 'Your shops still exist - the connection to the server failed. Check your internet connection and try again.',
+    btn_retry: 'Retry',
     my_boutiques_title: 'My shops',
     invalid_response: 'Invalid response',
     server_unreachable: 'Unable to reach the server.',
@@ -1863,9 +1869,17 @@ document.getElementById('logoutBtn').textContent = t('btn_logout');
 document.getElementById('sideBackAll').textContent = t('side_back_all_boutiques');
 document.getElementById('sideGuideLink').textContent = t('side_guide');
 
+// BOUTIQUES_LOAD_ERROR distingue "le chargement a echoue" (reseau coupe,
+// backend en train de redemarrer...) d'un "vraiment aucune boutique" - les
+// deux se traduisaient avant par le meme tableau vide, ce qui affichait
+// "Aucune boutique, creez la premiere" a un marchand dont les boutiques
+// existent bel et bien, juste pas encore rechargees avec succes. Source
+// d'une vraie panique si pris au pied de la lettre.
+let BOUTIQUES_LOAD_ERROR = false;
 function loadBoutiques() {
   return api('/boutiques?action=list').then(({data}) => {
-    if (!data.success) return [];
+    if (!data.success) { BOUTIQUES_LOAD_ERROR = true; return []; }
+    BOUTIQUES_LOAD_ERROR = false;
     BOUTIQUES = data.data;
     const sel = document.getElementById('boutiqueSwitch');
     sel.innerHTML = BOUTIQUES.map(b => '<option value="'+b.slug+'">'+escapeHtml(b.name)+'</option>').join('')
@@ -1888,7 +1902,16 @@ function route() {
       CURRENT = null;
       document.getElementById('sideNav').innerHTML = '';
       document.getElementById('topTitle').textContent = t('my_boutiques_title');
-      renderBoutiquesList();
+      if (BOUTIQUES_LOAD_ERROR) {
+        document.getElementById('content').innerHTML = `<div class="card" style="background:#fef2f2;border-color:#fecaca;text-align:center;padding:30px">
+          <div style="font-size:32px;margin-bottom:8px">⚠️</div>
+          <div style="font-weight:700;margin-bottom:6px">${t('boutiques_load_error_title')}</div>
+          <p class="muted" style="margin-bottom:14px">${t('boutiques_load_error_desc')}</p>
+          <button class="btn btn-primary" onclick="route()">${t('btn_retry')}</button>
+        </div>`;
+      } else {
+        renderBoutiquesList();
+      }
     }
   });
 }
