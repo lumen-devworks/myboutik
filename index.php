@@ -1574,6 +1574,7 @@ function route_products($action) {
         case 'image_add':        product_image_add($pl); break;
         case 'image_delete':     product_image_delete($pl); break;
         case 'image_set_primary':product_image_set_primary($pl); break;
+        case 'image_reorder':    product_image_reorder($pl); break;
         case 'suppliers_list':   suppliers_list($pl); break;
         case 'supplier_create':  supplier_create($pl); break;
         case 'supplier_update':  supplier_update($pl); break;
@@ -1847,6 +1848,28 @@ function product_image_delete($pl) {
         }
     }
     ok(null, 'Image supprimee');
+}
+// Reordonne la galerie apres un glisser-deposer cote tableau de bord -
+// la premiere image de la liste devient automatiquement la principale
+// (meme logique que product_image_set_primary(), juste declenchee par
+// l'ordre plutot que par un clic sur "Definir").
+function product_image_reorder($pl) {
+    $b = body();
+    $bt = require_boutique_owned($b['boutique_id'] ?? '', $pl['sub']);
+    $productId = $b['product_id'] ?? '';
+    $orderedIds = $b['image_ids'] ?? [];
+    if (!is_array($orderedIds) || !count($orderedIds)) fail('Ordre des images invalide');
+    // Chaque id doit reellement appartenir a ce produit/cette boutique -
+    // sinon un id etranger glisse dans la requete pourrait deplacer une
+    // image d'un autre produit.
+    $existing = q("SELECT id FROM product_images WHERE product_id=? AND boutique_id=?", [$productId, $bt['id']])->fetchAll(PDO::FETCH_COLUMN);
+    if (count($orderedIds) !== count($existing) || array_diff($orderedIds, $existing)) fail('Ordre des images invalide');
+    foreach ($orderedIds as $i => $imgId) {
+        q("UPDATE product_images SET position=?, is_primary=? WHERE id=?", [$i, $i === 0 ? 1 : 0, $imgId]);
+    }
+    $primary = q("SELECT data FROM product_images WHERE id=?", [$orderedIds[0]])->fetch();
+    q("UPDATE products SET image_url=? WHERE id=?", [$primary['data'], $productId]);
+    ok(null, 'Ordre des photos mis a jour');
 }
 function product_image_set_primary($pl) {
     $b = body();

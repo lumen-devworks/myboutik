@@ -757,6 +757,7 @@ const I18N = {
     no_codes_yet: 'Aucun code ajouté pour l\'instant.',
     label_photos: 'Photos',
     label_primary_photo: 'Principale',
+    drag_to_reorder_note: 'Glissez une photo pour changer son ordre — la première devient la photo principale.',
     btn_set_primary: 'Définir',
     title_choose_from_gallery: 'Choisir depuis la galerie',
     title_take_photo: 'Prendre une photo',
@@ -1418,6 +1419,7 @@ const I18N = {
     no_codes_yet: 'No codes added yet.',
     label_photos: 'Photos',
     label_primary_photo: 'Primary',
+    drag_to_reorder_note: 'Drag a photo to change its order — the first one becomes the primary photo.',
     btn_set_primary: 'Set',
     title_choose_from_gallery: 'Choose from gallery',
     title_take_photo: 'Take a photo',
@@ -2944,6 +2946,7 @@ function renderProductFormModal(p, allProducts, categories) {
   try { relatedIds = p.related_product_ids ? JSON.parse(p.related_product_ids) : []; } catch(e) {}
   const pickableProducts = allProducts.filter(x => x.id !== p.id);
   const images = p.images || [];
+  window.__currentProductImages = images.slice();
   openModal(`<h2>${p.id?t('modal_edit_product'):t('modal_new_product')}</h2>
     <div id="prodMsg"></div>
     <div class="field"><label>${t('label_name')}</label><input id="prodName" value="${escapeHtml(p.name||'')}"></div>
@@ -3000,20 +3003,8 @@ function renderProductFormModal(p, allProducts, categories) {
     <div class="field">
       <label>${t('label_photos')}${p.id?' ('+images.length+'/5)':''}</label>
       ${p.id ? `
-      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px">
-        ${images.map(img => `
-          <div style="position:relative">
-            <img src="${img.data}" style="width:72px;height:72px;object-fit:cover;border-radius:8px;border:2px solid ${img.is_primary?'var(--blue)':'var(--border)'}">
-            ${img.is_primary
-              ? '<span style="position:absolute;bottom:2px;left:2px;background:var(--blue);color:#fff;font-size:9px;padding:1px 4px;border-radius:4px">'+t('label_primary_photo')+'</span>'
-              : '<button type="button" onclick="setPrimaryProductImage(\''+img.id+'\')" style="position:absolute;bottom:2px;left:2px;background:#fff;border:1px solid var(--border);font-size:9px;padding:1px 4px;border-radius:4px;cursor:pointer">'+t('btn_set_primary')+'</button>'}
-            <button type="button" onclick="deleteProductImage('${img.id}')" style="position:absolute;top:-6px;right:-6px;width:18px;height:18px;border-radius:50%;background:var(--red);color:#fff;border:none;font-size:11px;cursor:pointer;line-height:1">✕</button>
-          </div>`).join('')}
-        ${images.length < 5 ? `
-          <label title="${t('title_choose_from_gallery')}" style="width:72px;height:72px;border:2px dashed var(--border);border-radius:8px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--gray);font-size:24px">+<input type="file" accept="image/*" multiple style="display:none" onchange="addProductImage(this)"></label>
-          <label title="${t('title_take_photo')}" style="width:72px;height:72px;border:2px dashed var(--border);border-radius:8px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--gray);font-size:24px">📷<input type="file" accept="image/*" capture="environment" style="display:none" onchange="addProductImage(this)"></label>
-        ` : ''}
-      </div>` : `
+      <div id="productImagesGrid" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px">${productImagesGridHtml()}</div>
+      <div class="muted" style="font-size:12px;margin:-4px 0 8px">${t('drag_to_reorder_note')}</div>` : `
       <div id="pendingImagesGrid" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px"></div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         <input type="file" accept="image/*" multiple onchange="handleNewProductImageFile(this)">
@@ -3207,6 +3198,44 @@ function removePendingImage(index) {
   document.getElementById('prodImage').value = all[0] || '';
   window.__pendingExtraImages = all.slice(1);
   renderPendingImagesGrid();
+}
+// Grille des photos d'un produit deja enregistre - extraite dans sa propre
+// fonction (plutot qu'inline dans renderProductFormModal()) pour pouvoir la
+// re-rendre seule apres un glisser-deposer, sans reconstruire tout le
+// formulaire (qui ferait perdre les autres champs en cours de modification).
+function productImagesGridHtml() {
+  const images = window.__currentProductImages || [];
+  const thumbs = images.map(img => `
+    <div draggable="true" ondragstart="onImageDragStart(event,'${img.id}')" ondragover="onImageDragOver(event)" ondrop="onImageDrop(event,'${img.id}')" ondragend="onImageDragEnd(event)" style="position:relative;cursor:grab">
+      <img src="${img.data}" style="width:72px;height:72px;object-fit:cover;border-radius:8px;border:2px solid ${img.is_primary?'var(--blue)':'var(--border)'};pointer-events:none">
+      ${img.is_primary
+        ? '<span style="position:absolute;bottom:2px;left:2px;background:var(--blue);color:#fff;font-size:9px;padding:1px 4px;border-radius:4px">'+t('label_primary_photo')+'</span>'
+        : '<button type="button" onclick="setPrimaryProductImage(\''+img.id+'\')" style="position:absolute;bottom:2px;left:2px;background:#fff;border:1px solid var(--border);font-size:9px;padding:1px 4px;border-radius:4px;cursor:pointer">'+t('btn_set_primary')+'</button>'}
+      <button type="button" onclick="deleteProductImage('${img.id}')" style="position:absolute;top:-6px;right:-6px;width:18px;height:18px;border-radius:50%;background:var(--red);color:#fff;border:none;font-size:11px;cursor:pointer;line-height:1">✕</button>
+    </div>`).join('');
+  const addTiles = images.length < 5 ? `
+    <label title="${t('title_choose_from_gallery')}" style="width:72px;height:72px;border:2px dashed var(--border);border-radius:8px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--gray);font-size:24px">+<input type="file" accept="image/*" multiple style="display:none" onchange="addProductImage(this)"></label>
+    <label title="${t('title_take_photo')}" style="width:72px;height:72px;border:2px dashed var(--border);border-radius:8px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--gray);font-size:24px">📷<input type="file" accept="image/*" capture="environment" style="display:none" onchange="addProductImage(this)"></label>` : '';
+  return thumbs + addTiles;
+}
+let __dragImgId = null;
+function onImageDragStart(e, imgId) { __dragImgId = imgId; e.currentTarget.style.opacity = '0.4'; }
+function onImageDragEnd(e) { e.currentTarget.style.opacity = ''; }
+function onImageDragOver(e) { e.preventDefault(); }
+function onImageDrop(e, targetId) {
+  e.preventDefault();
+  if (!__dragImgId || __dragImgId === targetId) return;
+  const images = window.__currentProductImages || [];
+  const fromIdx = images.findIndex(i => i.id === __dragImgId);
+  const toIdx = images.findIndex(i => i.id === targetId);
+  if (fromIdx === -1 || toIdx === -1) return;
+  const [moved] = images.splice(fromIdx, 1);
+  images.splice(toIdx, 0, moved);
+  images.forEach((img, i) => { img.is_primary = i === 0; });
+  document.getElementById('productImagesGrid').innerHTML = productImagesGridHtml();
+  post('/products?action=image_reorder', {boutique_id:CURRENT.id, product_id:window.__editingProductId, image_ids:images.map(i=>i.id)}).then(({data}) => {
+    if (!data.success) showToast(data.message, 'error');
+  });
 }
 function addProductImage(input) {
   const files = Array.from(input.files || []);
