@@ -246,7 +246,7 @@ function api(path, opts) {
     .then(r => r.json().then(data => ({status:r.status, data})).catch(()=>({status:r.status,data:{success:false,message:t('invalid_response')}})))
     .catch(() => ({status:0, data:{success:false, message:t('server_unreachable')}}))
     .then(res => {
-      if (res.status === 401) { logout(); }
+      if (res.status === 401) { forceLogoutExpired(); }
       return res;
     });
 }
@@ -272,6 +272,18 @@ function logout() {
     if (!ok) return;
     localStorage.removeItem('myboutik_token'); localStorage.removeItem('myboutik_user'); window.location.href = '../index.html';
   });
+}
+// Deconnexion automatique quand le serveur repond 401 (session expiree/
+// jeton invalide) - jamais de confirmation ici : contrairement au clic
+// volontaire sur "Se deconnecter", l'utilisateur n'a rien demande, et
+// "Annuler" ne rendrait pas la session valide a nouveau. Redirige avec un
+// message explicite plutot que de laisser croire a un bug silencieux.
+let __forcedLogout = false;
+function forceLogoutExpired() {
+  if (__forcedLogout) return;
+  __forcedLogout = true;
+  localStorage.removeItem('myboutik_token'); localStorage.removeItem('myboutik_user');
+  window.location.href = '../index.html?session_expired=1';
 }
 
 function fmtMoney(n, currency) { return Math.round(n||0).toLocaleString('fr-FR') + ' ' + (currency||'FCFA'); }

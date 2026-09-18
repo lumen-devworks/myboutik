@@ -207,6 +207,7 @@ const I18N = {
     dev_mode_link_prefix: 'Mode developpement — lien direct : ',
     resend_fallback: 'Si un compte existe avec cet email, un nouveau lien vient d\'etre envoye.',
     team_invite_message: 'Vous avez ete invite(e) a rejoindre une boutique. Connectez-vous (ou creez un compte avec la meme adresse email) pour la rejoindre automatiquement.',
+    session_expired_message: 'Votre session a expire. Reconnectez-vous pour continuer.',
   },
   en: {
     nav_login: 'Log in', nav_register: 'Start for free', nav_directory: 'Discover shops',
@@ -237,6 +238,7 @@ const I18N = {
     dev_mode_link_prefix: 'Development mode — direct link: ',
     resend_fallback: 'If an account exists with this email, a new link has just been sent.',
     team_invite_message: 'You have been invited to join a shop. Log in (or create an account with the same email address) to join it automatically.',
+    session_expired_message: 'Your session has expired. Please log in again to continue.',
   },
 };
 function t(key) { return (I18N[LANG] && I18N[LANG][key]) ?? I18N.fr[key] ?? key; }
@@ -425,6 +427,13 @@ if (localStorage.getItem('myboutik_token') && !new URLSearchParams(window.locati
 if (new URLSearchParams(window.location.search).get('team_invite') && !localStorage.getItem('myboutik_token')) {
   openAuth('login');
   setMsg('loginMsg', t('team_invite_message'), 'success');
+}
+// Renvoye ici par le tableau de bord quand une requete recoit un 401
+// (session expiree/invalide) - explique pourquoi on atterrit sur cette
+// page au lieu de laisser l'utilisateur croire a un bug silencieux.
+if (new URLSearchParams(window.location.search).get('session_expired')) {
+  openAuth('login');
+  setMsg('loginMsg', t('session_expired_message'), 'error');
 }
 </script>
 </body>
