@@ -2159,7 +2159,8 @@ function directory_boutiques() {
     $sql = "SELECT b.slug, b.name, b.description, b.logo_url, b.currency, b.category, b.city, b.country,
               (SELECT ROUND(AVG(r.rating)::numeric, 1) FROM product_reviews r WHERE r.boutique_id=b.id AND r.status='approved') AS avg_rating,
               (SELECT COUNT(*) FROM product_reviews r WHERE r.boutique_id=b.id AND r.status='approved') AS review_count
-            FROM boutiques b WHERE b.status='active' AND b.public_listed=1";
+            FROM boutiques b JOIN users u ON u.id=b.owner_user_id
+            WHERE b.status='active' AND b.public_listed=1 AND (u.plan_valid_until IS NULL OR u.plan_valid_until >= NOW())";
     $params = [];
     if ($q !== '') { $sql .= " AND b.name ILIKE ?"; $params[] = '%'.$q.'%'; }
     if ($category !== '') { $sql .= " AND b.category=?"; $params[] = $category; }
@@ -2188,8 +2189,9 @@ function directory_products() {
     if ($q === '') ok([]);
     $rows = q("SELECT p.id AS product_id, p.name, p.price, p.slug AS product_slug,
                       b.slug AS boutique_slug, b.name AS boutique_name, b.currency
-               FROM products p JOIN boutiques b ON b.id = p.boutique_id
+               FROM products p JOIN boutiques b ON b.id = p.boutique_id JOIN users u ON u.id = b.owner_user_id
                WHERE b.status='active' AND b.public_listed=1 AND p.status='active' AND p.name ILIKE ?
+                 AND (u.plan_valid_until IS NULL OR u.plan_valid_until >= NOW())
                ORDER BY p.created_at DESC LIMIT 60", ['%'.$q.'%'])->fetchAll();
     ok($rows);
 }
@@ -2319,9 +2321,19 @@ function preview_product() {
     preview_html($title, $desc, $image, $redirect);
 }
 
+// Boutique visible publiquement (vitrine, annuaire) : active ET abonnement
+// du proprietaire toujours valide. Un marchand qui ne paie plus n'est plus
+// "fonctionnel" (le dashboard lui-meme est verrouille, voir
+// assert_owner_plan_active()) - sa vitrine ne doit donc plus accepter de
+// commandes ni etre trouvable, sans etre supprimee ni desinscrite de
+// l'annuaire (public_listed reste tel quel) : des qu'il se reabonne, elle
+// redevient visible automatiquement, aucune reactivation manuelle requise.
 function public_boutique_by_slug($slug) {
-    $row = q("SELECT id,slug,name,description,logo_url,currency,cod_enabled,default_delivery_fee,default_shipping_fee,default_shipping_fee_other_country,status,city,country FROM boutiques WHERE slug=?", [$slug])->fetch();
+    $row = q("SELECT b.id,b.slug,b.name,b.description,b.logo_url,b.currency,b.cod_enabled,b.default_delivery_fee,b.default_shipping_fee,b.default_shipping_fee_other_country,b.status,b.city,b.country, u.plan_valid_until
+              FROM boutiques b JOIN users u ON u.id=b.owner_user_id WHERE b.slug=?", [$slug])->fetch();
     if (!$row || $row['status'] !== 'active') fail('Boutique introuvable', 404);
+    if ($row['plan_valid_until'] !== null && strtotime($row['plan_valid_until']) < time()) fail('Boutique introuvable', 404);
+    unset($row['plan_valid_until']);
     return $row;
 }
 
