@@ -53,6 +53,12 @@ define('APP_DEBUG', APP_ENV === 'development');
 // JWT_SECRET, son absence ne bloque pas le demarrage de l'app, seules les
 // routes /admin repondent "non configure" tant qu'il n'est pas defini.
 define('ADMIN_PASSWORD', getenv('ADMIN_PASSWORD') ?: null);
+// Adresse recevant les alertes qualite automatiques (nouvelle reclamation,
+// boutique qui cumule trop de reclamations en attente - voir
+// notify_admin_new_dispute()). Optionnelle : si absente, ces emails sont
+// simplement sautes (l'operateur garde de toute facon la vue d'ensemble
+// dans le panneau admin), rien ne casse.
+define('ADMIN_NOTIFY_EMAIL', getenv('ADMIN_NOTIFY_EMAIL') ?: null);
 
 // Envoi d'email transactionnel (Brevo, https://app.brevo.com/settings/keys/api)
 // - optionnel : en son absence, send_email() se contente de journaliser
@@ -165,6 +171,8 @@ const EN_DICT = [
     'Votre reclamation a ete envoyee au marchand.' => 'Your complaint has been sent to the merchant.',
     'Aucune reclamation ouverte pour cette commande' => 'No open complaint for this order',
     'Ecrivez une reponse' => 'Write a response',
+    'Ecrivez un message d\'avertissement' => 'Write a warning message',
+    'Avertissement envoye' => 'Warning sent',
     'Reponse envoyee' => 'Response sent',
     'Compte cree' => 'Account created',
     'Compte cree. Verifiez votre email pour activer votre compte.' => 'Account created. Check your email to activate your account.',
@@ -826,6 +834,11 @@ function route_install() {
     // fois par jour par boutique (voir last_stock_alert_at).
     "ALTER TABLE boutiques ADD COLUMN IF NOT EXISTS stock_alert_enabled SMALLINT DEFAULT 1",
     "ALTER TABLE boutiques ADD COLUMN IF NOT EXISTS last_stock_alert_at TIMESTAMP",
+    // Avertissement formel de l'administration (admin_boutique_warn()) -
+    // etape intermediaire avant une suspension, avec trace (warning_count)
+    // plutot que de passer directement d'"actif" a "suspendu".
+    "ALTER TABLE boutiques ADD COLUMN IF NOT EXISTS warning_count INT DEFAULT 0",
+    "ALTER TABLE boutiques ADD COLUMN IF NOT EXISTS last_warned_at TIMESTAMP",
     // Equipe : une boutique peut etre geree par plusieurs comptes MYBOUTIK
     // distincts (le proprietaire + des membres invites par email). status
     // reste 'pending' (avec un invite_token) tant que la personne invitee
@@ -2836,6 +2849,7 @@ function shop_submit_dispute() {
     q("UPDATE orders SET dispute_status='open', dispute_message=?, dispute_created_at=NOW(), dispute_response=NULL, dispute_resolved_at=NULL WHERE id=?",
       [$message, $o['id']]);
     notify_new_dispute($bt, $ref, $o['customer_name'], $message);
+    notify_admin_new_dispute($bt, $ref, $message);
     ok(null, 'Votre reclamation a ete envoyee au marchand.');
 }
 function notify_new_dispute($bt, $ref, $customerName, $message) {
@@ -2849,6 +2863,20 @@ function notify_new_dispute($bt, $ref, $customerName, $message) {
     if (!$to) return;
     $summary = "Client: $customerName\nCommande: $ref\n\nMessage du client:\n$message\n\nOuvrez votre tableau de bord MYBOUTIK (Commandes) pour repondre.";
     send_email($to, 'Reclamation sur la commande '.$ref.' - '.$bt['name'], $summary);
+}
+// Alerte qualite envoyee a l'operateur (ADMIN_NOTIFY_EMAIL, optionnelle) a
+// chaque nouvelle reclamation, avec un objet plus alarmant si la boutique
+// en cumule deja plusieurs en attente - evite d'avoir a ouvrir le panneau
+// admin regulierement juste pour verifier qu'aucune boutique ne derape.
+function notify_admin_new_dispute($bt, $ref, $message) {
+    if (!ADMIN_NOTIFY_EMAIL) return;
+    $openCount = (int)q("SELECT COUNT(*) c FROM orders WHERE boutique_id=? AND dispute_status='open'", [$bt['id']])->fetch()['c'];
+    $subject = $openCount >= 3
+        ? 'ALERTE qualite : '.$bt['name'].' cumule '.$openCount.' reclamations en attente'
+        : 'Nouvelle reclamation - '.$bt['name'];
+    $body = "Boutique: {$bt['name']} ({$bt['slug']})\nCommande: $ref\n\nMessage du client:\n$message\n\n".
+            "Reclamations en attente pour cette boutique : $openCount\n\nPanneau admin : ".FRONTEND_BASE_URL."/admin.html";
+    send_email(ADMIN_NOTIFY_EMAIL, $subject, $body);
 }
 
 // Liste des commandes d'un numero (sans reference) - permet au client qui a
@@ -4379,6 +4407,8 @@ function route_admin($action) {
         case 'feedback_mark_replied': admin_feedback_mark_replied(); break;
         case 'boutiques_list':        admin_boutiques_list(); break;
         case 'boutique_set_status':   admin_boutique_set_status(); break;
+        case 'boutique_warn':         admin_boutique_warn(); break;
+        case 'actions_log':           admin_actions_log(); break;
         case 'disputes_list':         admin_disputes_list(); break;
         case 'low_reviews_list':      admin_low_reviews_list(); break;
         case 'top_boutiques':         admin_top_boutiques(); break;
@@ -4467,12 +4497,59 @@ function admin_boutiques_list() {
     // de la plateforme (voir admin_disputes_list()/admin_low_reviews_list()
     // pour le detail) - visible ici en un coup d'oeil pour reperer une
     // boutique a surveiller sans avoir a ouvrir les deux listes dediees.
+    // total_orders_count/refused_count : taux de refus/annulation, un
+    // signal different (fiabilite/stock/possible arnaque) que le frontend
+    // n'affiche que si l'echantillon est assez grand (evite d'accuser une
+    // boutique sur 1 seule commande refusee).
+    // last_order_at : detection d'inactivite (aucune vente recente) cote
+    // frontend - ce n'est pas un signal de qualite, plutot une opportunite
+    // de relance, mais vit dans la meme vue d'ensemble.
+    // warning_count/last_warned_at : etape d'avertissement formel (voir
+    // admin_boutique_warn()) avant d'en arriver a la suspension.
     ok(q("SELECT b.id, b.name, b.slug, b.status, b.public_listed, b.category, b.city, b.created_at,
+                 b.warning_count, b.last_warned_at,
                  u.email AS owner_email, u.full_name AS owner_name,
                  (SELECT COUNT(*) FROM orders o WHERE o.boutique_id=b.id AND o.dispute_status='open') AS open_disputes_count,
-                 (SELECT COUNT(*) FROM product_reviews r WHERE r.boutique_id=b.id AND r.rating<=2) AS low_reviews_count
+                 (SELECT COUNT(*) FROM product_reviews r WHERE r.boutique_id=b.id AND r.rating<=2) AS low_reviews_count,
+                 (SELECT COUNT(*) FROM orders o WHERE o.boutique_id=b.id) AS total_orders_count,
+                 (SELECT COUNT(*) FROM orders o WHERE o.boutique_id=b.id AND o.status IN ('refused','cancelled')) AS refused_count,
+                 (SELECT MAX(created_at) FROM orders o WHERE o.boutique_id=b.id) AS last_order_at
           FROM boutiques b JOIN users u ON u.id = b.owner_user_id
           ORDER BY b.created_at DESC")->fetchAll());
+}
+// Avertissement formel avant une eventuelle suspension - trace conservee
+// (warning_count/last_warned_at sur la boutique + entree dans activity_log,
+// donc visible aussi par le marchand dans son propre journal d'activite,
+// jamais une sanction cachee) et email envoye directement au marchand.
+function admin_boutique_warn() {
+    $b = body();
+    $id = $b['id'] ?? '';
+    $message = trim($b['message'] ?? '');
+    if ($message === '') fail('Ecrivez un message d\'avertissement');
+    $row = q("SELECT b.id, b.name, u.email AS owner_email FROM boutiques b JOIN users u ON u.id=b.owner_user_id WHERE b.id=?", [$id])->fetch();
+    if (!$row) fail('Boutique introuvable', 404);
+    q("UPDATE boutiques SET warning_count = warning_count + 1, last_warned_at = NOW() WHERE id=?", [$id]);
+    admin_log($id, 'Avertissement envoye par l\'administration : '.$message);
+    send_email($row['owner_email'], 'Avertissement concernant votre boutique '.$row['name'].' - MYBOUTIK',
+        "Bonjour,\n\nL'equipe MYBOUTIK vous adresse un avertissement concernant votre boutique ".$row['name'].".\n\n".$message.
+        "\n\nMerci de corriger la situation rapidement afin d'eviter une suspension de votre boutique.\n\nL'equipe MYBOUTIK");
+    ok(null, 'Avertissement envoye');
+}
+// Trace des actions administratives (suspension/reactivation/avertissement)
+// dans activity_log, marquees par un actor_email dedie pour pouvoir les
+// distinguer des actions du marchand lui-meme (voir admin_actions_log()) -
+// pas une nouvelle table, juste une convention sur un champ existant.
+function admin_log($boutiqueId, $message) {
+    q("INSERT INTO activity_log (boutique_id, message, actor_email) VALUES (?,?,?)", [$boutiqueId, $message, 'Administration MYBOUTIK']);
+}
+// Journal des actions admin (toutes boutiques confondues) - permet de vous
+// souvenir si une boutique a deja ete avertie/suspendue recemment sans
+// avoir a rouvrir chaque boutique individuellement.
+function admin_actions_log() {
+    ok(q("SELECT a.id, a.boutique_id, a.message, a.created_at, b.name AS boutique_name
+          FROM activity_log a JOIN boutiques b ON b.id = a.boutique_id
+          WHERE a.actor_email = 'Administration MYBOUTIK'
+          ORDER BY a.created_at DESC LIMIT 100")->fetchAll());
 }
 // Vue transversale de TOUTES les reclamations clients (toutes boutiques
 // confondues) pour que l'admin puisse surveiller la qualite de la
@@ -4491,16 +4568,33 @@ function admin_disputes_list() {
           WHERE o.dispute_status IS NOT NULL
           ORDER BY (o.dispute_status = 'open') DESC, o.dispute_created_at DESC LIMIT 200")->fetchAll());
 }
-// Top boutiques par chiffre d'affaires encaisse (memes statuts que
-// ENCAISSE_STATUSES ailleurs dans l'app) - vue "meilleurs vendeurs" de la
-// plateforme, separee de la surveillance qualite ci-dessus.
+// Top boutiques - meme jeu de donnees pour les 3 classements (revenu,
+// articles vendus, nombre de commandes), seul l'ORDER BY change (colonne
+// choisie dans une liste blanche, jamais le parametre brut, pour eviter
+// toute injection). items_sold vient d'une sous-requete pre-agregee a part
+// plutot que d'un JOIN direct vers order_items : joindre puis SUM(o.total)/
+// COUNT(o.id) sur la table jointe aurait multiplie ces montants par le
+// nombre de lignes d'articles de chaque commande (comptage en double).
 function admin_top_boutiques() {
+    $by = body()['by'] ?? 'revenue';
+    $orderCol = in_array($by, ['items_sold', 'orders_count'], true) ? $by : 'revenue';
     ok(q("SELECT b.id, b.name, b.slug, b.city, b.country,
-                 COUNT(o.id) AS orders_count,
-                 COALESCE(SUM(o.total),0) AS revenue
-          FROM boutiques b JOIN orders o ON o.boutique_id=b.id AND o.status IN ".ENCAISSE_STATUSES."
-          GROUP BY b.id, b.name, b.slug, b.city, b.country
-          ORDER BY revenue DESC LIMIT 10")->fetchAll());
+                 COALESCE(ord.orders_count,0) AS orders_count,
+                 COALESCE(ord.revenue,0) AS revenue,
+                 COALESCE(items.items_sold,0) AS items_sold
+          FROM boutiques b
+          JOIN (
+            SELECT boutique_id, COUNT(*) AS orders_count, SUM(total) AS revenue
+            FROM orders WHERE status IN ".ENCAISSE_STATUSES."
+            GROUP BY boutique_id
+          ) ord ON ord.boutique_id = b.id
+          LEFT JOIN (
+            SELECT o.boutique_id, SUM(oi.qty) AS items_sold
+            FROM orders o JOIN order_items oi ON oi.order_id = o.id
+            WHERE o.status IN ".ENCAISSE_STATUSES."
+            GROUP BY o.boutique_id
+          ) items ON items.boutique_id = b.id
+          ORDER BY $orderCol DESC LIMIT 10")->fetchAll());
 }
 // Avis clients note <= 2 etoiles, toutes boutiques confondues - autre
 // signal de qualite/produit non conforme ou dangereux a surveiller sans
@@ -4528,6 +4622,7 @@ function admin_boutique_set_status() {
     $row = q("SELECT id FROM boutiques WHERE id=?", [$id])->fetch();
     if (!$row) fail('Boutique introuvable', 404);
     q("UPDATE boutiques SET status=? WHERE id=?", [$status, $id]);
+    admin_log($id, $status === 'suspended' ? 'Boutique suspendue par l\'administration' : 'Boutique reactivee par l\'administration');
     ok(null, $status === 'suspended' ? 'Boutique suspendue' : 'Boutique reactivee');
 }
 

@@ -144,7 +144,17 @@
     <div class="card">
       <h3 id="h3TopBoutiques">Top 10 des boutiques</h3>
       <p class="muted" id="topBoutiquesNote" style="margin-bottom:12px"></p>
-      <div class="table-wrap" id="topBoutiquesBody"></div>
+      <h4 id="h4TopRevenue" style="margin:0 0 8px">Par chiffre d'affaires</h4>
+      <div class="table-wrap" id="topBoutiquesRevenueBody"></div>
+      <h4 id="h4TopItems" style="margin:20px 0 8px">Par nombre d'articles vendus</h4>
+      <div class="table-wrap" id="topBoutiquesItemsBody"></div>
+      <h4 id="h4TopOrders" style="margin:20px 0 8px">Par nombre de commandes</h4>
+      <div class="table-wrap" id="topBoutiquesOrdersBody"></div>
+    </div>
+    <div class="card">
+      <h3 id="h3ActionsLog">Historique des actions admin</h3>
+      <p class="muted" id="actionsLogNote" style="margin-bottom:12px"></p>
+      <div class="table-wrap" id="actionsLogBody"></div>
     </div>
     <div class="card">
       <h3 id="h3Demo">Données de démonstration</h3>
@@ -218,6 +228,7 @@
   </div>
 </div>
 <div class="overlay" id="confirmOverlay"><div class="modal" id="confirmModalBody"></div></div>
+<div class="overlay" id="modalOverlay"><div class="modal" id="modalBody"></div></div>
 <div id="toastContainer"></div>
 <script src="config.js"></script>
 <script>
@@ -310,10 +321,24 @@ const I18N = {
     h3_quality: 'Surveillance qualité',
     quality_note: 'Réclamations clients et avis les plus bas, toutes boutiques confondues — pour repérer une boutique à interpeller ou à suspendre avant que ça s\'aggrave.',
     h4_disputes: 'Réclamations', h4_low_reviews: 'Avis ≤ 2 étoiles',
-    col_boutique: 'Boutique', col_message: 'Message', col_comment: 'Commentaire', col_rating: 'Note', col_product: 'Produit',
+    col_boutique: 'Boutique', col_comment: 'Commentaire', col_product: 'Produit',
     status_open: 'En attente', status_resolved: 'Répondue',
     no_disputes: 'Aucune réclamation pour le moment.',
     no_low_reviews: 'Aucun avis à 2 étoiles ou moins pour le moment.',
+    col_pending_since: 'En attente depuis', badge_overdue_title: 'En attente depuis plus de 48h',
+    hours_ago: '{h} h', days_ago: '{d} j',
+    col_refusal_rate: 'Taux de refus/annulation', col_last_sale: 'Dernière vente',
+    label_never_sold: 'Aucune vente', label_inactive_suffix: ' (inactif)',
+    col_warnings: 'Avertissements',
+    btn_warn: '⚠️ Avertir', warn_modal_title: 'Avertir la boutique',
+    placeholder_warn_message: 'Expliquez ce qui doit changer (ex : qualité produit signalée par plusieurs clients)...',
+    btn_send_warning: 'Envoyer l\'avertissement', warning_message_required: 'Écrivez un message d\'avertissement',
+    confirm_warn_boutique: 'Envoyer un avertissement à {name} ?\n\nUn email lui sera envoyé et l\'avertissement sera compté dans son historique.',
+    h4_top_revenue: 'Par chiffre d\'affaires', h4_top_items: 'Par nombre d\'articles vendus', h4_top_orders: 'Par nombre de commandes',
+    h3_actions_log: 'Historique des actions admin',
+    actions_log_note: 'Suspensions, réactivations et avertissements envoyés — pour se souvenir de ce qui a déjà été fait sur une boutique.',
+    no_actions_log: 'Aucune action admin pour le moment.',
+    col_action: 'Action',
     h3_demo: 'Données de démonstration',
     demo_data_note: 'Génère 15 boutiques factices avec des produits (visibles dans l\'annuaire public) pour vos captures d\'écran/publicité — toutes regroupées sous un seul compte, à supprimer d\'un clic quand vous avez terminé.',
     btn_seed_demo: 'Générer 15 boutiques de démo',
@@ -332,7 +357,7 @@ const I18N = {
     col_issues: 'Total signalements',
     h3_top_boutiques: 'Top 10 des boutiques',
     top_boutiques_note: 'Classées par chiffre d\'affaires encaissé (commandes validées, expédiées ou livrées).',
-    col_rank: '#', col_orders_count: 'Commandes', col_revenue: 'CA encaissé',
+    col_rank: '#', col_orders_count: 'Commandes', col_top_revenue: 'CA encaissé', col_items_sold: 'Articles vendus',
     no_top_boutiques: 'Aucune vente encaissée pour le moment.',
     no_history_to_export: 'Aucun historique à exporter.',
     export_title_history: 'Historique des paiements MYBOUTIK',
@@ -414,10 +439,24 @@ const I18N = {
     h3_quality: 'Quality monitoring',
     quality_note: 'Customer complaints and lowest-rated reviews, across every shop — spot a shop to warn or suspend before it gets worse.',
     h4_disputes: 'Complaints', h4_low_reviews: 'Reviews ≤ 2 stars',
-    col_boutique: 'Shop', col_message: 'Message', col_comment: 'Comment', col_rating: 'Rating', col_product: 'Product',
+    col_boutique: 'Shop', col_comment: 'Comment', col_product: 'Product',
     status_open: 'Pending', status_resolved: 'Replied',
     no_disputes: 'No complaints at the moment.',
     no_low_reviews: 'No reviews at 2 stars or below at the moment.',
+    col_pending_since: 'Pending since', badge_overdue_title: 'Pending for more than 48h',
+    hours_ago: '{h}h', days_ago: '{d}d',
+    col_refusal_rate: 'Refusal/cancel rate', col_last_sale: 'Last sale',
+    label_never_sold: 'No sale yet', label_inactive_suffix: ' (inactive)',
+    col_warnings: 'Warnings',
+    btn_warn: '⚠️ Warn', warn_modal_title: 'Warn this shop',
+    placeholder_warn_message: 'Explain what needs to change (e.g. product quality flagged by several customers)...',
+    btn_send_warning: 'Send warning', warning_message_required: 'Write a warning message',
+    confirm_warn_boutique: 'Send a warning to {name}?\n\nAn email will be sent to them and the warning will be counted in their history.',
+    h4_top_revenue: 'By revenue', h4_top_items: 'By number of items sold', h4_top_orders: 'By number of orders',
+    h3_actions_log: 'Admin action history',
+    actions_log_note: 'Suspensions, reactivations and warnings sent - to remember what has already been done on a shop.',
+    no_actions_log: 'No admin action yet.',
+    col_action: 'Action',
     h3_demo: 'Demo data',
     demo_data_note: 'Generates 15 fake shops with products (visible in the public directory) for your screenshots/ads - all grouped under one account, removable in one click when you\'re done.',
     btn_seed_demo: 'Generate 15 demo shops',
@@ -436,7 +475,7 @@ const I18N = {
     col_issues: 'Total flags',
     h3_top_boutiques: 'Top 10 shops',
     top_boutiques_note: 'Ranked by cashed-in revenue (confirmed, shipped, or delivered orders).',
-    col_rank: '#', col_orders_count: 'Orders', col_revenue: 'Revenue',
+    col_rank: '#', col_orders_count: 'Orders', col_top_revenue: 'Revenue', col_items_sold: 'Items sold',
     no_top_boutiques: 'No cashed-in sale yet.',
     no_history_to_export: 'No history to export.',
     export_title_history: 'MYBOUTIK payment history',
@@ -459,7 +498,11 @@ function setLang(lang) {
     renderStats(CLIENTS); renderClients(); renderHistoryFiltered();
     renderSubs(SUBS_ROWS); renderPayouts(PAYOUTS_ROWS); renderFeedback(FEEDBACK_ROWS);
     renderBoutiquesFiltered();
-    renderDisputes(DISPUTES_ROWS); renderLowReviews(LOW_REVIEWS_ROWS); renderTopBoutiques(TOP_BOUTIQUES_ROWS);
+    renderDisputes(DISPUTES_ROWS); renderLowReviews(LOW_REVIEWS_ROWS);
+    renderTopBoutiquesTable('topBoutiquesRevenueBody', TOP_BOUTIQUES_REVENUE, 'revenue');
+    renderTopBoutiquesTable('topBoutiquesItemsBody', TOP_BOUTIQUES_ITEMS, 'items_sold');
+    renderTopBoutiquesTable('topBoutiquesOrdersBody', TOP_BOUTIQUES_ORDERS, 'orders_count');
+    renderActionsLog(ACTIONS_LOG_ROWS);
     if (CURRENT_REVENUE_YEAR) renderRevenue();
   }
 }
@@ -505,6 +548,11 @@ function applyStaticTranslations() {
   document.getElementById('h4LowReviews').textContent = t('h4_low_reviews');
   document.getElementById('h3TopBoutiques').textContent = t('h3_top_boutiques');
   document.getElementById('topBoutiquesNote').textContent = t('top_boutiques_note');
+  document.getElementById('h4TopRevenue').textContent = t('h4_top_revenue');
+  document.getElementById('h4TopItems').textContent = t('h4_top_items');
+  document.getElementById('h4TopOrders').textContent = t('h4_top_orders');
+  document.getElementById('h3ActionsLog').textContent = t('h3_actions_log');
+  document.getElementById('actionsLogNote').textContent = t('actions_log_note');
   document.getElementById('h3Demo').textContent = t('h3_demo');
   document.getElementById('demoDataNote').textContent = t('demo_data_note');
   document.getElementById('btnSeedDemoText').textContent = t('btn_seed_demo');
@@ -558,7 +606,10 @@ let FEEDBACK_ROWS = [];
 let BOUTIQUES_ROWS = [];
 let DISPUTES_ROWS = [];
 let LOW_REVIEWS_ROWS = [];
-let TOP_BOUTIQUES_ROWS = [];
+let TOP_BOUTIQUES_REVENUE = [];
+let TOP_BOUTIQUES_ITEMS = [];
+let TOP_BOUTIQUES_ORDERS = [];
+let ACTIONS_LOG_ROWS = [];
 let BOUTIQUE_FILTER = 'all';
 let REVENUE_BY_MONTH = []; // [{month:'2026-09', revenue: 12000}, ...]
 const MONTH_NAMES_FR = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
@@ -702,9 +753,21 @@ function loadAll() {
       if (!d9.success) { document.getElementById('lowReviewsBody').innerHTML = '<p style="color:#b91c1c">'+d9.message+'</p>'; return; }
       LOW_REVIEWS_ROWS = d9.data || []; renderLowReviews(LOW_REVIEWS_ROWS);
     });
-    call('top_boutiques').then(d10 => {
-      if (!d10.success) { document.getElementById('topBoutiquesBody').innerHTML = '<p style="color:#b91c1c">'+d10.message+'</p>'; return; }
-      TOP_BOUTIQUES_ROWS = d10.data || []; renderTopBoutiques(TOP_BOUTIQUES_ROWS);
+    call('top_boutiques', {by:'revenue'}).then(d10 => {
+      if (!d10.success) { document.getElementById('topBoutiquesRevenueBody').innerHTML = '<p style="color:#b91c1c">'+d10.message+'</p>'; return; }
+      TOP_BOUTIQUES_REVENUE = d10.data || []; renderTopBoutiquesTable('topBoutiquesRevenueBody', TOP_BOUTIQUES_REVENUE, 'revenue');
+    });
+    call('top_boutiques', {by:'items_sold'}).then(d11 => {
+      if (!d11.success) { document.getElementById('topBoutiquesItemsBody').innerHTML = '<p style="color:#b91c1c">'+d11.message+'</p>'; return; }
+      TOP_BOUTIQUES_ITEMS = d11.data || []; renderTopBoutiquesTable('topBoutiquesItemsBody', TOP_BOUTIQUES_ITEMS, 'items_sold');
+    });
+    call('top_boutiques', {by:'orders_count'}).then(d12 => {
+      if (!d12.success) { document.getElementById('topBoutiquesOrdersBody').innerHTML = '<p style="color:#b91c1c">'+d12.message+'</p>'; return; }
+      TOP_BOUTIQUES_ORDERS = d12.data || []; renderTopBoutiquesTable('topBoutiquesOrdersBody', TOP_BOUTIQUES_ORDERS, 'orders_count');
+    });
+    call('actions_log').then(d13 => {
+      if (!d13.success) { document.getElementById('actionsLogBody').innerHTML = '<p style="color:#b91c1c">'+d13.message+'</p>'; return; }
+      ACTIONS_LOG_ROWS = d13.data || []; renderActionsLog(ACTIONS_LOG_ROWS);
     });
   }).catch(() => { document.getElementById('loginMsg').innerHTML = '<div class="msg">'+t('server_unreachable')+'</div>'; });
 }
@@ -1016,7 +1079,7 @@ function renderBoutiquesFiltered() {
   else if (BOUTIQUE_FILTER === 'active_listed') rows = rows.filter(b => b.status === 'active' && Number(b.public_listed));
   else if (BOUTIQUE_FILTER === 'suspended') rows = rows.filter(b => b.status !== 'active');
   document.getElementById('boutiquesBody').innerHTML = rows.length ? `<table><thead><tr>
-      <th>${t('col_name')}</th><th>${t('col_owner')}</th><th>${t('col_status')}</th><th>${t('col_directory')}</th><th>${t('col_city')}</th><th>${t('col_disputes')}</th><th>${t('col_low_reviews')}</th><th>${t('col_registered')}</th><th></th>
+      <th>${t('col_name')}</th><th>${t('col_owner')}</th><th>${t('col_status')}</th><th>${t('col_directory')}</th><th>${t('col_city')}</th><th>${t('col_disputes')}</th><th>${t('col_low_reviews')}</th><th>${t('col_refusal_rate')}</th><th>${t('col_last_sale')}</th><th>${t('col_warnings')}</th><th>${t('col_registered')}</th><th></th>
     </tr></thead><tbody>
     ${rows.map(b => `<tr>
       <td>${escapeAttr(b.name)}</td>
@@ -1026,13 +1089,70 @@ function renderBoutiquesFiltered() {
       <td>${escapeAttr(b.city||'—')}</td>
       <td>${Number(b.open_disputes_count) > 0 ? '<span class="pill pill-bad">'+b.open_disputes_count+'</span>' : '0'}</td>
       <td>${Number(b.low_reviews_count) > 0 ? '<span class="pill pill-bad">'+b.low_reviews_count+'</span>' : '0'}</td>
+      <td>${refusalRateHtml(b)}</td>
+      <td>${lastSaleHtml(b)}</td>
+      <td>${Number(b.warning_count) > 0 ? '<span class="pill pill-warn">'+b.warning_count+'</span>' : '0'}</td>
       <td>${fmtDate(b.created_at)}</td>
       <td style="white-space:nowrap">${b.status === 'active'
         ? '<button class="ghost" onclick="toggleBoutiqueStatus(\''+b.id+'\',\'suspended\')">'+t('btn_suspend')+'</button>'
         : '<button onclick="toggleBoutiqueStatus(\''+b.id+'\',\'active\')">'+t('btn_reactivate')+'</button>'}
-      ${b.status === 'active' && !Number(b.public_listed) ? ' <button class="ghost" onclick="encourageListing(\''+b.id+'\')">'+t('btn_encourage')+'</button>' : ''}</td>
+      ${b.status === 'active' && !Number(b.public_listed) ? ' <button class="ghost" onclick="encourageListing(\''+b.id+'\')">'+t('btn_encourage')+'</button>' : ''}
+      <button class="ghost" onclick="openWarnModal('${b.id}')">${t('btn_warn')}</button></td>
     </tr>`).join('')}
     </tbody></table>` : '<p style="color:var(--gray)">'+t('no_boutiques_match')+'</p>';
+}
+// Taux de refus/annulation - juge de fiabilite/stock/possible arnaque
+// different des reclamations/avis. Sous 5 commandes, l'echantillon est trop
+// petit pour qu'un pourcentage veuille dire quoi que ce soit (une boutique
+// avec 1 commande refusee sur 2 n'est pas forcement a risque) donc on
+// affiche juste le compte brut dans ce cas plutot qu'un taux trompeur.
+function refusalRateHtml(b) {
+  const total = Number(b.total_orders_count || 0);
+  if (total < 5) return '<span class="muted">'+b.refused_count+'/'+total+'</span>';
+  const rate = Math.round((Number(b.refused_count || 0) / total) * 100);
+  return rate >= 30 ? '<span class="pill pill-bad">'+rate+'%</span>' : rate+'%';
+}
+// Detection d'inactivite - opportunite de relance, pas un signal de
+// qualite : une boutique qui n'a jamais vendu depuis sa creation n'a pas
+// forcement de probleme, elle debute peut-etre juste.
+function lastSaleHtml(b) {
+  if (!b.last_order_at) return '<span class="muted">'+t('label_never_sold')+'</span>';
+  const days = Math.floor((Date.now() - new Date(b.last_order_at)) / 86400000);
+  const label = fmtDate(b.last_order_at);
+  return days > 30 ? '<span class="pill pill-warn">'+label+t('label_inactive_suffix')+'</span>' : label;
+}
+let WARN_TARGET_ID = null;
+function openWarnModal(id) {
+  const b = BOUTIQUES_ROWS.find(x => x.id === id);
+  if (!b) return;
+  WARN_TARGET_ID = id;
+  document.getElementById('modalBody').innerHTML = `
+    <h3>${t('warn_modal_title')} — ${escapeAttr(b.name)}</h3>
+    <div id="warnModalMsg"></div>
+    <textarea id="warnMessageInput" rows="4" placeholder="${t('placeholder_warn_message')}"></textarea>
+    <div class="modal-actions">
+      <button type="button" class="ghost" onclick="document.getElementById('modalOverlay').classList.remove('open')">${t('confirm_cancel_btn')}</button>
+      <button type="button" onclick="submitWarn()">${t('btn_send_warning')}</button>
+    </div>
+  `;
+  document.getElementById('modalOverlay').classList.add('open');
+}
+function submitWarn() {
+  const b = BOUTIQUES_ROWS.find(x => x.id === WARN_TARGET_ID);
+  const message = document.getElementById('warnMessageInput').value.trim();
+  const msg = document.getElementById('warnModalMsg');
+  if (!message) { msg.innerHTML = '<div class="msg">'+t('warning_message_required')+'</div>'; return; }
+  customConfirm(tf('confirm_warn_boutique', {name: b ? b.name : ''})).then(ok => {
+    if (!ok) return;
+    call('boutique_warn', {id: WARN_TARGET_ID, message}).then(data => {
+      showToast(data.message || (data.success ? t('toast_done') : t('toast_error')), data.success ? 'success' : 'error');
+      if (data.success) {
+        document.getElementById('modalOverlay').classList.remove('open');
+        if (b) { b.warning_count = Number(b.warning_count||0) + 1; }
+        renderBoutiquesFiltered();
+      }
+    });
+  });
 }
 // Vues transversales (toutes boutiques confondues) pour reperer une
 // boutique a interpeller/suspendre sans avoir a ouvrir chaque tableau de
@@ -1040,9 +1160,21 @@ function renderBoutiquesFiltered() {
 // admin_low_reviews_list() cote serveur. Le bouton "Suspendre" reutilise
 // directement toggleBoutiqueStatus() (meme mecanisme que la table Boutiques
 // ci-dessus, juste declenche depuis cette liste).
+// hoursOpen() : temps ecoule depuis l'ouverture pour une reclamation
+// encore "En attente" - le seuil de 48h (badge_overdue_title) sert juste a
+// attirer l'oeil, ce n'est pas une regle metier stricte.
+function hoursOpen(d) {
+  return (Date.now() - new Date(d.dispute_created_at)) / 3600000;
+}
+function pendingSinceHtml(d) {
+  if (d.dispute_status !== 'open') return '—';
+  const h = hoursOpen(d);
+  const label = h >= 24 ? tf('days_ago', {d: Math.floor(h/24)}) : tf('hours_ago', {h: Math.floor(h)});
+  return h > 48 ? '<span class="pill pill-bad" title="'+t('badge_overdue_title')+'">⏰ '+label+'</span>' : label;
+}
 function renderDisputes(rows) {
   document.getElementById('disputesBody').innerHTML = rows.length ? `<table><thead><tr>
-      <th>${t('col_boutique')}</th><th>${t('col_ref')}</th><th>${t('col_client')}</th><th>${t('col_message')}</th><th>${t('col_status')}</th><th>${t('col_date')}</th><th></th>
+      <th>${t('col_boutique')}</th><th>${t('col_ref')}</th><th>${t('col_client')}</th><th>${t('col_message')}</th><th>${t('col_status')}</th><th>${t('col_pending_since')}</th><th>${t('col_date')}</th><th></th>
     </tr></thead><tbody>
     ${rows.map(d => `<tr>
       <td>${escapeAttr(d.boutique_name)}</td>
@@ -1050,6 +1182,7 @@ function renderDisputes(rows) {
       <td>${escapeAttr(d.customer_name||'')}</td>
       <td style="max-width:280px;white-space:normal">${escapeAttr(d.dispute_message||'')}</td>
       <td>${d.dispute_status === 'open' ? '<span class="pill pill-bad">'+t('status_open')+'</span>' : '<span class="pill pill-ok">'+t('status_resolved')+'</span>'}</td>
+      <td>${pendingSinceHtml(d)}</td>
       <td>${fmtDate(d.dispute_created_at)}</td>
       <td><button class="ghost" onclick="toggleBoutiqueStatus('${d.boutique_id}','suspended')">${t('btn_suspend')}</button></td>
     </tr>`).join('')}
@@ -1096,18 +1229,38 @@ function renderBoutiqueRanking() {
     </tr>`).join('')}
     </tbody></table>` : '<p style="color:var(--gray)">'+t('no_flagged_boutiques')+'</p>';
 }
-function renderTopBoutiques(rows) {
-  document.getElementById('topBoutiquesBody').innerHTML = rows.length ? `<table><thead><tr>
-      <th>${t('col_rank')}</th><th>${t('col_name')}</th><th>${t('col_city')}</th><th>${t('col_orders_count')}</th><th>${t('col_revenue')}</th>
+// Meme rendu pour les 3 classements (revenu/articles/commandes) - seule la
+// colonne mise en avant (en gras) change selon sortKey, les donnees des 3
+// metriques sont toujours toutes les 3 presentes cote serveur (voir
+// admin_top_boutiques()).
+function renderTopBoutiquesTable(containerId, rows, sortKey) {
+  const emp = (key) => key === sortKey ? 'font-weight:700' : '';
+  document.getElementById(containerId).innerHTML = rows.length ? `<table><thead><tr>
+      <th>${t('col_rank')}</th><th>${t('col_name')}</th><th>${t('col_city')}</th>
+      <th style="${emp('orders_count')}">${t('col_orders_count')}</th>
+      <th style="${emp('items_sold')}">${t('col_items_sold')}</th>
+      <th style="${emp('revenue')}">${t('col_top_revenue')}</th>
     </tr></thead><tbody>
     ${rows.map((b, i) => `<tr>
       <td>${i+1}</td>
       <td>${escapeAttr(b.name)}</td>
       <td>${escapeAttr(b.city||'—')}</td>
-      <td>${b.orders_count}</td>
-      <td>${fmtMoney(b.revenue)}</td>
+      <td style="${emp('orders_count')}">${b.orders_count}</td>
+      <td style="${emp('items_sold')}">${b.items_sold}</td>
+      <td style="${emp('revenue')}">${fmtMoney(b.revenue)}</td>
     </tr>`).join('')}
     </tbody></table>` : '<p style="color:var(--gray)">'+t('no_top_boutiques')+'</p>';
+}
+function renderActionsLog(rows) {
+  document.getElementById('actionsLogBody').innerHTML = rows.length ? `<table><thead><tr>
+      <th>${t('col_boutique')}</th><th>${t('col_action')}</th><th>${t('col_date')}</th>
+    </tr></thead><tbody>
+    ${rows.map(a => `<tr>
+      <td>${escapeAttr(a.boutique_name)}</td>
+      <td>${escapeAttr(a.message)}</td>
+      <td>${fmtDate(a.created_at)}</td>
+    </tr>`).join('')}
+    </tbody></table>` : '<p style="color:var(--gray)">'+t('no_actions_log')+'</p>';
 }
 function toggleBoutiqueStatus(id, status) {
   const b = BOUTIQUES_ROWS.find(x => x.id === id);
