@@ -71,7 +71,14 @@
   .pill-ok{background:#e3f9ee;color:var(--green)}
   .pill-warn{background:#fef3c7;color:#92400e}
   .pill-bad{background:#fde8ea;color:var(--red)}
-  .table-wrap{overflow-x:auto}
+  /* Astuce CSS pour afficher la barre de defilement horizontale en HAUT du
+     tableau plutot qu'en bas (pratique sur les tableaux larges - inutile de
+     descendre jusqu'en bas juste pour la trouver) : on retourne le
+     conteneur a 180deg (ce qui deplace visuellement sa barre de defilement
+     native de bas en haut), puis on re-retourne le contenu a 180deg pour
+     qu'il s'affiche normalement. */
+  .table-wrap{overflow-x:auto;transform:rotateX(180deg)}
+  .table-wrap>*{transform:rotateX(180deg)}
   .tabs{display:flex;gap:8px;margin-bottom:14px}
   .tab{padding:7px 14px;border-radius:999px;border:1px solid var(--border);background:#fff;font-size:13px;cursor:pointer}
   .tab.active{background:var(--ink);color:#fff;border-color:var(--ink)}
