@@ -152,7 +152,7 @@
       <button type="button" data-tab="revenue" onclick="setAdminTab('revenue')"><span id="tabLblRevenue"></span></button>
       <button type="button" data-tab="feedback" onclick="setAdminTab('feedback')"><span id="tabLblFeedback"></span><span class="tab-badge" id="badgeFeedback" style="display:none"></span></button>
       <button type="button" data-tab="demo" onclick="setAdminTab('demo')"><span id="tabLblDemo"></span></button>
-      <button type="button" class="logout" id="logoutBtn" onclick="adminLogout()">🚪 <span id="logoutBtnText"></span></button>
+      <button type="button" class="logout" id="logoutBtn" onclick="confirmAdminLogout()">🚪 <span id="logoutBtnText"></span></button>
     </div>
     <div class="period-bar" id="periodBar">
       <div class="plabel"><strong id="periodLabel"></strong> · <span id="periodRangeText"></span> — <span id="periodScope"></span></div>
@@ -433,6 +433,7 @@ const I18N = {
     no_history_to_export: 'Aucun historique à exporter.',
     export_title_history: 'Historique des paiements MYBOUTIK',
     session_expired_toast: 'SESSION TERMINÉE. RECONNECTEZ-VOUS.',
+    confirm_logout: 'Voulez-vous vraiment vous déconnecter du panneau admin ?',
   },
   en: {
     subtitle: 'Admin panel — Platform management',
@@ -568,6 +569,7 @@ const I18N = {
     no_history_to_export: 'No history to export.',
     export_title_history: 'MYBOUTIK payment history',
     session_expired_toast: 'SESSION ENDED. PLEASE LOG IN AGAIN.',
+    confirm_logout: 'Do you really want to log out of the admin panel?',
   },
 };
 function t(key) { return (I18N[LANG] && I18N[LANG][key]) ?? I18N.fr[key] ?? key; }
@@ -1517,6 +1519,13 @@ function deleteDemoData() {
       if (data.success) loadAll();
     });
   });
+}
+// Le bouton "Se deconnecter" demande confirmation ; la deconnexion
+// automatique par inactivite (adminLogout('inactivity') plus bas) ne doit
+// jamais en demander : personne n'a clique, "Annuler" ne rendrait pas la
+// session valide de toute facon.
+function confirmAdminLogout() {
+  customConfirm(t('confirm_logout'), {danger: true}).then(ok => { if (ok) adminLogout(); });
 }
 function adminLogout(reason) {
   clearTimeout(inactivityTimer);
