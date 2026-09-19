@@ -515,6 +515,14 @@ const I18N = {
     badge_digital_title: 'Contient un produit numérique (envoyé par email)',
     badge_delivery_title: 'Mode : Livraison',
     badge_shipping_title: 'Mode : Expédition',
+    badge_dispute_open_title: 'Réclamation en attente de réponse',
+    badge_dispute_resolved_title: 'Réclamation déjà répondue',
+    dispute_modal_title: 'Réclamation client',
+    label_customer_message: 'Message du client',
+    label_your_response: 'Votre réponse',
+    placeholder_dispute_response: 'Expliquez comment vous allez résoudre ce problème...',
+    btn_send_response: 'Envoyer la réponse',
+    response_required: 'Écrivez une réponse',
     col_client: 'Client',
     col_total: 'Total',
     col_status: 'Statut',
@@ -1185,6 +1193,14 @@ const I18N = {
     badge_digital_title: 'Contains a digital product (sent by email)',
     badge_delivery_title: 'Mode: Delivery',
     badge_shipping_title: 'Mode: Shipping',
+    badge_dispute_open_title: 'Complaint awaiting a reply',
+    badge_dispute_resolved_title: 'Complaint already answered',
+    dispute_modal_title: 'Customer complaint',
+    label_customer_message: 'Customer message',
+    label_your_response: 'Your response',
+    placeholder_dispute_response: 'Explain how you will resolve this issue...',
+    btn_send_response: 'Send response',
+    response_required: 'Write a response',
     col_client: 'Customer',
     col_total: 'Total',
     col_status: 'Status',
@@ -2155,7 +2171,47 @@ function orderTypeBadge(o) {
   if (Number(o.has_physical) === 1) icons.push('<span title="'+t('badge_physical_title')+'">📦</span>');
   if (Number(o.has_digital) === 1) icons.push('<span title="'+t('badge_digital_title')+'">📧</span>');
   if (Number(o.has_physical) === 1) icons.push(o.delivery_method === 'shipping' ? '<span title="'+t('badge_shipping_title')+'">📮</span>' : '<span title="'+t('badge_delivery_title')+'">🚚</span>');
+  if (o.dispute_status === 'open') icons.push('<span title="'+t('badge_dispute_open_title')+'" style="cursor:pointer" onclick="openDisputeModal(\''+o.id+'\')">⚠️</span>');
+  else if (o.dispute_status === 'resolved') icons.push('<span title="'+t('badge_dispute_resolved_title')+'" style="cursor:pointer" onclick="openDisputeModal(\''+o.id+'\')">💬</span>');
   return icons.length ? ' <span style="margin-left:4px">'+icons.join('')+'</span>' : '';
+}
+// Reclamation client (shop_submit_dispute() cote serveur) - la fiche
+// commande complete (avec dispute_message/response) n'est pas dans la ligne
+// du tableau, d'ou le rechargement via orders?action=get comme
+// printOrderBordereau() plutot que de tout garder en memoire.
+function openDisputeModal(orderId) {
+  api('/orders?action=get&boutique_id='+CURRENT.id+'&id='+orderId).then(({data}) => {
+    if (!data.success) { showToast(data.message, 'error'); return; }
+    const o = data.data;
+    openModal(`
+      <h3>${t('dispute_modal_title')} — ${escapeHtml(o.ref)}</h3>
+      <div class="field"><label>${t('label_customer_message')}</label>
+        <div class="muted" style="border:1px solid var(--border);border-radius:8px;padding:10px;white-space:pre-wrap">${escapeHtml(o.dispute_message||'')}</div>
+      </div>
+      ${o.dispute_status === 'resolved' ? `
+        <div class="field"><label>${t('label_your_response')}</label>
+          <div class="muted" style="border:1px solid var(--border);border-radius:8px;padding:10px;white-space:pre-wrap">${escapeHtml(o.dispute_response||'')}</div>
+        </div>
+      ` : `
+        <div class="field"><label>${t('label_your_response')}</label>
+          <textarea id="disputeResponseInput" rows="4" placeholder="${t('placeholder_dispute_response')}"></textarea>
+        </div>
+        <div id="disputeRespondMsg"></div>
+        <button class="btn btn-primary" onclick="submitDisputeResponse('${o.id}')">${t('btn_send_response')}</button>
+      `}
+    `);
+  });
+}
+function submitDisputeResponse(orderId) {
+  const response = document.getElementById('disputeResponseInput').value.trim();
+  const msg = document.getElementById('disputeRespondMsg');
+  if (!response) { msg.innerHTML = '<div class="msg error">'+t('response_required')+'</div>'; return; }
+  post('/orders?action=respond_dispute', {boutique_id:CURRENT.id, id:orderId, response}).then(({data}) => {
+    if (!data.success) { msg.innerHTML = '<div class="msg error">'+data.message+'</div>'; return; }
+    closeModal();
+    showToast(data.message, 'success');
+    route();
+  });
 }
 function renderOrdersTable(rows, bt, compact) {
   if (!rows.length) return '<div class="empty"><div class="big">🛍️</div>'+t('no_orders_yet')+'</div>';

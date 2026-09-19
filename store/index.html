@@ -239,6 +239,12 @@ const I18N = {
     personal_promo_suffix: ' disponible pour vous',
     use_btn: 'Utiliser',
     track_order_title: 'Suivre ma commande',
+    report_problem_link: 'Signaler un problème avec cette commande',
+    dispute_open_title: '🕓 Réclamation envoyée, en attente de réponse du marchand',
+    dispute_resolved_title: '✅ Réponse du marchand',
+    dispute_placeholder: 'Décrivez le problème rencontré avec cette commande...',
+    dispute_submit_btn: 'Envoyer la réclamation',
+    dispute_message_required: 'Décrivez le problème rencontré',
     track_phone_label: 'Téléphone utilisé à la commande',
     track_ref_label: 'Numéro de commande (si vous le connaissez)',
     search_btn: 'Rechercher',
@@ -335,6 +341,12 @@ const I18N = {
     personal_promo_suffix: ' available for you',
     use_btn: 'Use',
     track_order_title: 'Track my order',
+    report_problem_link: 'Report a problem with this order',
+    dispute_open_title: '🕓 Complaint sent, waiting for the merchant\'s reply',
+    dispute_resolved_title: '✅ Merchant\'s reply',
+    dispute_placeholder: 'Describe the problem you had with this order...',
+    dispute_submit_btn: 'Send complaint',
+    dispute_message_required: 'Describe the problem you encountered',
     track_phone_label: 'Phone used for the order',
     track_ref_label: 'Order number (if you know it)',
     search_btn: 'Search',
@@ -1050,7 +1062,52 @@ function submitTrackOrder() {
         ${o.delivery_person_name ? '<div style="color:var(--gray);font-size:13px">'+t('delivery_person_label')+escapeHtml(o.delivery_person_name)+' ('+escapeHtml(o.delivery_person_phone||'')+')</div>' : ''}
         <div style="margin-top:10px">${(o.items||[]).map(it=>'<div style="font-size:13px">'+it.qty+' × '+escapeHtml(it.product_name)+'</div>').join('')}</div>
         <div style="font-weight:700;margin-top:8px">${t('order_total_label')}${fmtMoney(o.total, BOUTIQUE.currency)}</div>
+        ${o.status === 'delivered' ? renderDisputeBlock(o) : ''}
       </div>`;
+  });
+}
+// Reclamation client, uniquement proposee sur une commande deja livree (voir
+// shop_submit_dispute() cote serveur, meme condition). Trois etats possibles :
+// pas encore de reclamation (lien pour en ouvrir une), 'open' (en attente du
+// marchand), 'resolved' (reponse du marchand affichee).
+function renderDisputeBlock(o) {
+  if (o.dispute_status === 'open') {
+    return `<div style="margin-top:12px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:10px;font-size:13px">
+      <strong>${t('dispute_open_title')}</strong>
+      <div class="muted" style="margin-top:4px">${escapeHtml(o.dispute_message||'')}</div>
+    </div>`;
+  }
+  if (o.dispute_status === 'resolved') {
+    return `<div style="margin-top:12px;background:#ecfdf5;border:1px solid #a7f3d0;border-radius:8px;padding:10px;font-size:13px">
+      <strong>${t('dispute_resolved_title')}</strong>
+      <div class="muted" style="margin-top:4px">${escapeHtml(o.dispute_response||'')}</div>
+    </div>`;
+  }
+  return `<div style="margin-top:12px">
+    <a href="#" onclick="toggleDisputeForm();return false" style="font-size:13px;font-weight:700;color:var(--blue)">${t('report_problem_link')}</a>
+    <div id="disputeFormWrap"></div>
+  </div>`;
+}
+function toggleDisputeForm() {
+  const wrap = document.getElementById('disputeFormWrap');
+  if (!wrap) return;
+  if (wrap.innerHTML) { wrap.innerHTML = ''; return; }
+  wrap.innerHTML = `
+    <div id="disputeMsg"></div>
+    <textarea id="disputeMessage" rows="3" placeholder="${t('dispute_placeholder')}" style="width:100%;margin-top:8px;padding:8px;border:1px solid var(--border);border-radius:8px;font-family:inherit;font-size:13px"></textarea>
+    <button class="btn btn-primary btn-sm" style="margin-top:6px" onclick="submitDispute()">${t('dispute_submit_btn')}</button>
+  `;
+}
+function submitDispute() {
+  const ref = document.getElementById('trkRef').value.trim();
+  const phone = document.getElementById('trkPhone').value.trim();
+  const message = document.getElementById('disputeMessage').value.trim();
+  const msg = document.getElementById('disputeMsg');
+  if (!message) { msg.innerHTML = '<div class="msg error">'+t('dispute_message_required')+'</div>'; return; }
+  post('/shop?action=submit_dispute', {slug:SLUG, ref, phone, message}).then(({data}) => {
+    if (!data.success) { msg.innerHTML = '<div class="msg error">'+data.message+'</div>'; return; }
+    showToast(data.message, 'success');
+    submitTrackOrder();
   });
 }
 function subscribeNewsletter() {

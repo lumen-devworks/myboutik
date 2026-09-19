@@ -159,6 +159,13 @@ const EN_DICT = [
     'Commande fournisseur creee' => 'Supplier order created',
     'Commande fournisseur introuvable' => 'Supplier order not found',
     'Commande introuvable' => 'Order not found',
+    'Decrivez le probleme rencontre' => 'Describe the problem you encountered',
+    'Une reclamation est deja en cours de traitement pour cette commande' => 'A complaint is already being processed for this order',
+    'La reclamation n\'est disponible que pour une commande deja livree' => 'Complaints are only available for an already delivered order',
+    'Votre reclamation a ete envoyee au marchand.' => 'Your complaint has been sent to the merchant.',
+    'Aucune reclamation ouverte pour cette commande' => 'No open complaint for this order',
+    'Ecrivez une reponse' => 'Write a response',
+    'Reponse envoyee' => 'Response sent',
     'Compte cree' => 'Account created',
     'Compte cree. Verifiez votre email pour activer votre compte.' => 'Account created. Check your email to activate your account.',
     'Compte introuvable' => 'Account not found',
@@ -1022,6 +1029,17 @@ function route_install() {
     // s'applique (voir shop_checkout()) ; NULL en mode "Livraison" ou pour
     // les commandes 100% numeriques.
     "ALTER TABLE orders ADD COLUMN IF NOT EXISTS customer_country VARCHAR(80)",
+    // Reclamation client apres livraison ("le produit ne correspond pas a
+    // mes attentes") - portee directement par la commande plutot qu'une
+    // table a part : une seule reclamation active a la fois par commande
+    // suffit pour ce cas d'usage, pas besoin d'un fil de discussion.
+    // dispute_status : NULL (aucune), 'open' (en attente du marchand),
+    // 'resolved' (le marchand a repondu).
+    "ALTER TABLE orders ADD COLUMN IF NOT EXISTS dispute_status VARCHAR(20)",
+    "ALTER TABLE orders ADD COLUMN IF NOT EXISTS dispute_message TEXT",
+    "ALTER TABLE orders ADD COLUMN IF NOT EXISTS dispute_created_at TIMESTAMP",
+    "ALTER TABLE orders ADD COLUMN IF NOT EXISTS dispute_response TEXT",
+    "ALTER TABLE orders ADD COLUMN IF NOT EXISTS dispute_resolved_at TIMESTAMP",
     "CREATE TABLE IF NOT EXISTS order_items (
         id VARCHAR(36) PRIMARY KEY,
         order_id VARCHAR(36) NOT NULL,
@@ -2125,6 +2143,7 @@ function route_shop($action) {
         case 'categories':       shop_categories(); break;
         case 'promo_for_phone':  shop_promo_for_phone(); break;
         case 'track_order':      shop_track_order(); break;
+        case 'submit_dispute':   shop_submit_dispute(); break;
         case 'orders_for_phone': shop_orders_for_phone(); break;
         case 'reviews':          shop_reviews(); break;
         case 'review_add':       shop_review_add(); break;
@@ -2779,7 +2798,8 @@ function shop_track_order() {
     $ref = trim($b['ref'] ?? '');
     $phone = trim($b['phone'] ?? '');
     if ($ref === '' || $phone === '') fail('Numero de commande et telephone requis');
-    $o = q("SELECT id,ref,status,total,subtotal,delivery_fee_charged,delivery_method,discount_amount,customer_name,created_at,delivered_at
+    $o = q("SELECT id,ref,status,total,subtotal,delivery_fee_charged,delivery_method,discount_amount,customer_name,created_at,delivered_at,
+                   dispute_status,dispute_message,dispute_response,dispute_created_at,dispute_resolved_at
             FROM orders WHERE boutique_id=? AND ref=? AND RIGHT(regexp_replace(customer_phone,'\D','','g'),8)=?",
            [$bt['id'], $ref, phone_key($phone)])->fetch();
     if (!$o) fail('Aucune commande trouvee avec ces informations', 404);
@@ -2791,6 +2811,44 @@ function shop_track_order() {
     $o['delivery_person_name'] = $delivery['delivery_person_name'] ?? null;
     $o['delivery_person_phone'] = $delivery['delivery_person_phone'] ?? null;
     ok($o);
+}
+
+// Reclamation client apres livraison ("le produit ne correspond pas a mes
+// attentes") - meme couple ref+telephone que shop_track_order() pour
+// s'assurer que seul le client de cette commande peut la signaler. Limitee
+// aux commandes deja livrees (avant ça, "livraison" au sens du client n'a
+// pas encore eu lieu) et a une reclamation ouverte a la fois par commande.
+function shop_submit_dispute() {
+    rate_limit_check('shop_submit_dispute', 10, 300);
+    $b = body();
+    $bt = public_boutique_by_slug($b['slug'] ?? '');
+    $ref = trim($b['ref'] ?? '');
+    $phone = trim($b['phone'] ?? '');
+    $message = trim($b['message'] ?? '');
+    if ($ref === '' || $phone === '') fail('Numero de commande et telephone requis');
+    if ($message === '') fail('Decrivez le probleme rencontre');
+    $o = q("SELECT id, status, dispute_status, customer_name FROM orders
+            WHERE boutique_id=? AND ref=? AND RIGHT(regexp_replace(customer_phone,'\D','','g'),8)=?",
+           [$bt['id'], $ref, phone_key($phone)])->fetch();
+    if (!$o) fail('Aucune commande trouvee avec ces informations', 404);
+    if ($o['status'] !== 'delivered') fail('La reclamation n\'est disponible que pour une commande deja livree', 400);
+    if ($o['dispute_status'] === 'open') fail('Une reclamation est deja en cours de traitement pour cette commande');
+    q("UPDATE orders SET dispute_status='open', dispute_message=?, dispute_created_at=NOW(), dispute_response=NULL, dispute_resolved_at=NULL WHERE id=?",
+      [$message, $o['id']]);
+    notify_new_dispute($bt, $ref, $o['customer_name'], $message);
+    ok(null, 'Votre reclamation a ete envoyee au marchand.');
+}
+function notify_new_dispute($bt, $ref, $customerName, $message) {
+    $settings = q("SELECT notify_order_email, notify_email FROM boutiques WHERE id=?", [$bt['id']])->fetch();
+    if (!$settings || !$settings['notify_order_email']) return;
+    $to = $settings['notify_email'] ?: null;
+    if (!$to) {
+        $owner = q("SELECT u.email FROM users u JOIN boutiques b ON b.owner_user_id=u.id WHERE b.id=?", [$bt['id']])->fetch();
+        $to = $owner['email'] ?? null;
+    }
+    if (!$to) return;
+    $summary = "Client: $customerName\nCommande: $ref\n\nMessage du client:\n$message\n\nOuvrez votre tableau de bord MYBOUTIK (Commandes) pour repondre.";
+    send_email($to, 'Reclamation sur la commande '.$ref.' - '.$bt['name'], $summary);
 }
 
 // Liste des commandes d'un numero (sans reference) - permet au client qui a
@@ -2847,6 +2905,7 @@ function route_orders($action) {
         case 'get':                orders_get($pl); break;
         case 'create':              orders_create_manual($pl); break;
         case 'update_status':       orders_update_status($pl); break;
+        case 'respond_dispute':     orders_respond_dispute($pl); break;
         case 'resend_digital':      orders_resend_digital($pl); break;
         case 'abandoned_list':      abandoned_list($pl); break;
         case 'abandoned_mark':      abandoned_mark($pl); break;
@@ -3025,6 +3084,22 @@ function maybe_send_digital_delivery($bt, $o) {
         "\n\nBonne utilisation !";
     send_email($email, 'Votre produit numerique - commande '.$o['ref'].' - '.$bt['name'], $body);
     q("UPDATE orders SET digital_delivery_sent_at=NOW() WHERE id=?", [$o['id']]);
+}
+
+// Reponse du marchand a une reclamation client (shop_submit_dispute()) -
+// marque la reclamation comme resolue avec le message de reponse ; ne
+// renvoie rien au client par email (aucune adresse email fiable stockee sur
+// la commande), il la consultera en revisitant "Suivre ma commande".
+function orders_respond_dispute($pl) {
+    $b = body();
+    $bt = require_boutique_owned($b['boutique_id'] ?? '', $pl['sub']);
+    $o = order_owned($b['id'] ?? '', $bt['id']);
+    if ($o['dispute_status'] !== 'open') fail('Aucune reclamation ouverte pour cette commande', 400);
+    $response = trim($b['response'] ?? '');
+    if ($response === '') fail('Ecrivez une reponse');
+    q("UPDATE orders SET dispute_status='resolved', dispute_response=?, dispute_resolved_at=NOW() WHERE id=?", [$response, $o['id']]);
+    log_activity($bt['id'], 'Reclamation resolue pour la commande '.$o['ref'], $pl['sub']);
+    ok(q("SELECT * FROM orders WHERE id=?", [$o['id']])->fetch(), 'Reponse envoyee');
 }
 
 // Renvoi manuel a la demande du marchand (bouton "Renvoyer" sur une commande
