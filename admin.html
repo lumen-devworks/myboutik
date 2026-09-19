@@ -121,16 +121,30 @@
     <div class="card">
       <h3 id="h3Boutiques">Boutiques</h3>
       <div class="stats-grid" id="boutiquesStatsGrid" style="margin-bottom:16px"></div>
+      <div class="lang-switch" id="boutiqueFilterTabs" style="display:inline-flex;margin-bottom:12px">
+        <button type="button" id="filterAll" onclick="setBoutiqueFilter('all')" class="active"></button>
+        <button type="button" id="filterActiveUnlisted" onclick="setBoutiqueFilter('active_unlisted')"></button>
+        <button type="button" id="filterActiveListed" onclick="setBoutiqueFilter('active_listed')"></button>
+        <button type="button" id="filterSuspended" onclick="setBoutiqueFilter('suspended')"></button>
+      </div>
+      <br>
       <input id="boutiqueSearch" placeholder="Rechercher par nom ou email…" style="max-width:280px" oninput="renderBoutiquesFiltered()">
       <div class="table-wrap" id="boutiquesBody"></div>
     </div>
     <div class="card">
       <h3 id="h3Quality">Surveillance qualité</h3>
       <p class="muted" id="qualityNote" style="margin-bottom:14px"></p>
-      <h4 id="h4Disputes" style="margin:0 0 8px">Réclamations</h4>
+      <h4 id="h4Ranking" style="margin:0 0 8px">Boutiques à surveiller</h4>
+      <div class="table-wrap" id="boutiqueRankingBody"></div>
+      <h4 id="h4Disputes" style="margin:20px 0 8px">Réclamations</h4>
       <div class="table-wrap" id="disputesBody"></div>
       <h4 id="h4LowReviews" style="margin:20px 0 8px">Avis ≤ 2 étoiles</h4>
       <div class="table-wrap" id="lowReviewsBody"></div>
+    </div>
+    <div class="card">
+      <h3 id="h3TopBoutiques">Top 10 des boutiques</h3>
+      <p class="muted" id="topBoutiquesNote" style="margin-bottom:12px"></p>
+      <div class="table-wrap" id="topBoutiquesBody"></div>
     </div>
     <div class="card">
       <h3 id="h3Demo">Données de démonstration</h3>
@@ -310,6 +324,16 @@ const I18N = {
     confirm_reactivate_boutique: 'Réactiver la boutique {name} ?',
     stat_boutiques_total: 'Boutiques', stat_boutiques_active: 'Actives',
     stat_boutiques_suspended: 'Suspendues', stat_boutiques_listed: 'Listées (annuaire)',
+    filter_all: 'Toutes', filter_active_unlisted: 'Actives — non listées', filter_active_listed: 'Actives — listées', filter_suspended: 'Suspendues',
+    btn_encourage: '✉️ Encourager', encourage_mail_subject: 'Faites connaître votre boutique sur MYBOUTIK !',
+    encourage_mail_body: 'Bonjour,\n\nVotre boutique {name} est active mais n\'apparaît pas encore dans l\'annuaire public MYBOUTIK. Activez "Visible dans l\'annuaire public" dans les paramètres de votre boutique pour être découvert par de nouveaux clients.\n\nL\'équipe MYBOUTIK',
+    h4_ranking: 'Boutiques à surveiller (le plus de réclamations/mauvais avis en premier)',
+    no_flagged_boutiques: 'Aucune boutique signalée pour le moment.',
+    col_issues: 'Total signalements',
+    h3_top_boutiques: 'Top 10 des boutiques',
+    top_boutiques_note: 'Classées par chiffre d\'affaires encaissé (commandes validées, expédiées ou livrées).',
+    col_rank: '#', col_orders_count: 'Commandes', col_revenue: 'CA encaissé',
+    no_top_boutiques: 'Aucune vente encaissée pour le moment.',
     no_history_to_export: 'Aucun historique à exporter.',
     export_title_history: 'Historique des paiements MYBOUTIK',
     session_expired_toast: 'SESSION TERMINÉE. RECONNECTEZ-VOUS.',
@@ -404,6 +428,16 @@ const I18N = {
     confirm_reactivate_boutique: 'Reactivate the shop {name}?',
     stat_boutiques_total: 'Shops', stat_boutiques_active: 'Active',
     stat_boutiques_suspended: 'Suspended', stat_boutiques_listed: 'Listed (directory)',
+    filter_all: 'All', filter_active_unlisted: 'Active — unlisted', filter_active_listed: 'Active — listed', filter_suspended: 'Suspended',
+    btn_encourage: '✉️ Encourage', encourage_mail_subject: 'Get your shop noticed on MYBOUTIK!',
+    encourage_mail_body: 'Hello,\n\nYour shop {name} is active but is not yet listed in the MYBOUTIK public directory. Turn on "Visible in the public directory" in your shop settings to be discovered by new customers.\n\nThe MYBOUTIK team',
+    h4_ranking: 'Shops to watch (most complaints/low reviews first)',
+    no_flagged_boutiques: 'No flagged shop at the moment.',
+    col_issues: 'Total flags',
+    h3_top_boutiques: 'Top 10 shops',
+    top_boutiques_note: 'Ranked by cashed-in revenue (confirmed, shipped, or delivered orders).',
+    col_rank: '#', col_orders_count: 'Orders', col_revenue: 'Revenue',
+    no_top_boutiques: 'No cashed-in sale yet.',
     no_history_to_export: 'No history to export.',
     export_title_history: 'MYBOUTIK payment history',
     session_expired_toast: 'SESSION ENDED. PLEASE LOG IN AGAIN.',
@@ -425,7 +459,7 @@ function setLang(lang) {
     renderStats(CLIENTS); renderClients(); renderHistoryFiltered();
     renderSubs(SUBS_ROWS); renderPayouts(PAYOUTS_ROWS); renderFeedback(FEEDBACK_ROWS);
     renderBoutiquesFiltered();
-    renderDisputes(DISPUTES_ROWS); renderLowReviews(LOW_REVIEWS_ROWS);
+    renderDisputes(DISPUTES_ROWS); renderLowReviews(LOW_REVIEWS_ROWS); renderTopBoutiques(TOP_BOUTIQUES_ROWS);
     if (CURRENT_REVENUE_YEAR) renderRevenue();
   }
 }
@@ -460,10 +494,17 @@ function applyStaticTranslations() {
   document.getElementById('logoutBtnText').textContent = t('btn_logout');
   document.getElementById('h3Boutiques').textContent = t('h3_boutiques');
   document.getElementById('boutiqueSearch').placeholder = t('search_boutique_placeholder');
+  document.getElementById('filterAll').textContent = t('filter_all');
+  document.getElementById('filterActiveUnlisted').textContent = t('filter_active_unlisted');
+  document.getElementById('filterActiveListed').textContent = t('filter_active_listed');
+  document.getElementById('filterSuspended').textContent = t('filter_suspended');
   document.getElementById('h3Quality').textContent = t('h3_quality');
   document.getElementById('qualityNote').textContent = t('quality_note');
+  document.getElementById('h4Ranking').textContent = t('h4_ranking');
   document.getElementById('h4Disputes').textContent = t('h4_disputes');
   document.getElementById('h4LowReviews').textContent = t('h4_low_reviews');
+  document.getElementById('h3TopBoutiques').textContent = t('h3_top_boutiques');
+  document.getElementById('topBoutiquesNote').textContent = t('top_boutiques_note');
   document.getElementById('h3Demo').textContent = t('h3_demo');
   document.getElementById('demoDataNote').textContent = t('demo_data_note');
   document.getElementById('btnSeedDemoText').textContent = t('btn_seed_demo');
@@ -517,6 +558,8 @@ let FEEDBACK_ROWS = [];
 let BOUTIQUES_ROWS = [];
 let DISPUTES_ROWS = [];
 let LOW_REVIEWS_ROWS = [];
+let TOP_BOUTIQUES_ROWS = [];
+let BOUTIQUE_FILTER = 'all';
 let REVENUE_BY_MONTH = []; // [{month:'2026-09', revenue: 12000}, ...]
 const MONTH_NAMES_FR = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
 const MONTH_NAMES_EN = ['January','February','March','April','May','June','July','August','September','October','November','December'];
@@ -658,6 +701,10 @@ function loadAll() {
     call('low_reviews_list').then(d9 => {
       if (!d9.success) { document.getElementById('lowReviewsBody').innerHTML = '<p style="color:#b91c1c">'+d9.message+'</p>'; return; }
       LOW_REVIEWS_ROWS = d9.data || []; renderLowReviews(LOW_REVIEWS_ROWS);
+    });
+    call('top_boutiques').then(d10 => {
+      if (!d10.success) { document.getElementById('topBoutiquesBody').innerHTML = '<p style="color:#b91c1c">'+d10.message+'</p>'; return; }
+      TOP_BOUTIQUES_ROWS = d10.data || []; renderTopBoutiques(TOP_BOUTIQUES_ROWS);
     });
   }).catch(() => { document.getElementById('loginMsg').innerHTML = '<div class="msg">'+t('server_unreachable')+'</div>'; });
 }
@@ -937,10 +984,37 @@ function renderBoutiquesStats() {
     <div class="stat" style="--accent:#2563eb"><div class="lbl">${t('stat_boutiques_listed')}</div><div class="val">${listed}</div></div>
   `;
 }
+// BOUTIQUE_FILTER separe les boutiques en 3 espaces demandes : actives non
+// listees (candidates a "encourager" a rejoindre l'annuaire public),
+// actives listees, et suspendues - en plus de la recherche texte libre deja
+// existante (les deux se combinent).
+function setBoutiqueFilter(f) {
+  BOUTIQUE_FILTER = f;
+  ['filterAll','filterActiveUnlisted','filterActiveListed','filterSuspended'].forEach(id => {
+    document.getElementById(id).classList.remove('active');
+  });
+  document.getElementById({all:'filterAll', active_unlisted:'filterActiveUnlisted', active_listed:'filterActiveListed', suspended:'filterSuspended'}[f]).classList.add('active');
+  renderBoutiquesFiltered();
+}
+// mailto: pre-rempli pour inciter un marchand actif mais non liste dans
+// l'annuaire a l'activer - pas d'envoi automatique depuis le serveur (pas
+// d'adresse d'expedition dediee configuree), on ouvre juste le client email
+// de l'operateur avec le message pret.
+function encourageListing(id) {
+  const b = BOUTIQUES_ROWS.find(x => x.id === id);
+  if (!b) return;
+  const subject = encodeURIComponent(t('encourage_mail_subject'));
+  const body = encodeURIComponent(tf('encourage_mail_body', {name: b.name}));
+  window.location.href = 'mailto:'+encodeURIComponent(b.owner_email)+'?subject='+subject+'&body='+body;
+}
 function renderBoutiquesFiltered() {
   renderBoutiquesStats();
+  renderBoutiqueRanking();
   const q = (document.getElementById('boutiqueSearch').value || '').toLowerCase();
-  const rows = BOUTIQUES_ROWS.filter(b => !q || b.name.toLowerCase().includes(q) || b.owner_email.toLowerCase().includes(q));
+  let rows = BOUTIQUES_ROWS.filter(b => !q || b.name.toLowerCase().includes(q) || b.owner_email.toLowerCase().includes(q));
+  if (BOUTIQUE_FILTER === 'active_unlisted') rows = rows.filter(b => b.status === 'active' && !Number(b.public_listed));
+  else if (BOUTIQUE_FILTER === 'active_listed') rows = rows.filter(b => b.status === 'active' && Number(b.public_listed));
+  else if (BOUTIQUE_FILTER === 'suspended') rows = rows.filter(b => b.status !== 'active');
   document.getElementById('boutiquesBody').innerHTML = rows.length ? `<table><thead><tr>
       <th>${t('col_name')}</th><th>${t('col_owner')}</th><th>${t('col_status')}</th><th>${t('col_directory')}</th><th>${t('col_city')}</th><th>${t('col_disputes')}</th><th>${t('col_low_reviews')}</th><th>${t('col_registered')}</th><th></th>
     </tr></thead><tbody>
@@ -953,9 +1027,10 @@ function renderBoutiquesFiltered() {
       <td>${Number(b.open_disputes_count) > 0 ? '<span class="pill pill-bad">'+b.open_disputes_count+'</span>' : '0'}</td>
       <td>${Number(b.low_reviews_count) > 0 ? '<span class="pill pill-bad">'+b.low_reviews_count+'</span>' : '0'}</td>
       <td>${fmtDate(b.created_at)}</td>
-      <td>${b.status === 'active'
+      <td style="white-space:nowrap">${b.status === 'active'
         ? '<button class="ghost" onclick="toggleBoutiqueStatus(\''+b.id+'\',\'suspended\')">'+t('btn_suspend')+'</button>'
-        : '<button onclick="toggleBoutiqueStatus(\''+b.id+'\',\'active\')">'+t('btn_reactivate')+'</button>'}</td>
+        : '<button onclick="toggleBoutiqueStatus(\''+b.id+'\',\'active\')">'+t('btn_reactivate')+'</button>'}
+      ${b.status === 'active' && !Number(b.public_listed) ? ' <button class="ghost" onclick="encourageListing(\''+b.id+'\')">'+t('btn_encourage')+'</button>' : ''}</td>
     </tr>`).join('')}
     </tbody></table>` : '<p style="color:var(--gray)">'+t('no_boutiques_match')+'</p>';
 }
@@ -994,6 +1069,45 @@ function renderLowReviews(rows) {
       <td><button class="ghost" onclick="toggleBoutiqueStatus('${r.boutique_id}','suspended')">${t('btn_suspend')}</button></td>
     </tr>`).join('')}
     </tbody></table>` : '<p style="color:var(--gray)">'+t('no_low_reviews')+'</p>';
+}
+// Classement derive cote client de BOUTIQUES_ROWS (deja porteur de
+// open_disputes_count/low_reviews_count, voir admin_boutiques_list()) -
+// pas besoin d'un appel serveur separe. Seules les boutiques avec au moins
+// un signalement apparaissent, triees du pire au moins pire, limitees a 10
+// pour rester une liste "a surveiller en priorite", pas un doublon complet
+// du tableau Boutiques.
+function renderBoutiqueRanking() {
+  const ranked = BOUTIQUES_ROWS
+    .map(b => Object.assign({}, b, {total_issues: Number(b.open_disputes_count||0) + Number(b.low_reviews_count||0)}))
+    .filter(b => b.total_issues > 0)
+    .sort((a, b) => b.total_issues - a.total_issues)
+    .slice(0, 10);
+  document.getElementById('boutiqueRankingBody').innerHTML = ranked.length ? `<table><thead><tr>
+      <th>${t('col_boutique')}</th><th>${t('col_disputes')}</th><th>${t('col_low_reviews')}</th><th>${t('col_issues')}</th><th></th>
+    </tr></thead><tbody>
+    ${ranked.map(b => `<tr>
+      <td>${escapeAttr(b.name)}</td>
+      <td>${b.open_disputes_count}</td>
+      <td>${b.low_reviews_count}</td>
+      <td><span class="pill pill-bad">${b.total_issues}</span></td>
+      <td>${b.status === 'active'
+        ? '<button class="ghost" onclick="toggleBoutiqueStatus(\''+b.id+'\',\'suspended\')">'+t('btn_suspend')+'</button>'
+        : '<button onclick="toggleBoutiqueStatus(\''+b.id+'\',\'active\')">'+t('btn_reactivate')+'</button>'}</td>
+    </tr>`).join('')}
+    </tbody></table>` : '<p style="color:var(--gray)">'+t('no_flagged_boutiques')+'</p>';
+}
+function renderTopBoutiques(rows) {
+  document.getElementById('topBoutiquesBody').innerHTML = rows.length ? `<table><thead><tr>
+      <th>${t('col_rank')}</th><th>${t('col_name')}</th><th>${t('col_city')}</th><th>${t('col_orders_count')}</th><th>${t('col_revenue')}</th>
+    </tr></thead><tbody>
+    ${rows.map((b, i) => `<tr>
+      <td>${i+1}</td>
+      <td>${escapeAttr(b.name)}</td>
+      <td>${escapeAttr(b.city||'—')}</td>
+      <td>${b.orders_count}</td>
+      <td>${fmtMoney(b.revenue)}</td>
+    </tr>`).join('')}
+    </tbody></table>` : '<p style="color:var(--gray)">'+t('no_top_boutiques')+'</p>';
 }
 function toggleBoutiqueStatus(id, status) {
   const b = BOUTIQUES_ROWS.find(x => x.id === id);

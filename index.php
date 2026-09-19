@@ -4381,6 +4381,7 @@ function route_admin($action) {
         case 'boutique_set_status':   admin_boutique_set_status(); break;
         case 'disputes_list':         admin_disputes_list(); break;
         case 'low_reviews_list':      admin_low_reviews_list(); break;
+        case 'top_boutiques':         admin_top_boutiques(); break;
         case 'seed_demo_data':        admin_seed_demo_data(); break;
         case 'delete_demo_data':      admin_delete_demo_data(); break;
         default: fail('Action inconnue', 404);
@@ -4480,11 +4481,26 @@ function admin_boutiques_list() {
 // vues depuis l'admin, en lecture seule (la reponse reste du ressort du
 // marchand ; l'admin peut seulement suspendre la boutique si besoin).
 function admin_disputes_list() {
+    // Les reclamations "En attente" remontent avant les "Repondues" (peu
+    // importe leur date) pour que ce qui a encore besoin d'attention ne se
+    // noie pas au milieu de dossiers deja clos - a l'interieur de chaque
+    // groupe, la plus recente en premier.
     ok(q("SELECT o.id, o.ref, o.customer_name, o.dispute_status, o.dispute_message, o.dispute_response,
                  o.dispute_created_at, o.dispute_resolved_at, b.id AS boutique_id, b.name AS boutique_name, b.slug AS boutique_slug
           FROM orders o JOIN boutiques b ON b.id = o.boutique_id
           WHERE o.dispute_status IS NOT NULL
-          ORDER BY o.dispute_created_at DESC LIMIT 200")->fetchAll());
+          ORDER BY (o.dispute_status = 'open') DESC, o.dispute_created_at DESC LIMIT 200")->fetchAll());
+}
+// Top boutiques par chiffre d'affaires encaisse (memes statuts que
+// ENCAISSE_STATUSES ailleurs dans l'app) - vue "meilleurs vendeurs" de la
+// plateforme, separee de la surveillance qualite ci-dessus.
+function admin_top_boutiques() {
+    ok(q("SELECT b.id, b.name, b.slug, b.city, b.country,
+                 COUNT(o.id) AS orders_count,
+                 COALESCE(SUM(o.total),0) AS revenue
+          FROM boutiques b JOIN orders o ON o.boutique_id=b.id AND o.status IN ".ENCAISSE_STATUSES."
+          GROUP BY b.id, b.name, b.slug, b.city, b.country
+          ORDER BY revenue DESC LIMIT 10")->fetchAll());
 }
 // Avis clients note <= 2 etoiles, toutes boutiques confondues - autre
 // signal de qualite/produit non conforme ou dangereux a surveiller sans
