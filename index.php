@@ -4412,6 +4412,7 @@ function route_admin($action) {
         case 'disputes_list':         admin_disputes_list(); break;
         case 'low_reviews_list':      admin_low_reviews_list(); break;
         case 'top_boutiques':         admin_top_boutiques(); break;
+        case 'period_stats':          admin_period_stats(); break;
         case 'seed_demo_data':        admin_seed_demo_data(); break;
         case 'delete_demo_data':      admin_delete_demo_data(); break;
         default: fail('Action inconnue', 404);
@@ -4576,8 +4577,15 @@ function admin_disputes_list() {
 // COUNT(o.id) sur la table jointe aurait multiplie ces montants par le
 // nombre de lignes d'articles de chaque commande (comptage en double).
 function admin_top_boutiques() {
-    $by = body()['by'] ?? 'revenue';
+    $b = body();
+    $by = $b['by'] ?? 'revenue';
     $orderCol = in_array($by, ['items_sold', 'orders_count'], true) ? $by : 'revenue';
+    // Filtre de periode optionnel (barre de periode du panneau admin) : les
+    // deux sous-requetes ont chacune leurs propres placeholders, dans
+    // l'ordre ou elles apparaissent dans le SQL.
+    [$from, $to] = admin_period_bounds($b);
+    $ordParams = []; $ordDate = admin_period_sql('created_at', $from, $to, $ordParams);
+    $itemParams = []; $itemDate = admin_period_sql('o.created_at', $from, $to, $itemParams);
     ok(q("SELECT b.id, b.name, b.slug, b.city, b.country,
                  COALESCE(ord.orders_count,0) AS orders_count,
                  COALESCE(ord.revenue,0) AS revenue,
@@ -4585,16 +4593,57 @@ function admin_top_boutiques() {
           FROM boutiques b
           JOIN (
             SELECT boutique_id, COUNT(*) AS orders_count, SUM(total) AS revenue
-            FROM orders WHERE status IN ".ENCAISSE_STATUSES."
+            FROM orders WHERE status IN ".ENCAISSE_STATUSES.$ordDate."
             GROUP BY boutique_id
           ) ord ON ord.boutique_id = b.id
           LEFT JOIN (
             SELECT o.boutique_id, SUM(oi.qty) AS items_sold
             FROM orders o JOIN order_items oi ON oi.order_id = o.id
-            WHERE o.status IN ".ENCAISSE_STATUSES."
+            WHERE o.status IN ".ENCAISSE_STATUSES.$itemDate."
             GROUP BY o.boutique_id
           ) items ON items.boutique_id = b.id
-          ORDER BY $orderCol DESC LIMIT 10")->fetchAll());
+          ORDER BY $orderCol DESC LIMIT 10", array_merge($ordParams, $itemParams))->fetchAll());
+}
+// Bornes de periode envoyees par la barre de periode du panneau admin
+// (from/to = dates AAAA-MM-JJ, l'une ou l'autre ou les deux, ou aucune =
+// "Tous"). Toute valeur qui n'a pas exactement ce format est ignoree.
+function admin_period_bounds($b) {
+    $ok = function($d) { return is_string($d) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $d) === 1; };
+    return [$ok($b['from'] ?? null) ? $b['from'] : null, $ok($b['to'] ?? null) ? $b['to'] : null];
+}
+// Fragment SQL " AND col >= ... AND col < ..." (borne haute exclusive =
+// lendemain de "to", pour inclure toute la journee "to"), et ajoute les
+// valeurs correspondantes a $params. $col vient toujours du code, jamais de
+// l'utilisateur.
+function admin_period_sql($col, $from, $to, &$params) {
+    $sql = '';
+    if ($from) { $sql .= " AND $col >= ?::date"; $params[] = $from; }
+    if ($to)   { $sql .= " AND $col < (?::date + INTERVAL '1 day')"; $params[] = $to; }
+    return $sql;
+}
+// Chiffres globaux de la periode choisie (Vue d'ensemble) : "Volume" = ce
+// que TOUTES les boutiques ont encaisse sur la periode, "Gains" = ce que
+// MYBOUTIK a encaisse en abonnements (meme calcul de prix que
+// admin_revenue_by_month()), plus quelques compteurs de croissance/qualite.
+function admin_period_stats() {
+    [$from, $to] = admin_period_bounds(body());
+    $p = []; $d = admin_period_sql('created_at', $from, $to, $p);
+    $vol = q("SELECT COUNT(*) c, COALESCE(SUM(total),0) s FROM orders WHERE status IN ".ENCAISSE_STATUSES.$d, $p)->fetch();
+    $p2 = []; $d2 = admin_period_sql('COALESCE(reviewed_at, created_at)', $from, $to, $p2);
+    $subs = q("SELECT plan, billing_cycle FROM subscription_requests WHERE status='approved'".$d2, $p2)->fetchAll();
+    $gains = 0; foreach ($subs as $r) $gains += subscription_request_amount($r);
+    $p3 = []; $d3 = admin_period_sql('created_at', $from, $to, $p3);
+    $newUsers = (int)q("SELECT COUNT(*) c FROM users WHERE TRUE".$d3, $p3)->fetch()['c'];
+    $newBoutiques = (int)q("SELECT COUNT(*) c FROM boutiques WHERE TRUE".$d3, $p3)->fetch()['c'];
+    $lowReviews = (int)q("SELECT COUNT(*) c FROM product_reviews WHERE rating<=2".$d3, $p3)->fetch()['c'];
+    $p4 = []; $d4 = admin_period_sql('dispute_created_at', $from, $to, $p4);
+    $disputes = (int)q("SELECT COUNT(*) c FROM orders WHERE dispute_status IS NOT NULL".$d4, $p4)->fetch()['c'];
+    ok([
+        'volume_orders' => (int)$vol['c'], 'volume_amount' => (float)$vol['s'],
+        'gains' => $gains, 'approved_count' => count($subs),
+        'new_users' => $newUsers, 'new_boutiques' => $newBoutiques,
+        'disputes' => $disputes, 'low_reviews' => $lowReviews,
+    ]);
 }
 // Avis clients note <= 2 etoiles, toutes boutiques confondues - autre
 // signal de qualite/produit non conforme ou dangereux a surveiller sans

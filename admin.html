@@ -79,9 +79,26 @@
      qu'il s'affiche normalement. */
   .table-wrap{overflow-x:auto;transform:rotateX(180deg)}
   .table-wrap>*{transform:rotateX(180deg)}
-  .tabs{display:flex;gap:8px;margin-bottom:14px}
-  .tab{padding:7px 14px;border-radius:999px;border:1px solid var(--border);background:#fff;font-size:13px;cursor:pointer}
-  .tab.active{background:var(--ink);color:#fff;border-color:var(--ink)}
+  /* Onglets du panneau : une section = un onglet, pour ne plus avoir une
+     seule liste de cartes interminable. */
+  .admin-tabs{display:flex;flex-wrap:wrap;gap:8px;padding-bottom:14px;margin-bottom:16px;border-bottom:2px solid var(--blue-light)}
+  .admin-tabs button{background:#fff;color:var(--ink);border:1.5px solid var(--border);box-shadow:none;border-radius:999px;padding:8px 15px;font-size:13px}
+  .admin-tabs button:hover{border-color:var(--blue);color:var(--blue);background:var(--blue-light);box-shadow:none;transform:none}
+  .admin-tabs button.active{background:linear-gradient(155deg,var(--blue),var(--blue-dark));color:#fff;border-color:transparent}
+  .admin-tabs button.logout{color:var(--red);border-color:var(--red);margin-left:auto}
+  .admin-tabs button.logout:hover{background:#fde8ea;color:var(--red);border-color:var(--red)}
+  .tab-badge{display:inline-block;min-width:18px;padding:1px 6px;margin-left:6px;border-radius:999px;background:var(--red);color:#fff;font-size:11px;font-weight:800;text-align:center;line-height:1.5}
+  /* Barre de periode (Aujourd'hui / Semaine / Mois / Annee / Date precise /
+     Periode / Tous) affichee sous les onglets auxquels elle s'applique. */
+  .period-bar{background:#fff;border:1px solid var(--border);border-radius:16px;padding:14px 18px;margin-bottom:18px;box-shadow:var(--shadow-sm)}
+  .period-bar .plabel{font-size:13px;color:var(--gray);margin-bottom:10px;line-height:1.5}
+  .period-bar .plabel strong{color:var(--ink)}
+  .period-pills{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+  .period-pills button{background:#fff;color:var(--ink);border:1.5px solid var(--border);box-shadow:none;border-radius:999px;padding:6px 13px;font-size:12.5px}
+  .period-pills button:hover{border-color:var(--blue);color:var(--blue);background:var(--blue-light);box-shadow:none;transform:none}
+  .period-pills button.active{background:linear-gradient(155deg,var(--blue),var(--blue-dark));color:#fff;border-color:transparent}
+  .period-inputs{display:inline-flex;gap:8px;align-items:center}
+  .period-inputs input{width:auto;margin:0;padding:6px 10px}
   #toastContainer{position:fixed;top:18px;left:50%;transform:translateX(-50%);z-index:200;display:flex;flex-direction:column;gap:8px;align-items:center;pointer-events:none;max-width:90vw}
   .toast{pointer-events:auto;padding:12px 20px;border-radius:10px;font-size:14px;font-weight:600;box-shadow:0 6px 18px rgba(15,23,42,.15);max-width:440px;text-align:center;opacity:0;transform:translateY(-8px);transition:opacity .2s,transform .2s}
   .toast.show{opacity:1;transform:translateY(0)}
@@ -121,11 +138,36 @@
     <button id="loginBtn" onclick="loadAll()">Se connecter</button>
   </div>
   <div id="dataCards" style="display:none">
-    <div style="text-align:right;margin-bottom:10px">
-      <button class="ghost" id="logoutBtn" onclick="adminLogout()">🚪 <span id="logoutBtnText"></span></button>
+    <div class="admin-tabs" id="adminTabs">
+      <button type="button" data-tab="overview" class="active" onclick="setAdminTab('overview')"><span id="tabLblOverview"></span></button>
+      <button type="button" data-tab="boutiques" onclick="setAdminTab('boutiques')"><span id="tabLblBoutiques"></span></button>
+      <button type="button" data-tab="quality" onclick="setAdminTab('quality')"><span id="tabLblQuality"></span><span class="tab-badge" id="badgeQuality" style="display:none"></span></button>
+      <button type="button" data-tab="subs" onclick="setAdminTab('subs')"><span id="tabLblSubs"></span><span class="tab-badge" id="badgeSubs" style="display:none"></span></button>
+      <button type="button" data-tab="clients" onclick="setAdminTab('clients')"><span id="tabLblClients"></span></button>
+      <button type="button" data-tab="revenue" onclick="setAdminTab('revenue')"><span id="tabLblRevenue"></span></button>
+      <button type="button" data-tab="feedback" onclick="setAdminTab('feedback')"><span id="tabLblFeedback"></span><span class="tab-badge" id="badgeFeedback" style="display:none"></span></button>
+      <button type="button" data-tab="demo" onclick="setAdminTab('demo')"><span id="tabLblDemo"></span></button>
+      <button type="button" class="logout" id="logoutBtn" onclick="adminLogout()">🚪 <span id="logoutBtnText"></span></button>
     </div>
-    <div class="stats-grid" id="statsGrid"></div>
-    <div class="card">
+    <div class="period-bar" id="periodBar">
+      <div class="plabel"><strong id="periodLabel"></strong> · <span id="periodRangeText"></span> — <span id="periodScope"></span></div>
+      <div class="period-pills" id="periodPills">
+        <button type="button" data-p="today" onclick="setPeriod('today')" id="pillToday"></button>
+        <button type="button" data-p="week" onclick="setPeriod('week')" id="pillWeek"></button>
+        <button type="button" data-p="month" onclick="setPeriod('month')" id="pillMonth"></button>
+        <button type="button" data-p="year" onclick="setPeriod('year')" id="pillYear"></button>
+        <button type="button" data-p="date" onclick="setPeriod('date')" id="pillDate"></button>
+        <button type="button" data-p="range" onclick="setPeriod('range')" id="pillRange"></button>
+        <button type="button" data-p="all" class="active" onclick="setPeriod('all')" id="pillAll"></button>
+        <span class="period-inputs" id="periodInputs"></span>
+      </div>
+    </div>
+    <div class="stats-grid" id="statsGrid" data-panel="overview"></div>
+    <div data-panel="overview">
+      <h3 id="h3PeriodStats" style="margin:4px 0 12px"></h3>
+      <div class="stats-grid" id="periodStatsGrid"></div>
+    </div>
+    <div class="card" data-panel="boutiques">
       <h3 id="h3Boutiques">Boutiques</h3>
       <div class="stats-grid" id="boutiquesStatsGrid" style="margin-bottom:16px"></div>
       <div class="lang-switch" id="boutiqueFilterTabs" style="display:inline-flex;margin-bottom:12px">
@@ -138,7 +180,7 @@
       <input id="boutiqueSearch" placeholder="Rechercher par nom ou email…" style="max-width:280px" oninput="renderBoutiquesFiltered()">
       <div class="table-wrap" id="boutiquesBody"></div>
     </div>
-    <div class="card">
+    <div class="card" data-panel="quality">
       <h3 id="h3Quality">Surveillance qualité</h3>
       <p class="muted" id="qualityNote" style="margin-bottom:14px"></p>
       <h4 id="h4Ranking" style="margin:0 0 8px">Boutiques à surveiller</h4>
@@ -148,7 +190,7 @@
       <h4 id="h4LowReviews" style="margin:20px 0 8px">Avis ≤ 2 étoiles</h4>
       <div class="table-wrap" id="lowReviewsBody"></div>
     </div>
-    <div class="card">
+    <div class="card" data-panel="overview">
       <h3 id="h3TopBoutiques">Top 10 des boutiques</h3>
       <p class="muted" id="topBoutiquesNote" style="margin-bottom:12px"></p>
       <h4 id="h4TopRevenue" style="margin:0 0 8px">Par chiffre d'affaires</h4>
@@ -158,12 +200,12 @@
       <h4 id="h4TopOrders" style="margin:20px 0 8px">Par nombre de commandes</h4>
       <div class="table-wrap" id="topBoutiquesOrdersBody"></div>
     </div>
-    <div class="card">
+    <div class="card" data-panel="quality">
       <h3 id="h3ActionsLog">Historique des actions admin</h3>
       <p class="muted" id="actionsLogNote" style="margin-bottom:12px"></p>
       <div class="table-wrap" id="actionsLogBody"></div>
     </div>
-    <div class="card">
+    <div class="card" data-panel="demo">
       <h3 id="h3Demo">Données de démonstration</h3>
       <p class="muted" id="demoDataNote" style="margin-bottom:12px"></p>
       <div id="demoDataMsg"></div>
@@ -172,19 +214,19 @@
         <button class="ghost" onclick="deleteDemoData()" id="btnDeleteDemo">🗑️ <span id="btnDeleteDemoText"></span></button>
       </div>
     </div>
-    <div class="card">
+    <div class="card" data-panel="subs">
       <h3 id="h3Subs">Demandes d'abonnement en attente</h3>
       <div id="subsBody"></div>
     </div>
-    <div class="card">
+    <div class="card" data-panel="subs">
       <h3 id="h3Payouts">Retraits d'affiliation en attente</h3>
       <div id="payoutsBody"></div>
     </div>
-    <div class="card">
+    <div class="card" data-panel="feedback">
       <h3 id="h3Feedback">Avis des marchands sur MYBOUTIK</h3>
       <div class="table-wrap" id="feedbackBody"></div>
     </div>
-    <div class="card">
+    <div class="card" data-panel="revenue">
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:14px;margin-bottom:12px">
         <h3 style="margin:0" id="h3Revenue">Revenus par mois</h3>
         <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
@@ -198,7 +240,7 @@
       <div id="revenueChart" style="margin-bottom:16px"></div>
       <div class="table-wrap" id="revenueBody"></div>
     </div>
-    <div class="card">
+    <div class="card" data-panel="clients">
       <h3 id="h3Clients">Tous les clients</h3>
       <div class="filters-row" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px">
         <input id="clientSearch" placeholder="Rechercher par email…" style="max-width:220px;margin:0;flex:1 1 180px" oninput="renderClients()">
@@ -221,7 +263,7 @@
       </div>
       <div class="table-wrap" id="clientsBody"></div>
     </div>
-    <div class="card">
+    <div class="card" data-panel="subs">
       <h3 id="h3History">Historique des paiements (300 derniers)</h3>
       <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px">
         <input id="historySearch" placeholder="Rechercher par email ou plan…" style="max-width:280px;margin:0;flex:1 1 180px" oninput="renderHistoryFiltered()">
@@ -346,6 +388,23 @@ const I18N = {
     actions_log_note: 'Suspensions, réactivations et avertissements envoyés — pour se souvenir de ce qui a déjà été fait sur une boutique.',
     no_actions_log: 'Aucune action admin pour le moment.',
     col_action: 'Action',
+    tab_overview: 'Vue d\'ensemble', tab_boutiques: 'Boutiques', tab_quality: 'Qualité', tab_subs: 'Abonnements',
+    tab_clients: 'Clients', tab_revenue: 'Revenus', tab_feedback: 'Avis', tab_demo: 'Démo',
+    period_label: 'Période',
+    period_today: 'Aujourd\'hui', period_week: 'Semaine', period_month: 'Mois', period_year: 'Année',
+    period_date: 'Date précise', period_range: 'Période', period_all: 'Tous',
+    period_all_text: 'Toutes périodes', period_from_prefix: 'du ', period_to_prefix: ' au ', period_on_prefix: 'le ',
+    period_scope_overview: 'appliquée aux chiffres et aux Top 10 ci-dessous',
+    period_scope_boutiques: 'appliquée à la date d\'inscription des boutiques',
+    period_scope_quality: 'appliquée aux réclamations, avis et actions ci-dessous (le classement « Boutiques à surveiller » reste global)',
+    period_scope_subs: 'appliquée à l\'historique des paiements (les demandes et retraits en attente restent toujours visibles)',
+    period_scope_clients: 'appliquée à la date d\'inscription des clients',
+    period_scope_feedback: 'appliquée à la date de l\'avis',
+    h3_period_stats: 'Sur la période',
+    stat_volume: 'Volume des ventes (toutes boutiques)', stat_volume_orders: 'Commandes encaissées',
+    stat_gains: 'Gains MYBOUTIK (abonnements)', stat_approved: 'Paiements approuvés',
+    stat_new_users: 'Nouveaux clients', stat_new_boutiques: 'Nouvelles boutiques',
+    stat_disputes_period: 'Réclamations', stat_low_reviews_period: 'Avis ≤2★',
     h3_demo: 'Données de démonstration',
     demo_data_note: 'Génère 15 boutiques factices avec des produits (visibles dans l\'annuaire public) pour vos captures d\'écran/publicité — toutes regroupées sous un seul compte, à supprimer d\'un clic quand vous avez terminé.',
     btn_seed_demo: 'Générer 15 boutiques de démo',
@@ -464,6 +523,23 @@ const I18N = {
     actions_log_note: 'Suspensions, reactivations and warnings sent - to remember what has already been done on a shop.',
     no_actions_log: 'No admin action yet.',
     col_action: 'Action',
+    tab_overview: 'Overview', tab_boutiques: 'Shops', tab_quality: 'Quality', tab_subs: 'Subscriptions',
+    tab_clients: 'Customers', tab_revenue: 'Revenue', tab_feedback: 'Feedback', tab_demo: 'Demo',
+    period_label: 'Period',
+    period_today: 'Today', period_week: 'Week', period_month: 'Month', period_year: 'Year',
+    period_date: 'Specific date', period_range: 'Range', period_all: 'All',
+    period_all_text: 'All time', period_from_prefix: 'from ', period_to_prefix: ' to ', period_on_prefix: 'on ',
+    period_scope_overview: 'applied to the figures and Top 10 lists below',
+    period_scope_boutiques: 'applied to the shops\' registration date',
+    period_scope_quality: 'applied to the complaints, reviews and actions below (the "Shops to watch" ranking stays global)',
+    period_scope_subs: 'applied to the payment history (pending requests and payouts always stay visible)',
+    period_scope_clients: 'applied to the customers\' registration date',
+    period_scope_feedback: 'applied to the feedback date',
+    h3_period_stats: 'Over the period',
+    stat_volume: 'Sales volume (all shops)', stat_volume_orders: 'Cashed-in orders',
+    stat_gains: 'MYBOUTIK earnings (subscriptions)', stat_approved: 'Approved payments',
+    stat_new_users: 'New customers', stat_new_boutiques: 'New shops',
+    stat_disputes_period: 'Complaints', stat_low_reviews_period: 'Reviews ≤2★',
     h3_demo: 'Demo data',
     demo_data_note: 'Generates 15 fake shops with products (visible in the public directory) for your screenshots/ads - all grouped under one account, removable in one click when you\'re done.',
     btn_seed_demo: 'Generate 15 demo shops',
@@ -506,16 +582,24 @@ function setLang(lang) {
     renderSubs(SUBS_ROWS); renderPayouts(PAYOUTS_ROWS); renderFeedback(FEEDBACK_ROWS);
     renderBoutiquesFiltered();
     renderDisputes(DISPUTES_ROWS); renderLowReviews(LOW_REVIEWS_ROWS);
-    renderTopBoutiquesTable('topBoutiquesRevenueBody', TOP_BOUTIQUES_REVENUE, 'revenue');
-    renderTopBoutiquesTable('topBoutiquesItemsBody', TOP_BOUTIQUES_ITEMS, 'items_sold');
-    renderTopBoutiquesTable('topBoutiquesOrdersBody', TOP_BOUTIQUES_ORDERS, 'orders_count');
+    renderTopBoutiquesTable('topBoutiquesRevenueBody', TOP_BOUTIQUES.revenue, 'revenue');
+    renderTopBoutiquesTable('topBoutiquesItemsBody', TOP_BOUTIQUES.items_sold, 'items_sold');
+    renderTopBoutiquesTable('topBoutiquesOrdersBody', TOP_BOUTIQUES.orders_count, 'orders_count');
     renderActionsLog(ACTIONS_LOG_ROWS);
+    renderPeriodStats(); updatePeriodBar(); updateTabBadges();
     if (CURRENT_REVENUE_YEAR) renderRevenue();
   }
 }
 function applyStaticTranslations() {
   document.documentElement.lang = LANG;
   document.getElementById('subtitleText').textContent = t('subtitle');
+  [['Overview','overview'],['Boutiques','boutiques'],['Quality','quality'],['Subs','subs'],['Clients','clients'],['Revenue','revenue'],['Feedback','feedback'],['Demo','demo']]
+    .forEach(p => { document.getElementById('tabLbl'+p[0]).textContent = t('tab_'+p[1]); });
+  [['Today','today'],['Week','week'],['Month','month'],['Year','year'],['Date','date'],['Range','range'],['All','all']]
+    .forEach(p => { document.getElementById('pill'+p[0]).textContent = t('period_'+p[1]); });
+  document.getElementById('periodLabel').textContent = t('period_label');
+  document.getElementById('h3PeriodStats').textContent = t('h3_period_stats');
+  updatePeriodBar();
   document.getElementById('adminPassword').placeholder = t('admin_password_placeholder');
   document.getElementById('loginBtn').textContent = t('login_btn');
   document.getElementById('h3Subs').textContent = t('h3_subs');
@@ -613,11 +697,130 @@ let FEEDBACK_ROWS = [];
 let BOUTIQUES_ROWS = [];
 let DISPUTES_ROWS = [];
 let LOW_REVIEWS_ROWS = [];
-let TOP_BOUTIQUES_REVENUE = [];
-let TOP_BOUTIQUES_ITEMS = [];
-let TOP_BOUTIQUES_ORDERS = [];
+let TOP_BOUTIQUES = {revenue: [], items_sold: [], orders_count: []};
 let ACTIONS_LOG_ROWS = [];
 let BOUTIQUE_FILTER = 'all';
+let PERIOD_STATS = null;
+
+// ============================================================
+// ONGLETS + BARRE DE PERIODE
+// ============================================================
+// Chaque section du panneau vit dans son propre onglet (attribut
+// data-panel sur la carte) - seul l'onglet choisi est affiche. Les onglets
+// qui dependent d'une periode (voir PERIOD_TABS) affichent aussi la barre de
+// periode ; Revenus (a son propre selecteur d'annee) et Demo n'en ont pas.
+const ADMIN_TABS = ['overview','boutiques','quality','subs','clients','revenue','feedback','demo'];
+const PERIOD_TABS = ['overview','boutiques','quality','subs','clients','feedback'];
+let ADMIN_TAB = (function () {
+  try { const s = sessionStorage.getItem('myboutik_admin_tab'); return ADMIN_TABS.includes(s) ? s : 'overview'; } catch (e) { return 'overview'; }
+})();
+let PERIOD = {mode: 'all', date: '', from: '', to: ''};
+function setAdminTab(name) {
+  if (!ADMIN_TABS.includes(name)) name = 'overview';
+  ADMIN_TAB = name;
+  try { sessionStorage.setItem('myboutik_admin_tab', name); } catch (e) {}
+  document.querySelectorAll('#adminTabs button[data-tab]').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
+  document.querySelectorAll('[data-panel]').forEach(el => { el.style.display = el.dataset.panel === name ? '' : 'none'; });
+  updatePeriodBar();
+}
+// Pastille rouge (comme dans l'exemple) : ce qui attend une action de votre part.
+function updateTabBadges() {
+  const setBadge = (id, n) => { const el = document.getElementById(id); el.textContent = n; el.style.display = n > 0 ? '' : 'none'; };
+  setBadge('badgeSubs', SUBS_ROWS.length + PAYOUTS_ROWS.length);
+  setBadge('badgeQuality', DISPUTES_ROWS.filter(d => d.dispute_status === 'open').length);
+  setBadge('badgeFeedback', FEEDBACK_ROWS.filter(r => !r.replied_at).length);
+}
+function ymd(d) { return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function fmtYmd(s) { return s ? s.slice(8,10)+'/'+s.slice(5,7)+'/'+s.slice(0,4) : ''; }
+// Semaine/Mois/Annee = "en cours" (depuis lundi / le 1er du mois / le 1er
+// janvier jusqu'a aujourd'hui), pas une fenetre glissante de 7/30/365 jours.
+function periodRange() {
+  const now = new Date(), today = ymd(now);
+  switch (PERIOD.mode) {
+    case 'today': return {from: today, to: today};
+    case 'week': { const d = new Date(now); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return {from: ymd(d), to: today}; }
+    case 'month': return {from: today.slice(0,8)+'01', to: today};
+    case 'year': return {from: today.slice(0,5)+'01-01', to: today};
+    case 'date': return {from: PERIOD.date, to: PERIOD.date};
+    case 'range': return {from: PERIOD.from, to: PERIOD.to};
+    default: return {from: '', to: ''};
+  }
+}
+// Compare sur le JOUR ecrit dans la valeur (AAAA-MM-JJ, tel que renvoye par
+// le serveur) plutot que via new Date() : evite tout decalage de fuseau
+// horaire et de format selon le navigateur.
+function inPeriod(dateStr) {
+  const {from, to} = periodRange();
+  if (!from && !to) return true;
+  if (!dateStr) return false;
+  const day = String(dateStr).slice(0, 10);
+  return (!from || day >= from) && (!to || day <= to);
+}
+function periodBody() {
+  const {from, to} = periodRange(); const o = {};
+  if (from) o.from = from;
+  if (to) o.to = to;
+  return o;
+}
+function periodRangeText() {
+  const {from, to} = periodRange();
+  if (from && from === to) return t('period_on_prefix') + fmtYmd(from);
+  if (!from && !to) return t('period_all_text');
+  return (from ? t('period_from_prefix') + fmtYmd(from) : '') + (to ? t('period_to_prefix') + fmtYmd(to) : '');
+}
+function updatePeriodBar() {
+  document.getElementById('periodBar').style.display = PERIOD_TABS.includes(ADMIN_TAB) ? '' : 'none';
+  document.getElementById('periodScope').textContent = t('period_scope_' + ADMIN_TAB);
+  document.getElementById('periodRangeText').textContent = periodRangeText();
+  document.querySelectorAll('#periodPills button[data-p]').forEach(b => b.classList.toggle('active', b.dataset.p === PERIOD.mode));
+}
+function setPeriod(mode) {
+  PERIOD.mode = mode;
+  const box = document.getElementById('periodInputs');
+  if (mode === 'date') box.innerHTML = '<input type="date" id="periodDate" value="'+PERIOD.date+'" onchange="onPeriodInput()">';
+  else if (mode === 'range') box.innerHTML = '<input type="date" id="periodFrom" value="'+PERIOD.from+'" onchange="onPeriodInput()"><span>→</span><input type="date" id="periodTo" value="'+PERIOD.to+'" onchange="onPeriodInput()">';
+  else box.innerHTML = '';
+  refreshPeriodViews();
+}
+function onPeriodInput() {
+  const d = document.getElementById('periodDate'); if (d) PERIOD.date = d.value;
+  const f = document.getElementById('periodFrom'); if (f) PERIOD.from = f.value;
+  const e = document.getElementById('periodTo'); if (e) PERIOD.to = e.value;
+  refreshPeriodViews();
+}
+// Un changement de periode relance ce qui se filtre cote serveur (Top 10 et
+// chiffres globaux) et re-affiche ce qui se filtre cote navigateur.
+function refreshPeriodViews() {
+  updatePeriodBar();
+  loadPeriodData();
+  renderBoutiquesFiltered();
+  renderDisputes(DISPUTES_ROWS); renderLowReviews(LOW_REVIEWS_ROWS); renderActionsLog(ACTIONS_LOG_ROWS);
+  renderHistoryFiltered(); renderClients(); renderFeedback(FEEDBACK_ROWS);
+}
+function loadPeriodData() {
+  const pb = periodBody();
+  [['revenue','topBoutiquesRevenueBody'], ['items_sold','topBoutiquesItemsBody'], ['orders_count','topBoutiquesOrdersBody']].forEach(pair => {
+    const by = pair[0], id = pair[1];
+    call('top_boutiques', Object.assign({by}, pb)).then(d => {
+      if (!d.success) { document.getElementById(id).innerHTML = '<p style="color:#b91c1c">'+d.message+'</p>'; return; }
+      TOP_BOUTIQUES[by] = d.data || []; renderTopBoutiquesTable(id, TOP_BOUTIQUES[by], by);
+    });
+  });
+  call('period_stats', pb).then(d => { if (d.success) { PERIOD_STATS = d.data; renderPeriodStats(); } });
+}
+function renderPeriodStats() {
+  const s = PERIOD_STATS; if (!s) return;
+  const tile = (accent, lbl, val) => '<div class="stat" style="--accent:'+accent+'"><div class="lbl">'+lbl+'</div><div class="val">'+val+'</div></div>';
+  document.getElementById('periodStatsGrid').innerHTML =
+    tile('#7c3aed', t('stat_volume'), fmtMoney(s.volume_amount)) +
+    tile('#ea580c', t('stat_volume_orders'), s.volume_orders) +
+    tile('#0f9d63', t('stat_gains'), fmtMoney(s.gains)) +
+    tile('#2563eb', t('stat_approved'), s.approved_count) +
+    tile('#0891b2', t('stat_new_users'), s.new_users) +
+    tile('#0891b2', t('stat_new_boutiques'), s.new_boutiques) +
+    tile('#dc3545', t('stat_disputes_period'), s.disputes) +
+    tile('#dc3545', t('stat_low_reviews_period'), s.low_reviews);
+}
 let REVENUE_BY_MONTH = []; // [{month:'2026-09', revenue: 12000}, ...]
 const MONTH_NAMES_FR = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
 const MONTH_NAMES_EN = ['January','February','March','April','May','June','July','August','September','October','November','December'];
@@ -729,9 +932,10 @@ function loadAll() {
     document.getElementById('loginCard').style.display = 'none';
     document.getElementById('dataCards').style.display = 'block';
     resetInactivityTimer();
+    setAdminTab(ADMIN_TAB);
     SUBS_ROWS = data.data || [];
-    renderSubs(SUBS_ROWS);
-    call('payouts_pending').then(d2 => { PAYOUTS_ROWS = d2.data || []; renderPayouts(PAYOUTS_ROWS); });
+    renderSubs(SUBS_ROWS); updateTabBadges();
+    call('payouts_pending').then(d2 => { PAYOUTS_ROWS = d2.data || []; renderPayouts(PAYOUTS_ROWS); updateTabBadges(); });
     call('clients_list').then(d3 => {
       if (!d3.success) { document.getElementById('clientsBody').innerHTML = '<p style="color:#b91c1c">'+d3.message+'</p>'; return; }
       CLIENTS = d3.data || []; renderStats(CLIENTS); renderClients();
@@ -746,7 +950,7 @@ function loadAll() {
     });
     call('feedback_list').then(d6 => {
       if (!d6.success) { document.getElementById('feedbackBody').innerHTML = '<p style="color:#b91c1c">'+d6.message+'</p>'; return; }
-      FEEDBACK_ROWS = d6.data || []; renderFeedback(FEEDBACK_ROWS);
+      FEEDBACK_ROWS = d6.data || []; renderFeedback(FEEDBACK_ROWS); updateTabBadges();
     });
     call('boutiques_list').then(d7 => {
       if (!d7.success) { document.getElementById('boutiquesBody').innerHTML = '<p style="color:#b91c1c">'+d7.message+'</p>'; return; }
@@ -754,24 +958,13 @@ function loadAll() {
     });
     call('disputes_list').then(d8 => {
       if (!d8.success) { document.getElementById('disputesBody').innerHTML = '<p style="color:#b91c1c">'+d8.message+'</p>'; return; }
-      DISPUTES_ROWS = d8.data || []; renderDisputes(DISPUTES_ROWS);
+      DISPUTES_ROWS = d8.data || []; renderDisputes(DISPUTES_ROWS); updateTabBadges();
     });
     call('low_reviews_list').then(d9 => {
       if (!d9.success) { document.getElementById('lowReviewsBody').innerHTML = '<p style="color:#b91c1c">'+d9.message+'</p>'; return; }
       LOW_REVIEWS_ROWS = d9.data || []; renderLowReviews(LOW_REVIEWS_ROWS);
     });
-    call('top_boutiques', {by:'revenue'}).then(d10 => {
-      if (!d10.success) { document.getElementById('topBoutiquesRevenueBody').innerHTML = '<p style="color:#b91c1c">'+d10.message+'</p>'; return; }
-      TOP_BOUTIQUES_REVENUE = d10.data || []; renderTopBoutiquesTable('topBoutiquesRevenueBody', TOP_BOUTIQUES_REVENUE, 'revenue');
-    });
-    call('top_boutiques', {by:'items_sold'}).then(d11 => {
-      if (!d11.success) { document.getElementById('topBoutiquesItemsBody').innerHTML = '<p style="color:#b91c1c">'+d11.message+'</p>'; return; }
-      TOP_BOUTIQUES_ITEMS = d11.data || []; renderTopBoutiquesTable('topBoutiquesItemsBody', TOP_BOUTIQUES_ITEMS, 'items_sold');
-    });
-    call('top_boutiques', {by:'orders_count'}).then(d12 => {
-      if (!d12.success) { document.getElementById('topBoutiquesOrdersBody').innerHTML = '<p style="color:#b91c1c">'+d12.message+'</p>'; return; }
-      TOP_BOUTIQUES_ORDERS = d12.data || []; renderTopBoutiquesTable('topBoutiquesOrdersBody', TOP_BOUTIQUES_ORDERS, 'orders_count');
-    });
+    loadPeriodData();
     call('actions_log').then(d13 => {
       if (!d13.success) { document.getElementById('actionsLogBody').innerHTML = '<p style="color:#b91c1c">'+d13.message+'</p>'; return; }
       ACTIONS_LOG_ROWS = d13.data || []; renderActionsLog(ACTIONS_LOG_ROWS);
@@ -884,6 +1077,7 @@ function filteredClients() {
   const plan = document.getElementById('clientFilterPlan').value;
   const status = document.getElementById('clientFilterStatus').value;
   return CLIENTS.filter(c =>
+    inPeriod(c.created_at) &&
     (!q || c.email.toLowerCase().includes(q) || (c.full_name||'').toLowerCase().includes(q)) &&
     (!plan || c.plan === plan) &&
     (!status || clientStatusKey(c) === status)
@@ -965,7 +1159,7 @@ function renderHistory(rows) {
 }
 function renderHistoryFiltered() {
   const q = (document.getElementById('historySearch').value || '').toLowerCase();
-  const rows = HISTORY_ROWS.filter(r => !q || r.email.toLowerCase().includes(q) || r.plan.toLowerCase().includes(q));
+  const rows = HISTORY_ROWS.filter(r => inPeriod(r.created_at) && (!q || r.email.toLowerCase().includes(q) || r.plan.toLowerCase().includes(q)));
   const statusPill = s => s==='approved' ? '<span class="pill pill-ok">'+t('pill_approved')+'</span>' : s==='rejected' ? '<span class="pill pill-bad">'+t('pill_rejected')+'</span>' : '<span class="pill pill-warn">'+t('pill_pending')+'</span>';
   const locale = LANG === 'en' ? 'en-US' : 'fr-FR';
   document.getElementById('historyBody').innerHTML = rows.length ? `<table><thead><tr><th>${t('col_email')}</th><th>${t('col_plan')}</th><th>${t('col_status')}</th><th>${t('col_requested')}</th><th>${t('col_processed')}</th></tr></thead><tbody>
@@ -1014,6 +1208,7 @@ function markPayoutPaid(id, email, amount) {
 // l'admin qui gere reellement l'envoi. On marque l'avis "repondu" des le
 // clic (avant meme l'envoi reel), comme un "j'ai ouvert le brouillon".
 function renderFeedback(rows) {
+  rows = rows.filter(r => inPeriod(r.created_at));
   document.getElementById('feedbackBody').innerHTML = rows.length ? `<table><thead><tr><th>${t('col_type')}</th><th>${t('col_contact')}</th><th>${t('col_rating')}</th><th>${t('col_message')}</th><th>${t('col_date')}</th><th>${t('col_status')}</th><th></th></tr></thead><tbody>
     ${rows.map(r => {
       const stars = '★'.repeat(r.rating) + '☆'.repeat(5 - r.rating);
@@ -1090,7 +1285,7 @@ function renderBoutiquesFiltered() {
   renderBoutiquesStats();
   renderBoutiqueRanking();
   const q = (document.getElementById('boutiqueSearch').value || '').toLowerCase();
-  let rows = BOUTIQUES_ROWS.filter(b => !q || b.name.toLowerCase().includes(q) || b.owner_email.toLowerCase().includes(q));
+  let rows = BOUTIQUES_ROWS.filter(b => inPeriod(b.created_at) && (!q || b.name.toLowerCase().includes(q) || b.owner_email.toLowerCase().includes(q)));
   if (BOUTIQUE_FILTER === 'active_unlisted') rows = rows.filter(b => b.status === 'active' && !Number(b.public_listed));
   else if (BOUTIQUE_FILTER === 'active_listed') rows = rows.filter(b => b.status === 'active' && Number(b.public_listed));
   else if (BOUTIQUE_FILTER === 'suspended') rows = rows.filter(b => b.status !== 'active');
@@ -1189,6 +1384,7 @@ function pendingSinceHtml(d) {
   return h > 48 ? '<span class="pill pill-bad" title="'+t('badge_overdue_title')+'">⏰ '+label+'</span>' : label;
 }
 function renderDisputes(rows) {
+  rows = rows.filter(d => inPeriod(d.dispute_created_at));
   document.getElementById('disputesBody').innerHTML = rows.length ? `<table><thead><tr>
       <th>${t('col_boutique')}</th><th>${t('col_ref')}</th><th>${t('col_client')}</th><th>${t('col_message')}</th><th>${t('col_status')}</th><th>${t('col_pending_since')}</th><th>${t('col_date')}</th><th></th>
     </tr></thead><tbody>
@@ -1205,6 +1401,7 @@ function renderDisputes(rows) {
     </tbody></table>` : '<p style="color:var(--gray)">'+t('no_disputes')+'</p>';
 }
 function renderLowReviews(rows) {
+  rows = rows.filter(r => inPeriod(r.created_at));
   document.getElementById('lowReviewsBody').innerHTML = rows.length ? `<table><thead><tr>
       <th>${t('col_boutique')}</th><th>${t('col_product')}</th><th>${t('col_client')}</th><th>${t('col_rating')}</th><th>${t('col_comment')}</th><th>${t('col_date')}</th><th></th>
     </tr></thead><tbody>
@@ -1268,6 +1465,7 @@ function renderTopBoutiquesTable(containerId, rows, sortKey) {
     </tbody></table>` : '<p style="color:var(--gray)">'+t('no_top_boutiques')+'</p>';
 }
 function renderActionsLog(rows) {
+  rows = rows.filter(a => inPeriod(a.created_at));
   document.getElementById('actionsLogBody').innerHTML = rows.length ? `<table><thead><tr>
       <th>${t('col_boutique')}</th><th>${t('col_action')}</th><th>${t('col_date')}</th>
     </tr></thead><tbody>
@@ -1340,7 +1538,7 @@ function resetInactivityTimer() {
 });
 function historyExportRows() {
   const q = (document.getElementById('historySearch').value || '').toLowerCase();
-  const rows = HISTORY_ROWS.filter(r => !q || r.email.toLowerCase().includes(q) || r.plan.toLowerCase().includes(q));
+  const rows = HISTORY_ROWS.filter(r => inPeriod(r.created_at) && (!q || r.email.toLowerCase().includes(q) || r.plan.toLowerCase().includes(q)));
   const locale = LANG === 'en' ? 'en-US' : 'fr-FR';
   const statusLabel = s => s==='approved' ? t('pill_approved') : s==='rejected' ? t('pill_rejected') : t('pill_pending');
   const headers = [t('col_email'), t('col_plan'), t('col_status'), t('col_requested'), t('col_processed')];
