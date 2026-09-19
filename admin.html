@@ -4,6 +4,12 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>MYBOUTIK — Admin</title>
+<meta name="theme-color" content="#0e1526">
+<link rel="manifest" href="admin-manifest.json">
+<link rel="apple-touch-icon" href="admin-apple-touch-icon.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="MB Admin">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Titan+One&display=swap" rel="stylesheet">
@@ -127,6 +133,28 @@
   .lang-switch button{background:none;color:var(--gray);box-shadow:none;padding:6px 12px;font-size:12px;border-radius:999px}
   .lang-switch button:hover{box-shadow:none;transform:none;background:none;color:var(--ink)}
   .lang-switch button.active{background:var(--blue);color:#fff}
+  #installBtn{display:none}
+  /* Telephone : marges reduites, en-tete compact, onglets sur UNE ligne
+     defilante (plutot que 3-4 lignes de pastilles), textes des champs a 16px
+     (en dessous, iOS zoome la page a chaque clic dans un champ). */
+  @media (max-width:640px){
+    body{padding:14px 10px 40px}
+    .topbar{grid-template-columns:auto minmax(0,1fr) auto;gap:10px;padding:14px;margin-bottom:16px;border-radius:16px}
+    .topbar .mark{width:44px;height:44px;border-radius:12px;font-size:15px}
+    .topbar h1{font-size:22px}
+    .topbar .sub{font-size:9.5px;letter-spacing:.03em}
+    .card{padding:14px;border-radius:14px}
+    th,td{padding:9px 8px}
+    .stat{padding:14px}
+    .stat .val{font-size:20px}
+    .admin-tabs{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+    .admin-tabs::-webkit-scrollbar{display:none}
+    .admin-tabs button{flex-shrink:0;white-space:nowrap}
+    .admin-tabs button.logout{margin-left:0}
+    .period-bar{padding:12px 14px}
+    .modal{padding:20px}
+    input,select,textarea{font-size:16px}
+  }
 </style>
 </head>
 <body>
@@ -152,6 +180,7 @@
       <button type="button" data-tab="revenue" onclick="setAdminTab('revenue')"><span id="tabLblRevenue"></span></button>
       <button type="button" data-tab="feedback" onclick="setAdminTab('feedback')"><span id="tabLblFeedback"></span><span class="tab-badge" id="badgeFeedback" style="display:none"></span></button>
       <button type="button" data-tab="demo" onclick="setAdminTab('demo')"><span id="tabLblDemo"></span></button>
+      <button type="button" id="installBtn" onclick="installApp()">📲 <span id="installBtnText"></span></button>
       <button type="button" class="logout" id="logoutBtn" onclick="confirmAdminLogout()">🚪 <span id="logoutBtnText"></span></button>
     </div>
     <div class="period-bar" id="periodBar">
@@ -434,6 +463,7 @@ const I18N = {
     export_title_history: 'Historique des paiements MYBOUTIK',
     session_expired_toast: 'SESSION TERMINÉE. RECONNECTEZ-VOUS.',
     confirm_logout: 'Voulez-vous vraiment vous déconnecter du panneau admin ?',
+    install_btn: 'Installer l\'appli', installed_toast: 'Le panneau admin est maintenant installé sur votre appareil !',
   },
   en: {
     subtitle: 'Admin panel — Platform management',
@@ -570,6 +600,7 @@ const I18N = {
     export_title_history: 'MYBOUTIK payment history',
     session_expired_toast: 'SESSION ENDED. PLEASE LOG IN AGAIN.',
     confirm_logout: 'Do you really want to log out of the admin panel?',
+    install_btn: 'Install app', installed_toast: 'The admin panel is now installed on your device!',
   },
 };
 function t(key) { return (I18N[LANG] && I18N[LANG][key]) ?? I18N.fr[key] ?? key; }
@@ -604,6 +635,7 @@ function applyStaticTranslations() {
     .forEach(p => { document.getElementById('tabLbl'+p[0]).textContent = t('tab_'+p[1]); });
   [['Today','today'],['Week','week'],['Month','month'],['Year','year'],['Date','date'],['Range','range'],['All','all']]
     .forEach(p => { document.getElementById('pill'+p[0]).textContent = t('period_'+p[1]); });
+  document.getElementById('installBtnText').textContent = t('install_btn');
   document.getElementById('periodLabel').textContent = t('period_label');
   document.getElementById('h3PeriodStats').textContent = t('h3_period_stats');
   updatePeriodBar();
@@ -1568,6 +1600,30 @@ function exportHistoryPdf() {
   const {headers, rows} = historyExportRows();
   if (!rows.length) { showToast(t('no_history_to_export'), 'error'); return; }
   exportPdf(t('export_title_history'), headers, rows);
+}
+// Installation en application (PWA) : Chrome/Edge/Android declenchent
+// beforeinstallprompt quand manifeste + service worker + https sont reunis ;
+// on garde l'evenement pour le rejouer au clic sur notre propre bouton. Sur
+// iPhone (Safari) cet evenement n'existe pas : il faut "Partager" puis
+// "Sur l'ecran d'accueil".
+let deferredInstallPrompt = null;
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  deferredInstallPrompt = e;
+  document.getElementById('installBtn').style.display = 'inline-block';
+});
+function installApp() {
+  if (!deferredInstallPrompt) return;
+  deferredInstallPrompt.prompt();
+  deferredInstallPrompt.userChoice.then((choice) => {
+    if (choice.outcome === 'accepted') showToast(t('installed_toast'), 'info');
+    deferredInstallPrompt = null;
+    document.getElementById('installBtn').style.display = 'none';
+  });
+}
+window.addEventListener('appinstalled', () => { document.getElementById('installBtn').style.display = 'none'; });
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => { navigator.serviceWorker.register('sw.js').catch(() => {}); });
 }
 document.getElementById('langFr').classList.toggle('active', LANG === 'fr');
 document.getElementById('langEn').classList.toggle('active', LANG === 'en');
