@@ -125,6 +125,14 @@
       <div class="table-wrap" id="boutiquesBody"></div>
     </div>
     <div class="card">
+      <h3 id="h3Quality">Surveillance qualité</h3>
+      <p class="muted" id="qualityNote" style="margin-bottom:14px"></p>
+      <h4 id="h4Disputes" style="margin:0 0 8px">Réclamations</h4>
+      <div class="table-wrap" id="disputesBody"></div>
+      <h4 id="h4LowReviews" style="margin:20px 0 8px">Avis ≤ 2 étoiles</h4>
+      <div class="table-wrap" id="lowReviewsBody"></div>
+    </div>
+    <div class="card">
       <h3 id="h3Demo">Données de démonstration</h3>
       <p class="muted" id="demoDataNote" style="margin-bottom:12px"></p>
       <div id="demoDataMsg"></div>
@@ -284,6 +292,14 @@ const I18N = {
     status_suspended: 'Suspendue', status_yes: 'Oui', status_no: 'Non',
     btn_suspend: 'Suspendre', btn_reactivate: 'Réactiver',
     no_boutiques_match: 'Aucune boutique ne correspond à cette recherche.',
+    col_disputes: 'Réclam.', col_low_reviews: 'Avis ≤2★',
+    h3_quality: 'Surveillance qualité',
+    quality_note: 'Réclamations clients et avis les plus bas, toutes boutiques confondues — pour repérer une boutique à interpeller ou à suspendre avant que ça s\'aggrave.',
+    h4_disputes: 'Réclamations', h4_low_reviews: 'Avis ≤ 2 étoiles',
+    col_boutique: 'Boutique', col_message: 'Message', col_comment: 'Commentaire', col_rating: 'Note', col_product: 'Produit',
+    status_open: 'En attente', status_resolved: 'Répondue',
+    no_disputes: 'Aucune réclamation pour le moment.',
+    no_low_reviews: 'Aucun avis à 2 étoiles ou moins pour le moment.',
     h3_demo: 'Données de démonstration',
     demo_data_note: 'Génère 15 boutiques factices avec des produits (visibles dans l\'annuaire public) pour vos captures d\'écran/publicité — toutes regroupées sous un seul compte, à supprimer d\'un clic quand vous avez terminé.',
     btn_seed_demo: 'Générer 15 boutiques de démo',
@@ -370,6 +386,14 @@ const I18N = {
     status_suspended: 'Suspended', status_yes: 'Yes', status_no: 'No',
     btn_suspend: 'Suspend', btn_reactivate: 'Reactivate',
     no_boutiques_match: 'No shop matches this search.',
+    col_disputes: 'Complaints', col_low_reviews: 'Reviews ≤2★',
+    h3_quality: 'Quality monitoring',
+    quality_note: 'Customer complaints and lowest-rated reviews, across every shop — spot a shop to warn or suspend before it gets worse.',
+    h4_disputes: 'Complaints', h4_low_reviews: 'Reviews ≤ 2 stars',
+    col_boutique: 'Shop', col_message: 'Message', col_comment: 'Comment', col_rating: 'Rating', col_product: 'Product',
+    status_open: 'Pending', status_resolved: 'Replied',
+    no_disputes: 'No complaints at the moment.',
+    no_low_reviews: 'No reviews at 2 stars or below at the moment.',
     h3_demo: 'Demo data',
     demo_data_note: 'Generates 15 fake shops with products (visible in the public directory) for your screenshots/ads - all grouped under one account, removable in one click when you\'re done.',
     btn_seed_demo: 'Generate 15 demo shops',
@@ -401,6 +425,7 @@ function setLang(lang) {
     renderStats(CLIENTS); renderClients(); renderHistoryFiltered();
     renderSubs(SUBS_ROWS); renderPayouts(PAYOUTS_ROWS); renderFeedback(FEEDBACK_ROWS);
     renderBoutiquesFiltered();
+    renderDisputes(DISPUTES_ROWS); renderLowReviews(LOW_REVIEWS_ROWS);
     if (CURRENT_REVENUE_YEAR) renderRevenue();
   }
 }
@@ -435,6 +460,10 @@ function applyStaticTranslations() {
   document.getElementById('logoutBtnText').textContent = t('btn_logout');
   document.getElementById('h3Boutiques').textContent = t('h3_boutiques');
   document.getElementById('boutiqueSearch').placeholder = t('search_boutique_placeholder');
+  document.getElementById('h3Quality').textContent = t('h3_quality');
+  document.getElementById('qualityNote').textContent = t('quality_note');
+  document.getElementById('h4Disputes').textContent = t('h4_disputes');
+  document.getElementById('h4LowReviews').textContent = t('h4_low_reviews');
   document.getElementById('h3Demo').textContent = t('h3_demo');
   document.getElementById('demoDataNote').textContent = t('demo_data_note');
   document.getElementById('btnSeedDemoText').textContent = t('btn_seed_demo');
@@ -486,6 +515,8 @@ let SUBS_ROWS = [];
 let PAYOUTS_ROWS = [];
 let FEEDBACK_ROWS = [];
 let BOUTIQUES_ROWS = [];
+let DISPUTES_ROWS = [];
+let LOW_REVIEWS_ROWS = [];
 let REVENUE_BY_MONTH = []; // [{month:'2026-09', revenue: 12000}, ...]
 const MONTH_NAMES_FR = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
 const MONTH_NAMES_EN = ['January','February','March','April','May','June','July','August','September','October','November','December'];
@@ -619,6 +650,14 @@ function loadAll() {
     call('boutiques_list').then(d7 => {
       if (!d7.success) { document.getElementById('boutiquesBody').innerHTML = '<p style="color:#b91c1c">'+d7.message+'</p>'; return; }
       BOUTIQUES_ROWS = d7.data || []; renderBoutiquesFiltered();
+    });
+    call('disputes_list').then(d8 => {
+      if (!d8.success) { document.getElementById('disputesBody').innerHTML = '<p style="color:#b91c1c">'+d8.message+'</p>'; return; }
+      DISPUTES_ROWS = d8.data || []; renderDisputes(DISPUTES_ROWS);
+    });
+    call('low_reviews_list').then(d9 => {
+      if (!d9.success) { document.getElementById('lowReviewsBody').innerHTML = '<p style="color:#b91c1c">'+d9.message+'</p>'; return; }
+      LOW_REVIEWS_ROWS = d9.data || []; renderLowReviews(LOW_REVIEWS_ROWS);
     });
   }).catch(() => { document.getElementById('loginMsg').innerHTML = '<div class="msg">'+t('server_unreachable')+'</div>'; });
 }
@@ -903,7 +942,7 @@ function renderBoutiquesFiltered() {
   const q = (document.getElementById('boutiqueSearch').value || '').toLowerCase();
   const rows = BOUTIQUES_ROWS.filter(b => !q || b.name.toLowerCase().includes(q) || b.owner_email.toLowerCase().includes(q));
   document.getElementById('boutiquesBody').innerHTML = rows.length ? `<table><thead><tr>
-      <th>${t('col_name')}</th><th>${t('col_owner')}</th><th>${t('col_status')}</th><th>${t('col_directory')}</th><th>${t('col_city')}</th><th>${t('col_registered')}</th><th></th>
+      <th>${t('col_name')}</th><th>${t('col_owner')}</th><th>${t('col_status')}</th><th>${t('col_directory')}</th><th>${t('col_city')}</th><th>${t('col_disputes')}</th><th>${t('col_low_reviews')}</th><th>${t('col_registered')}</th><th></th>
     </tr></thead><tbody>
     ${rows.map(b => `<tr>
       <td>${escapeAttr(b.name)}</td>
@@ -911,12 +950,50 @@ function renderBoutiquesFiltered() {
       <td>${b.status === 'active' ? '<span class="pill pill-ok">'+t('status_active')+'</span>' : '<span class="pill pill-bad">'+t('status_suspended')+'</span>'}</td>
       <td>${Number(b.public_listed) ? '<span class="pill pill-ok">'+t('status_yes')+'</span>' : '<span class="pill" style="background:var(--bg);color:var(--gray)">'+t('status_no')+'</span>'}</td>
       <td>${escapeAttr(b.city||'—')}</td>
+      <td>${Number(b.open_disputes_count) > 0 ? '<span class="pill pill-bad">'+b.open_disputes_count+'</span>' : '0'}</td>
+      <td>${Number(b.low_reviews_count) > 0 ? '<span class="pill pill-bad">'+b.low_reviews_count+'</span>' : '0'}</td>
       <td>${fmtDate(b.created_at)}</td>
       <td>${b.status === 'active'
         ? '<button class="ghost" onclick="toggleBoutiqueStatus(\''+b.id+'\',\'suspended\')">'+t('btn_suspend')+'</button>'
         : '<button onclick="toggleBoutiqueStatus(\''+b.id+'\',\'active\')">'+t('btn_reactivate')+'</button>'}</td>
     </tr>`).join('')}
     </tbody></table>` : '<p style="color:var(--gray)">'+t('no_boutiques_match')+'</p>';
+}
+// Vues transversales (toutes boutiques confondues) pour reperer une
+// boutique a interpeller/suspendre sans avoir a ouvrir chaque tableau de
+// bord marchand un par un - alimentees par admin_disputes_list() et
+// admin_low_reviews_list() cote serveur. Le bouton "Suspendre" reutilise
+// directement toggleBoutiqueStatus() (meme mecanisme que la table Boutiques
+// ci-dessus, juste declenche depuis cette liste).
+function renderDisputes(rows) {
+  document.getElementById('disputesBody').innerHTML = rows.length ? `<table><thead><tr>
+      <th>${t('col_boutique')}</th><th>${t('col_ref')}</th><th>${t('col_client')}</th><th>${t('col_message')}</th><th>${t('col_status')}</th><th>${t('col_date')}</th><th></th>
+    </tr></thead><tbody>
+    ${rows.map(d => `<tr>
+      <td>${escapeAttr(d.boutique_name)}</td>
+      <td>${escapeAttr(d.ref)}</td>
+      <td>${escapeAttr(d.customer_name||'')}</td>
+      <td style="max-width:280px;white-space:normal">${escapeAttr(d.dispute_message||'')}</td>
+      <td>${d.dispute_status === 'open' ? '<span class="pill pill-bad">'+t('status_open')+'</span>' : '<span class="pill pill-ok">'+t('status_resolved')+'</span>'}</td>
+      <td>${fmtDate(d.dispute_created_at)}</td>
+      <td><button class="ghost" onclick="toggleBoutiqueStatus('${d.boutique_id}','suspended')">${t('btn_suspend')}</button></td>
+    </tr>`).join('')}
+    </tbody></table>` : '<p style="color:var(--gray)">'+t('no_disputes')+'</p>';
+}
+function renderLowReviews(rows) {
+  document.getElementById('lowReviewsBody').innerHTML = rows.length ? `<table><thead><tr>
+      <th>${t('col_boutique')}</th><th>${t('col_product')}</th><th>${t('col_client')}</th><th>${t('col_rating')}</th><th>${t('col_comment')}</th><th>${t('col_date')}</th><th></th>
+    </tr></thead><tbody>
+    ${rows.map(r => `<tr>
+      <td>${escapeAttr(r.boutique_name)}</td>
+      <td>${escapeAttr(r.product_name||'—')}</td>
+      <td>${escapeAttr(r.customer_name||'')}</td>
+      <td>${'⭐'.repeat(Number(r.rating)||0)}</td>
+      <td style="max-width:280px;white-space:normal">${escapeAttr(r.comment||'')}</td>
+      <td>${fmtDate(r.created_at)}</td>
+      <td><button class="ghost" onclick="toggleBoutiqueStatus('${r.boutique_id}','suspended')">${t('btn_suspend')}</button></td>
+    </tr>`).join('')}
+    </tbody></table>` : '<p style="color:var(--gray)">'+t('no_low_reviews')+'</p>';
 }
 function toggleBoutiqueStatus(id, status) {
   const b = BOUTIQUES_ROWS.find(x => x.id === id);

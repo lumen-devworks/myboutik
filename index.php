@@ -4379,6 +4379,8 @@ function route_admin($action) {
         case 'feedback_mark_replied': admin_feedback_mark_replied(); break;
         case 'boutiques_list':        admin_boutiques_list(); break;
         case 'boutique_set_status':   admin_boutique_set_status(); break;
+        case 'disputes_list':         admin_disputes_list(); break;
+        case 'low_reviews_list':      admin_low_reviews_list(); break;
         case 'seed_demo_data':        admin_seed_demo_data(); break;
         case 'delete_demo_data':      admin_delete_demo_data(); break;
         default: fail('Action inconnue', 404);
@@ -4460,10 +4462,42 @@ function admin_feedback_mark_replied() {
 // celles d'un marchand connecte) - permet a l'operateur de retrouver une
 // boutique signalee et de la suspendre (voir admin_boutique_set_status()).
 function admin_boutiques_list() {
+    // open_disputes_count/low_reviews_count : signal de qualite a l'echelle
+    // de la plateforme (voir admin_disputes_list()/admin_low_reviews_list()
+    // pour le detail) - visible ici en un coup d'oeil pour reperer une
+    // boutique a surveiller sans avoir a ouvrir les deux listes dediees.
     ok(q("SELECT b.id, b.name, b.slug, b.status, b.public_listed, b.category, b.city, b.created_at,
-                 u.email AS owner_email, u.full_name AS owner_name
+                 u.email AS owner_email, u.full_name AS owner_name,
+                 (SELECT COUNT(*) FROM orders o WHERE o.boutique_id=b.id AND o.dispute_status='open') AS open_disputes_count,
+                 (SELECT COUNT(*) FROM product_reviews r WHERE r.boutique_id=b.id AND r.rating<=2) AS low_reviews_count
           FROM boutiques b JOIN users u ON u.id = b.owner_user_id
           ORDER BY b.created_at DESC")->fetchAll());
+}
+// Vue transversale de TOUTES les reclamations clients (toutes boutiques
+// confondues) pour que l'admin puisse surveiller la qualite de la
+// plateforme sans se connecter au tableau de bord de chaque marchand -
+// meme donnees que orders_respond_dispute()/shop_submit_dispute(), juste
+// vues depuis l'admin, en lecture seule (la reponse reste du ressort du
+// marchand ; l'admin peut seulement suspendre la boutique si besoin).
+function admin_disputes_list() {
+    ok(q("SELECT o.id, o.ref, o.customer_name, o.dispute_status, o.dispute_message, o.dispute_response,
+                 o.dispute_created_at, o.dispute_resolved_at, b.id AS boutique_id, b.name AS boutique_name, b.slug AS boutique_slug
+          FROM orders o JOIN boutiques b ON b.id = o.boutique_id
+          WHERE o.dispute_status IS NOT NULL
+          ORDER BY o.dispute_created_at DESC LIMIT 200")->fetchAll());
+}
+// Avis clients note <= 2 etoiles, toutes boutiques confondues - autre
+// signal de qualite/produit non conforme ou dangereux a surveiller sans
+// dependre du marchand pour les remonter lui-meme (un marchand de mauvaise
+// foi pourrait les laisser en attente de moderation indefiniment - voir
+// product_reviews.status - donc on ne filtre pas sur le statut ici).
+function admin_low_reviews_list() {
+    ok(q("SELECT r.id, r.customer_name, r.rating, r.comment, r.status, r.created_at,
+                 p.name AS product_name, b.id AS boutique_id, b.name AS boutique_name, b.slug AS boutique_slug
+          FROM product_reviews r JOIN boutiques b ON b.id = r.boutique_id
+          LEFT JOIN products p ON p.id = r.product_id
+          WHERE r.rating <= 2
+          ORDER BY r.created_at DESC LIMIT 200")->fetchAll());
 }
 // Suspendre = status different de 'active' : toutes les routes publiques
 // (vitrine, apercus OG, annuaire, alertes de stock) filtrent deja sur
