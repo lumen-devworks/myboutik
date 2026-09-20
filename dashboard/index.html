@@ -345,9 +345,24 @@ function currencyOptionsHtml(current) {
   return codes.map(c => ({c, l: label(c)})).sort((a, b) => a.l.localeCompare(b.l, LANG === 'en' ? 'en' : 'fr'))
     .map(o => '<option value="'+o.c+'" '+(o.c === current ? 'selected' : '')+'>'+escapeHtml(o.l)+'</option>').join('');
 }
+// Symbole affiche a cote des montants : FCFA pour les deux francs CFA, symbole
+// usuel des autres monnaies (EUR -> €, GBP -> £, USD -> $US / $ ...) ; le code ISO
+// reste affiche si la monnaie n'a pas de symbole connu.
+const CUR_SYMBOLS = {};
+function curSymbol(c) {
+  if (!c || c === 'XOF' || c === 'XAF') return 'FCFA';
+  if (c === 'GBP') return '£';
+  const loc = 'fr-FR';
+  const key = loc + c;
+  if (!(key in CUR_SYMBOLS)) {
+    try { const p = new Intl.NumberFormat(loc, {style: 'currency', currency: c}).formatToParts(0).find(x => x.type === 'currency'); CUR_SYMBOLS[key] = p ? p.value : c; }
+    catch (e) { CUR_SYMBOLS[key] = c; }
+  }
+  return CUR_SYMBOLS[key];
+}
 function fmtMoney(n, currency) {
   const dec = currencyDecimals(currency);
-  return Number(n||0).toLocaleString('fr-FR', {minimumFractionDigits: dec, maximumFractionDigits: dec}) + ' ' + ((currency === 'XOF' || currency === 'XAF') ? 'FCFA' : (currency || 'FCFA'));
+  return Number(n||0).toLocaleString('fr-FR', {minimumFractionDigits: dec, maximumFractionDigits: dec}) + ' ' + curSymbol(currency);
 }
 function fmtDate(iso) { if(!iso) return '—'; const d = new Date(iso); return d.toLocaleDateString('fr-FR') + ' ' + d.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}); }
 function escapeHtml(s){ return (s==null?'':String(s)).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }

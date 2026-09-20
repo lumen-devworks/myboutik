@@ -157,9 +157,26 @@ function api(path, opts) {
 function post(path, body) { return api(path, {method:'POST', body:JSON.stringify(body||{})}); }
 const ZERO_DECIMAL_CURRENCIES = ["XOF","XAF","XPF","KMF","DJF","GNF","RWF","UGX","BIF","CLP","JPY","KRW","PYG","VND","VUV","ISK","MGA"];
 function currencyDecimals(code) { return ZERO_DECIMAL_CURRENCIES.includes(code || 'XOF') ? 0 : 2; }
+// Symbole affiche a cote des montants : FCFA pour les deux francs CFA, symbole
+// usuel des autres monnaies (EUR -> €, GBP -> £, USD -> $US / $ ...) ; le code ISO
+// reste affiche si la monnaie n'a pas de symbole connu.
+const CUR_SYMBOLS = {};
+function curSymbol(c) {
+  if (!c || c === 'XOF' || c === 'XAF') return 'FCFA';
+  if (c === 'GBP') return '£';
+  const loc = LANG === 'en' ? 'en-US' : 'fr-FR';
+  const key = loc + c;
+  if (!(key in CUR_SYMBOLS)) {
+    try { const p = new Intl.NumberFormat(loc, {style: 'currency', currency: c}).formatToParts(0).find(x => x.type === 'currency'); CUR_SYMBOLS[key] = p ? p.value : c; }
+    catch (e) { CUR_SYMBOLS[key] = c; }
+  }
+  return CUR_SYMBOLS[key];
+}
 function fmtMoney(n, currency) {
   const dec = currencyDecimals(currency);
-  return Number(n||0).toLocaleString(LANG === 'en' ? 'en-US' : 'fr-FR', {minimumFractionDigits: dec, maximumFractionDigits: dec}) + ' ' + curLabel(currency);
+  const num = Number(n||0).toLocaleString(LANG === 'en' ? 'en-US' : 'fr-FR', {minimumFractionDigits: dec, maximumFractionDigits: dec});
+  const sym = curSymbol(currency);
+  return (LANG === 'en' && sym !== currency && sym !== 'FCFA') ? sym + num : num + ' ' + sym;
 }
 // Les deux francs CFA (XOF = Afrique de l'Ouest, XAF = Afrique centrale) sont
 // affiches "FCFA" comme partout dans la region ; le code ISO reste utilise en interne.
