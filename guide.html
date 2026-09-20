@@ -68,7 +68,8 @@
     <a href="#affiliation"><span class="num">16</span>Affiliation</a>
     <a href="#grade"><span class="num">17</span>Mon grade</a>
     <a href="#marketing-avance"><span class="num">18</span>Codes promo & avis clients</a>
-    <a href="#faq"><span class="num">19</span>Questions fréquentes</a>
+    <a href="#installer"><span class="num">19</span>Installer l'application</a>
+    <a href="#faq"><span class="num">20</span>Questions fréquentes</a>
     </div>
     <div id="navEn" style="display:none">
     <a href="#compte-en"><span class="num">1</span>Create your account</a>
@@ -89,7 +90,8 @@
     <a href="#affiliation-en"><span class="num">16</span>Affiliate</a>
     <a href="#grade-en"><span class="num">17</span>My rank</a>
     <a href="#marketing-avance-en"><span class="num">18</span>Promo codes & reviews</a>
-    <a href="#faq-en"><span class="num">19</span>FAQ</a>
+    <a href="#installer-en"><span class="num">19</span>Install the app</a>
+    <a href="#faq-en"><span class="num">20</span>FAQ</a>
     </div>
   </nav>
   <main>
@@ -110,6 +112,12 @@
         <strong>Pas reçu l'email ?</strong>
         Vérifiez vos spams, ou cliquez sur « Renvoyer l'email de confirmation » depuis l'écran d'inscription.
       </div>
+      <div class="card">
+        <strong>Mot de passe oublié ?</strong>
+        Sur l'écran de connexion, cliquez sur <strong>« Mot de passe oublié ? »</strong> et saisissez votre email : vous recevez un lien, valable 1 heure, pour choisir un nouveau mot de passe. Une fois le mot de passe changé, toutes les autres sessions ouvertes avec votre compte sont déconnectées.
+      </div>
+      <p><strong>Session et sécurité</strong> : une fois connecté, vous le restez 30 jours sur votre appareil. Si votre téléphone est perdu ou volé, allez dans <strong>Paramètres → Mon profil</strong>, carte <strong>Sécurité</strong>, et cliquez sur <strong>« Se déconnecter de tous les autres appareils »</strong> : toute autre session ouverte avec votre compte est coupée immédiatement, sans vous déconnecter de celle que vous utilisez.</p>
+      <p>Dans <strong>Mon profil</strong>, renseignez aussi votre <strong>numéro WhatsApp</strong> (recommandé) : il est repris dans le message WhatsApp que vous envoyez à MYBOUTIK pour prévenir d'un paiement d'abonnement (section 15).</p>
     </section>
 
     <section id="boutique">
@@ -118,6 +126,7 @@
       <ol>
         <li>Cliquez sur <strong>+ Créer une boutique</strong>.</li>
         <li>Donnez-lui un nom (ex: « RoyalBoutik ») — une adresse web est générée automatiquement à partir du nom.</li>
+        <li>Renseignez la <strong>ville</strong> et le <strong>pays</strong> de la boutique (obligatoires). Touchez le champ « Pays » : la liste complète s'ouvre, ou tapez quelques lettres pour la filtrer (« cote » suffit pour trouver Côte d'Ivoire, accents et majuscules sans importance), puis touchez le pays voulu.</li>
         <li>Vous arrivez directement sur le tableau de bord de cette boutique.</li>
       </ol>
       <div class="card">
@@ -139,7 +148,7 @@
         <tr><td>Suivre la quantité</td><td>Décochez pour un produit à stock illimité (ex: service, produit numérique).</td></tr>
         <tr><td>Alerte stock limité</td><td>Seuil en dessous duquel vous serez alerté (page Produits) pour recommander.</td></tr>
       </table>
-      <p><strong>Photos</strong> : jusqu'à 5 par produit. Utilisez « Choisir un fichier » (galerie) ou « 📷 Prendre une photo » (ouvre directement l'appareil photo sur téléphone). La première photo ajoutée devient l'image principale ; vous pouvez en définir une autre comme principale, ou en supprimer, à tout moment. Pour un nouveau produit, vous pouvez déjà ajouter plusieurs photos avant même de l'enregistrer.</p>
+      <p><strong>Photos</strong> : jusqu'à 5 par produit. Utilisez « Choisir un fichier » (galerie) ou « 📷 Prendre une photo » (ouvre directement l'appareil photo sur téléphone). La première photo ajoutée devient l'image principale ; vous pouvez en définir une autre comme principale (bouton « Définir » sur la photo), ou en supprimer, à tout moment. Pour changer l'ordre des photos, glissez-déposez une photo à sa nouvelle place dans la galerie : celle qui arrive en première position devient la photo principale (le glisser-déposer marche surtout sur ordinateur ; sur téléphone, utilisez « Définir »). Pour un nouveau produit, vous pouvez déjà ajouter plusieurs photos avant même de l'enregistrer.</p>
       <p><strong>Produits associés</strong> : en bas du formulaire, cochez d'autres produits de votre catalogue à proposer en « Vous aimerez aussi » sur la fiche de ce produit côté vitrine — utile pour l'upsell (ex: proposer une housse avec un téléphone).</p>
       <p><strong>Catégories</strong> : bouton « Catégories » en haut de la page Produits pour créer/supprimer des catégories (ex: Chaussures, Vêtements), puis choisissez-en une dans le formulaire du produit (champ optionnel). Sur la vitrine, vos clients peuvent filtrer le catalogue par catégorie, et une barre de recherche permet de trouver un produit par son nom.</p>
       <p><strong>Produit physique / Produit numérique</strong> : deux cases indépendantes (cocher l'une décoche l'autre) — un produit ne peut pas être les deux à la fois.</p>
@@ -183,8 +192,9 @@
         <li><strong>Logo</strong> : affiché en haut de votre vitrine publique.</li>
         <li><strong>Description</strong> : un texte de présentation affiché sous l'en-tête de la vitrine.</li>
         <li><strong>Frais de livraison par défaut</strong> : ajouté automatiquement au panier du client, sauf si un produit a son propre frais de livraison défini (qui prend alors le dessus).</li>
+        <li><strong>Frais d'expédition par défaut</strong> (pour le pays de votre boutique, et pour un autre pays) : dès que le panier contient un produit physique, le client choisit à la commande entre <strong>Livraison</strong> et <strong>Expédition</strong>. En Expédition, il indique son <strong>pays de destination</strong> : le tarif de votre pays s'applique s'il y vit, sinon le tarif « autre pays ». Un produit peut aussi avoir ses propres frais d'expédition dans sa fiche, qui prennent alors le dessus.</li>
         <li><strong>Paiement à la livraison</strong> : à laisser activé si vous vendez des produits physiques — c'est le seul mode de paiement pris en charge pour eux actuellement. Ne concerne pas les produits numériques (voir section 3), qui restent vendables même si vous désactivez ceci.</li>
-        <li><strong>Lister ma boutique dans l'annuaire public MYBOUTIK</strong> : <strong>désactivé par défaut</strong>. L'annuaire (accessible via « Découvrir les boutiques » depuis la page d'accueil MYBOUTIK) permet à n'importe quel visiteur de parcourir et rechercher parmi les boutiques qui ont explicitement activé cette case, ainsi que de rechercher un article par son nom à travers toutes ces boutiques à la fois. Rien ne change pour vous si vous ne l'activez pas — votre boutique reste accessible uniquement via le lien que vous partagez vous-même.</li>
+        <li><strong>Lister ma boutique dans l'annuaire public MYBOUTIK</strong> : <strong>désactivé par défaut</strong>. L'annuaire (accessible via « Découvrir les boutiques » depuis la page d'accueil MYBOUTIK) permet à n'importe quel visiteur de parcourir et rechercher parmi les boutiques qui ont explicitement activé cette case, ainsi que de rechercher un article par son nom à travers toutes ces boutiques à la fois. Rien ne change pour vous si vous ne l'activez pas — votre boutique reste accessible uniquement via le lien que vous partagez vous-même. Juste en dessous, renseignez aussi <strong>« Catégorie (annuaire) »</strong> et <strong>« Ville (annuaire) »</strong> (et vérifiez le <strong>« Pays de la boutique »</strong>) : ce sont les filtres qu'utilisent les visiteurs pour trouver une boutique — sans eux, la vôtre sera plus difficile à repérer.</li>
       </ul>
       <p><strong>Sauvegarde</strong> (en bas de la page) : bouton <strong>« ⬇️ Exporter une sauvegarde complète »</strong> — télécharge un fichier avec toutes les données de la boutique (produits, clients, commandes, finances…), à garder de côté au cas où. Réservé au propriétaire/administrateur. Les photos ne sont pas incluses, pour garder le fichier léger.</p>
     </section>
@@ -194,7 +204,7 @@
       <p>Le lien de votre vitrine publique est indiqué en bas de la page <strong>Paramètres → Général</strong> — de la forme <code>store/index.html?b=nom-de-votre-boutique</code>. C'est ce lien que vous partagez sur WhatsApp, Instagram, Facebook, etc.</p>
       <p>Pour partager directement une fiche produit précise (ex: dans un message WhatsApp), ajoutez <code>&p=slug-du-produit</code> à la fin du lien — le slug de chaque produit est visible/modifiable dans sa fiche.</p>
       <p>Plus simple encore : sur la vitrine, ouvrez une fiche produit et cliquez <strong>« 📲 Partager sur WhatsApp »</strong> — ça ouvre directement WhatsApp avec le nom, le prix et le lien du produit déjà écrits, prêt à envoyer.</p>
-      <p><strong>Partager toute la boutique</strong> : juste à côté du lien, dans Paramètres → Général, des boutons <strong>WhatsApp / Facebook / Telegram / X</strong> ouvrent chaque réseau avec le lien de votre boutique déjà rempli — plus besoin de le copier-coller vous-même. Instagram ne permet pas ce pré-remplissage automatique : copiez le lien et collez-le vous-même dans votre bio ou une story.</p>
+      <p><strong>Partager toute la boutique</strong> : juste à côté du lien, dans Paramètres → Général, des boutons <strong>WhatsApp / Facebook / Telegram / X</strong> ouvrent chaque réseau avec le lien de votre boutique déjà rempli — plus besoin de le copier-coller vous-même. Les boutons <strong>Instagram</strong> et <strong>TikTok</strong> fonctionnent autrement, car ces réseaux n'offrent pas de lien pré-rempli depuis un site : le lien est <strong>copié automatiquement</strong>, puis la page du réseau s'ouvre (modification de votre profil Instagram, envoi d'une vidéo TikTok). Il ne reste qu'à le coller — par exemple dans le champ « Site web » de votre profil Instagram, ou dans une story.</p>
       <div class="card">
         <strong>Lien spécial pour une campagne publicitaire</strong>
         Pour suivre le retour d'une pub Facebook/TikTok (section 10), ajoutez <code>&utm_campaign=nom-de-la-campagne</code> :
@@ -227,6 +237,17 @@
       </div>
       <p><strong>Commandes abandonnées</strong> : si un client tape son numéro ou son email sans finaliser sa commande, il apparaît ici — vous pouvez le rappeler pour récupérer la vente. La case « Relancer automatiquement le client » (réglages en haut de cette page) envoie une relance par email 30 minutes après l'abandon, à condition que le client ait renseigné son email (voir section 13).</p>
       <p><strong>Suivi de commande côté client</strong> : le bouton « 📦 Suivre ma commande » en haut de votre vitrine permet à vos clients de voir eux-mêmes le statut de leur commande en tapant leur numéro de commande et leur téléphone — sans avoir à vous contacter. S'il a oublié sa référence, dès qu'il tape son téléphone, la liste de ses commandes passées avec ce numéro s'affiche automatiquement — il clique dessus au lieu de devoir la retrouver.</p>
+      <h3>Réclamations clients</h3>
+      <p>Quand une commande est passée à <strong>Livrée</strong>, le client peut, depuis « 📦 Suivre ma commande » (numéro de commande + téléphone), cliquer sur <strong>« Signaler un problème avec cette commande »</strong> et décrire ce qui ne va pas (produit non conforme, abîmé…). Ce n'est possible que pour une commande livrée, et une seule réclamation peut être en cours à la fois par commande.</p>
+      <ul>
+        <li>Vous êtes prévenu par email (si les notifications de commande sont activées, section 13), et la commande affiche un badge <strong>⚠️</strong> à côté de sa référence dans <strong>Commandes</strong>.</li>
+        <li>Cliquez sur le badge pour lire le message, écrivez votre réponse puis <strong>« Envoyer la réponse »</strong> : le badge devient <strong>💬</strong> (réclamation répondue).</li>
+        <li>Le client retrouve votre réponse en revenant sur « Suivre ma commande » avec les mêmes informations. Aucun email ne lui est envoyé : prévenez-le vous-même (WhatsApp, appel) que vous avez répondu.</li>
+      </ul>
+      <div class="card warn">
+        <strong>Répondez vite</strong>
+        L'équipe MYBOUTIK suit les réclamations et les avis sur l'ensemble de la plateforme. Des réclamations restées sans réponse, ou des réclamations et avis très négatifs répétés, peuvent conduire à un <strong>avertissement</strong> (visible dans votre journal d'activité) puis, si la situation ne change pas, à la <strong>suspension</strong> de votre boutique de la vitrine et de l'annuaire (réversible). Astuce : proposez à vos clients d'ouvrir le colis avant de payer le livreur — s'il ne convient pas, il le refuse (statut « Refusée ») et aucun argent ne change de main.
+      </div>
     </section>
 
     <section id="stock">
@@ -266,7 +287,7 @@
       <h3>Comprendre Publicités & ROAS</h3>
       <ol>
         <li>Cliquez <strong>+ Nouvelle dépense</strong> à chaque campagne publicitaire lancée (Facebook, TikTok…).</li>
-        <li>Renseignez le nom de la campagne et le montant dépensé, puis cochez le ou les produits mis en avant dans la liste (aucun produit coché = promo générale sur toute la boutique).</li>
+        <li>Renseignez le nom de la campagne et le montant dépensé, puis cochez le ou les produits mis en avant dans la liste (la case <strong>« Tout sélectionner »</strong> les coche tous d'un coup ; aucun produit coché = promo générale sur toute la boutique).</li>
         <li>Le lien à utiliser dans votre publicité est généré automatiquement en dessous, avec un bouton « Copier le lien ».</li>
         <li>MYBOUTIK calcule le revenu attribué (ventes livrées correspondantes sur la période) et le ROAS = revenu ÷ dépense.</li>
       </ol>
@@ -302,7 +323,7 @@
 
     <section id="notifications">
       <h2><span class="badge">13</span>Notifications</h2>
-      <p>Menu <strong>Paramètres → Général</strong>, en bas : activez l'email pour être averti à chaque nouvelle commande.</p>
+      <p>Menu <strong>Paramètres → Général</strong>, en bas : activez l'email pour être averti à chaque nouvelle commande — cette même option vous prévient aussi quand un client ouvre une réclamation (section 7).</p>
       <p><strong>Alerte de stock limité</strong> : case « M'alerter automatiquement quand un produit passe en stock limité » (même page) — vous prévient au maximum une fois par jour dès qu'un ou plusieurs produits passent sous leur seuil d'alerte.</p>
       <div class="card">
         <strong>Envoi réel des emails</strong>
@@ -323,10 +344,15 @@
 
     <section id="abonnement">
       <h2><span class="badge">15</span>Abonnement</h2>
-      <p>Le plan choisi limite le nombre de boutiques que vous pouvez créer. Menu <strong>Paramètres → Abonnement</strong> : choisissez un plan, envoyez le montant via <strong>Orange Money, Wave ou Djomo</strong> au <strong>+225 07 78 79 83 19</strong> (affiché aussi à l'écran), puis votre plan est activé après vérification manuelle (généralement sous 24h).</p>
+      <p>Le plan choisi limite le nombre de boutiques que vous pouvez créer : <strong>Starter</strong> 1 boutique (7 000 FCFA/mois), <strong>Pro</strong> 3 boutiques (12 000 FCFA/mois), <strong>Premium</strong> 10 boutiques (20 000 FCFA/mois). Menu <strong>Paramètres → Abonnement</strong> : choisissez un plan, envoyez le montant via <strong>Orange Money, Wave ou Djamo</strong> au <strong>+225 07 78 79 83 19</strong> (les logos et le numéro sont affichés en haut de la page, avec un bouton pour copier le numéro). Une fois votre demande envoyée, cliquez sur <strong>« J'ai payé, prévenir MYBOUTIK »</strong> : WhatsApp s'ouvre avec un message déjà rédigé. Votre plan est activé après vérification manuelle (généralement sous 24h).</p>
+      <p><strong>Paiement annuel</strong> : cochez « Payer 12 mois d'un coup (1 mois offert) » pour régler 12 mois et obtenir <strong>13 mois d'accès</strong>. <strong>1er mois gratuit</strong> : sur le plan Starter, si vous n'avez encore jamais eu d'abonnement approuvé, le bouton « 1er mois gratuit » active 30 jours immédiatement, sans paiement.</p>
       <div class="card">
         <strong>30 jours gratuits, puis un cycle mensuel</strong>
-        Chaque nouveau compte démarre avec <strong>30 jours d'accès gratuit</strong> sur le plan Starter. Passé ce délai (ou à la fin d'un mois payé), l'accès à vos boutiques est bloqué jusqu'à ce que vous vous (ré)abonniez — la page Abonnement, elle, reste toujours accessible pour pouvoir payer et vous débloquer vous-même. Un bandeau d'avertissement apparaît automatiquement 5 jours avant l'échéance. Chaque paiement approuvé prolonge l'accès d'un mois de plus, quel que soit le plan choisi (y compris Starter à 7 000 FCFA).
+        Chaque nouveau compte démarre avec <strong>30 jours d'accès gratuit</strong> sur le plan Starter. Passé ce délai (ou à la fin d'un mois payé), l'accès à vos boutiques est bloqué jusqu'à ce que vous vous (ré)abonniez — la page Abonnement, elle, reste toujours accessible pour pouvoir payer et vous débloquer vous-même. Un bandeau d'avertissement apparaît automatiquement 5 jours avant l'échéance. Chaque paiement approuvé prolonge l'accès d'un mois de plus (13 mois pour un paiement annuel), quel que soit le plan choisi (y compris Starter à 7 000 FCFA).
+      </div>
+      <div class="card warn">
+        <strong>Abonnement expiré : votre boutique disparaît de la vitrine</strong>
+        Tant que l'abonnement n'est pas renouvelé, votre vitrine et votre fiche dans l'annuaire ne sont plus visibles ni accessibles pour vos clients (« Boutique introuvable ou fermée »), et aucune commande ne peut être passée. Rien n'est supprimé, et vos réglages (dont l'inscription à l'annuaire) sont conservés : dès que votre paiement est validé, la boutique réapparaît automatiquement.
       </div>
     </section>
 
@@ -379,8 +405,22 @@
       <p>Sur chaque fiche produit de la vitrine, un client peut laisser une note (1 à 5 étoiles) et un commentaire. Par défaut, un avis est <strong>en attente</strong> et n'est pas visible publiquement : ouvrez Marketing → Avis clients pour le <strong>publier</strong> ou le <strong>rejeter</strong>. Cela évite les faux avis ou le spam visibles immédiatement sur votre boutique.</p>
     </section>
 
+    <section id="installer">
+      <h2><span class="badge">19</span>Installer l'application sur votre téléphone</h2>
+      <p>MYBOUTIK s'installe comme une application, sans passer par un magasin d'applications : une icône sur l'écran d'accueil, une ouverture plus rapide, en plein écran et sans barre d'adresse.</p>
+      <ul>
+        <li><strong>Android (Chrome, Edge, Samsung Internet…)</strong> : ouvrez le site, puis touchez le bouton <strong>« 📲 Installer l'appli »</strong> qui apparaît en haut de la page. À défaut, menu ⋮ du navigateur → « Installer l'application » ou « Ajouter à l'écran d'accueil ».</li>
+        <li><strong>iPhone (Safari)</strong> : il n'y a pas de bouton. Touchez <strong>Partager</strong> (le carré avec une flèche), puis <strong>« Sur l'écran d'accueil »</strong>.</li>
+      </ul>
+      <p>Le plus utile pour vous est d'installer le <strong>tableau de bord</strong> : ouvrez-le, connectez-vous, puis installez.</p>
+      <div class="card">
+        <strong>Le bandeau avec l'adresse du site en haut de l'écran</strong>
+        Un lien ouvert depuis WhatsApp, Facebook, Instagram ou TikTok s'affiche dans le navigateur intégré de cette application, avec un bandeau montrant le titre et l'adresse du site : c'est normal, il vient de l'application qui ouvre le lien et non de MYBOUTIK. Il n'apparaît pas quand vous ouvrez MYBOUTIK depuis son icône installée.
+      </div>
+    </section>
+
     <section id="faq">
-      <h2><span class="badge">19</span>Questions fréquentes</h2>
+      <h2><span class="badge">20</span>Questions fréquentes</h2>
       <h3>Un client ne peut pas ajouter un produit au panier</h3>
       <p>Vérifiez que le produit est en statut <strong>Actif</strong> (pas Brouillon). Si le produit a des variantes, la combinaison choisie doit avoir été générée (section 4).</p>
       <h3>Le total affiché au client ne correspond pas à ce que j'attendais</h3>
@@ -389,6 +429,12 @@
       <p>Votre rôle sur cette boutique limite les pages accessibles (section 12) — demandez à un administrateur si vous pensez avoir besoin d'un accès plus large.</p>
       <h3>Une page reste bloquée sur « Chargement… »</h3>
       <p>Rechargez la page. Si ça persiste, contactez la personne qui gère l'hébergement technique de votre boutique.</p>
+      <h3>« Impossible de charger vos boutiques » : mes boutiques ont-elles disparu ?</h3>
+      <p>Non, elles existent toujours : c'est la connexion au serveur qui a échoué (réseau coupé, serveur qui se réveille). Touchez <strong>« Réessayer »</strong>. Si un message indique que la session n'est plus valide, reconnectez-vous.</p>
+      <h3>J'ai oublié mon mot de passe</h3>
+      <p>Voir la section 1 : « Mot de passe oublié ? » sur l'écran de connexion.</p>
+      <h3>Un client dit que le produit ne lui convient pas</h3>
+      <p>S'il n'a pas encore payé le livreur, il peut refuser le colis (statut « Refusée »). S'il l'a déjà reçu, il peut ouvrir une réclamation depuis « Suivre ma commande » : voir « Réclamations clients » en section 7.</p>
     </section>
   
 </div>
@@ -408,6 +454,12 @@
         <strong>Didn't receive the email?</strong>
         Check your spam folder, or click "Resend confirmation email" from the registration screen.
       </div>
+      <div class="card">
+        <strong>Forgot your password?</strong>
+        On the login screen, click <strong>"Forgot your password?"</strong> and enter your email: you receive a link, valid for 1 hour, to choose a new password. Once the password is changed, every other session open on your account is signed out.
+      </div>
+      <p><strong>Session and security</strong>: once logged in, you stay logged in for 30 days on your device. If your phone is lost or stolen, go to <strong>Settings → My profile</strong>, <strong>Security</strong> card, and click <strong>"Log out of all other devices"</strong>: every other session open on your account is cut immediately, without logging you out of the one you're using.</p>
+      <p>In <strong>My profile</strong>, also enter your <strong>WhatsApp number</strong> (recommended): it is included in the WhatsApp message you send to MYBOUTIK to report a subscription payment (section 15).</p>
     </section>
 
     <section id="boutique-en">
@@ -416,6 +468,7 @@
       <ol>
         <li>Click <strong>+ Create a shop</strong>.</li>
         <li>Give it a name (e.g. "RoyalBoutik") — a web address is generated automatically from the name.</li>
+        <li>Enter the shop's <strong>city</strong> and <strong>country</strong> (required). Tap the "Country" field: the full list opens, or type a few letters to filter it ("cote" is enough to find Côte d'Ivoire, accents and capitals don't matter), then tap the country you want.</li>
         <li>You land directly on that shop's dashboard.</li>
       </ol>
       <div class="card">
@@ -437,7 +490,7 @@
         <tr><td>Track stock quantity</td><td>Uncheck for an unlimited-stock product (e.g. a service, a digital product).</td></tr>
         <tr><td>Low-stock alert</td><td>Threshold below which you'll be alerted (Products page) to reorder.</td></tr>
       </table>
-      <p><strong>Photos</strong>: up to 5 per product. Use "Choose a file" (gallery) or "📷 Take a photo" (opens the camera directly on a phone). The first photo added becomes the main image; you can set another as main, or delete one, at any time. For a new product, you can already add several photos before even saving it.</p>
+      <p><strong>Photos</strong>: up to 5 per product. Use "Choose a file" (gallery) or "📷 Take a photo" (opens the camera directly on a phone). The first photo added becomes the main image; you can set another as main ("Set" button on the photo), or delete one, at any time. To change the order of the photos, drag and drop a photo to its new place in the gallery: the one that lands in first position becomes the main photo (drag and drop works mostly on a computer; on a phone, use "Set"). For a new product, you can already add several photos before even saving it.</p>
       <p><strong>Related products</strong>: at the bottom of the form, check other products from your catalog to suggest as "You may also like" on this product's storefront page — useful for upselling (e.g. suggesting a case with a phone).</p>
       <p><strong>Categories</strong>: the "Categories" button at the top of the Products page lets you create/delete categories (e.g. Shoes, Clothing), then pick one in the product form (optional field). On the storefront, your customers can filter the catalog by category, and a search bar lets them find a product by name.</p>
       <p><strong>Physical product / Digital product</strong>: two independent checkboxes (checking one unchecks the other) — a product can't be both at once.</p>
@@ -481,8 +534,9 @@
         <li><strong>Logo</strong>: shown at the top of your public storefront.</li>
         <li><strong>Description</strong>: an introductory text shown under the storefront header.</li>
         <li><strong>Default delivery fee</strong>: added automatically to the customer's cart, unless a product has its own delivery fee set (which then takes over).</li>
+        <li><strong>Default shipping fee</strong> (for your shop's country, and for another country): as soon as the cart contains a physical product, the customer chooses at checkout between <strong>Delivery</strong> and <strong>Shipping</strong>. With Shipping, they enter their <strong>destination country</strong>: your country's rate applies if they live there, otherwise the "other country" rate. A product can also have its own shipping fee in its form, which then takes over.</li>
         <li><strong>Cash on delivery</strong>: leave it enabled if you sell physical products — it's the only payment method currently supported for them. It doesn't affect digital products (see section 3), which stay sellable even if you turn this off.</li>
-        <li><strong>List my shop in the public MYBOUTIK directory</strong>: <strong>off by default</strong>. The directory (reachable via "Discover shops" from the MYBOUTIK home page) lets any visitor browse and search among shops that explicitly enabled this, and also search for a product by name across all of them at once. Nothing changes for you if you leave this off — your shop stays reachable only through the link you share yourself.</li>
+        <li><strong>List my shop in the public MYBOUTIK directory</strong>: <strong>off by default</strong>. The directory (reachable via "Discover shops" from the MYBOUTIK home page) lets any visitor browse and search among shops that explicitly enabled this, and also search for a product by name across all of them at once. Nothing changes for you if you leave this off — your shop stays reachable only through the link you share yourself. Right below, also fill in <strong>"Category (directory)"</strong> and <strong>"City (directory)"</strong> (and check the <strong>"Shop country"</strong>): these are the filters visitors use to find a shop — without them, yours will be harder to spot.</li>
       </ul>
       <p><strong>Backup</strong> (bottom of the page): "⬇️ Export a full backup" button — downloads a file with all the shop's data (products, customers, orders, finances…), to keep aside just in case. Owner/admin only. Photos aren't included, to keep the file light.</p>
     </section>
@@ -492,7 +546,7 @@
       <p>Your public storefront link is shown at the bottom of the <strong>Settings → General</strong> page — in the form <code>store/index.html?b=your-shop-name</code>. This is the link you share on WhatsApp, Instagram, Facebook, etc.</p>
       <p>To share a specific product page directly (e.g. in a WhatsApp message), add <code>&p=product-slug</code> to the end of the link — each product's slug is visible/editable on its form.</p>
       <p>Even simpler: on the storefront, open a product page and click <strong>"📲 Share on WhatsApp"</strong> — it opens WhatsApp directly with the name, price, and product link already written, ready to send.</p>
-      <p><strong>Sharing the whole shop</strong>: right next to the link, in Settings → General, <strong>WhatsApp / Facebook / Telegram / X</strong> buttons open each network with your shop's link already filled in — no need to copy-paste it yourself. Instagram and TikTok don't allow this automatic pre-filling: copy the link and paste it yourself into your bio or a story.</p>
+      <p><strong>Sharing the whole shop</strong>: right next to the link, in Settings → General, <strong>WhatsApp / Facebook / Telegram / X</strong> buttons open each network with your shop's link already filled in — no need to copy-paste it yourself. The <strong>Instagram</strong> and <strong>TikTok</strong> buttons work differently, because these networks offer no pre-filled link from a website: the link is <strong>copied automatically</strong>, then the network's page opens (your Instagram profile editor, a TikTok video upload). You just have to paste it — for example in the "Website" field of your Instagram profile, or in a story.</p>
       <div class="card">
         <strong>Special link for an ad campaign</strong>
         To track the return on a Facebook/TikTok ad (section 10), add <code>&utm_campaign=campaign-name</code>:
@@ -525,6 +579,17 @@
       </div>
       <p><strong>Abandoned orders</strong>: if a customer types their phone number or email without completing their order, it shows up here — you can call them back to recover the sale. The "Automatically follow up with the customer" checkbox (settings at the top of this page) sends a follow-up email 30 minutes after abandonment, provided the customer entered an email (see section 13).</p>
       <p><strong>Customer-side order tracking</strong>: the "📦 Track my order" button at the top of your storefront lets your customers check their order's status themselves by entering their order number and phone — without having to contact you. If they've forgotten their reference, as soon as they type their phone, the list of their past orders with that number shows up automatically — they click one instead of having to look it up.</p>
+      <h3>Customer complaints</h3>
+      <p>Once an order is set to <strong>Delivered</strong>, the customer can, from "📦 Track my order" (order number + phone), click <strong>"Report a problem with this order"</strong> and describe what's wrong (item not as described, damaged…). This is only possible for a delivered order, and only one complaint can be open at a time per order.</p>
+      <ul>
+        <li>You're notified by email (if order notifications are enabled, section 13), and the order shows a <strong>⚠️</strong> badge next to its reference in <strong>Orders</strong>.</li>
+        <li>Click the badge to read the message, write your answer, then <strong>"Send response"</strong>: the badge becomes <strong>💬</strong> (complaint answered).</li>
+        <li>The customer finds your answer by returning to "Track my order" with the same details. No email is sent to them: let them know yourself (WhatsApp, a call) that you've answered.</li>
+      </ul>
+      <div class="card warn">
+        <strong>Answer quickly</strong>
+        The MYBOUTIK team monitors complaints and reviews across the whole platform. Unanswered complaints, or repeated very negative complaints and reviews, can lead to a <strong>warning</strong> (visible in your activity log) and then, if nothing changes, to the <strong>suspension</strong> of your shop from the storefront and the directory (reversible). Tip: invite your customers to open the parcel before paying the delivery person — if it doesn't suit them, they refuse it ("Refused" status) and no money changes hands.
+      </div>
     </section>
 
     <section id="stock-en">
@@ -564,7 +629,7 @@
       <h3>Understanding Ads & ROAS</h3>
       <ol>
         <li>Click <strong>+ New expense</strong> for every ad campaign you launch (Facebook, TikTok…).</li>
-        <li>Enter the campaign name and the amount spent, then check the product(s) featured in the list (no product checked = a general promo for the whole shop).</li>
+        <li>Enter the campaign name and the amount spent, then check the product(s) featured in the list (the <strong>"Select all"</strong> box checks them all at once; no product checked = a general promo for the whole shop).</li>
         <li>The link to use in your ad is generated automatically below, with a "Copy link" button.</li>
         <li>MYBOUTIK calculates the attributed revenue (matching delivered sales over the period) and the ROAS = revenue ÷ spend.</li>
       </ol>
@@ -600,7 +665,7 @@
 
     <section id="notifications-en">
       <h2><span class="badge">13</span>Notifications</h2>
-      <p>Menu <strong>Settings → General</strong>, at the bottom: enable email to be notified on every new order.</p>
+      <p>Menu <strong>Settings → General</strong>, at the bottom: enable email to be notified on every new order — the same option also notifies you when a customer opens a complaint (section 7).</p>
       <p><strong>Low-stock alert</strong>: the "Automatically alert me when a product goes into low stock" checkbox (same page) — notifies you at most once a day as soon as one or more products drop below their alert threshold.</p>
       <div class="card">
         <strong>Actual email sending</strong>
@@ -621,10 +686,15 @@
 
     <section id="abonnement-en">
       <h2><span class="badge">15</span>Subscription</h2>
-      <p>The chosen plan limits how many shops you can create. Menu <strong>Settings → Subscription</strong>: choose a plan, send the amount via <strong>Orange Money, Wave, or Djomo</strong> to <strong>+225 07 78 79 83 19</strong> (also shown on screen), then your plan is activated after manual verification (usually within 24h).</p>
+      <p>The chosen plan limits how many shops you can create: <strong>Starter</strong> 1 shop (7,000 FCFA/month), <strong>Pro</strong> 3 shops (12,000 FCFA/month), <strong>Premium</strong> 10 shops (20,000 FCFA/month). Menu <strong>Settings → Subscription</strong>: choose a plan, send the amount via <strong>Orange Money, Wave, or Djamo</strong> to <strong>+225 07 78 79 83 19</strong> (the logos and the number are shown at the top of the page, with a button to copy the number). Once your request is sent, click <strong>"I've paid, notify MYBOUTIK"</strong>: WhatsApp opens with a message already written. Your plan is activated after manual verification (usually within 24h).</p>
+      <p><strong>Annual payment</strong>: tick "Pay 12 months upfront (1 month free)" to pay for 12 months and get <strong>13 months of access</strong>. <strong>1st month free</strong>: on the Starter plan, if you've never had an approved subscription, the "1st month free" button activates 30 days immediately, with no payment.</p>
       <div class="card">
         <strong>30 free days, then a monthly cycle</strong>
-        Every new account starts with <strong>30 days of free access</strong> on the Starter plan. After that (or at the end of a paid month), access to your shops is blocked until you (re)subscribe — the Subscription page itself always stays reachable so you can pay and unblock yourself. A warning banner appears automatically 5 days before the deadline. Every approved payment extends access by one more month, whichever plan is chosen (including Starter at 7,000 FCFA).
+        Every new account starts with <strong>30 days of free access</strong> on the Starter plan. After that (or at the end of a paid month), access to your shops is blocked until you (re)subscribe — the Subscription page itself always stays reachable so you can pay and unblock yourself. A warning banner appears automatically 5 days before the deadline. Every approved payment extends access by one more month (13 months for an annual payment), whichever plan is chosen (including Starter at 7,000 FCFA).
+      </div>
+      <div class="card warn">
+        <strong>Expired subscription: your shop disappears from the storefront</strong>
+        As long as the subscription isn't renewed, your storefront and your directory listing are no longer visible or reachable for your customers ("Shop not found or closed"), and no order can be placed. Nothing is deleted, and your settings (including the directory opt-in) are kept: as soon as your payment is approved, the shop reappears automatically.
       </div>
     </section>
 
@@ -677,8 +747,22 @@
       <p>On every storefront product page, a customer can leave a rating (1 to 5 stars) and a comment. By default, a review is <strong>pending</strong> and not publicly visible: open Marketing → Customer reviews to <strong>publish</strong> or <strong>reject</strong> it. This prevents fake reviews or spam from showing up on your shop immediately.</p>
     </section>
 
+    <section id="installer-en">
+      <h2><span class="badge">19</span>Install the app on your phone</h2>
+      <p>MYBOUTIK installs like an app, without going through an app store: an icon on your home screen, faster opening, full screen and no address bar.</p>
+      <ul>
+        <li><strong>Android (Chrome, Edge, Samsung Internet…)</strong>: open the site, then tap the <strong>"📲 Install app"</strong> button that appears at the top of the page. Otherwise, browser ⋮ menu → "Install app" or "Add to Home screen".</li>
+        <li><strong>iPhone (Safari)</strong>: there is no button. Tap <strong>Share</strong> (the square with an arrow), then <strong>"Add to Home Screen"</strong>.</li>
+      </ul>
+      <p>The most useful one for you is the <strong>dashboard</strong>: open it, log in, then install.</p>
+      <div class="card">
+        <strong>The banner with the site address at the top of the screen</strong>
+        A link opened from WhatsApp, Facebook, Instagram or TikTok is shown in that application's built-in browser, with a banner showing the site's title and address: this is normal, it comes from the app that opens the link, not from MYBOUTIK. It doesn't appear when you open MYBOUTIK from its installed icon.
+      </div>
+    </section>
+
     <section id="faq-en">
-      <h2><span class="badge">19</span>Frequently asked questions</h2>
+      <h2><span class="badge">20</span>Frequently asked questions</h2>
       <h3>A customer can't add a product to their cart</h3>
       <p>Check that the product's status is <strong>Active</strong> (not Draft). If the product has variants, the chosen combination must have been generated (section 4).</p>
       <h3>The total shown to the customer doesn't match what I expected</h3>
@@ -687,6 +771,12 @@
       <p>Your role on this shop limits which pages you can access (section 12) — ask an administrator if you think you need broader access.</p>
       <h3>A page stays stuck on "Loading…"</h3>
       <p>Reload the page. If it persists, contact whoever manages your shop's technical hosting.</p>
+      <h3>"Unable to load your shops": have my shops disappeared?</h3>
+      <p>No, they still exist: the connection to the server failed (network cut, server waking up). Tap <strong>"Retry"</strong>. If a message says your session is no longer valid, log in again.</p>
+      <h3>I forgot my password</h3>
+      <p>See section 1: "Forgot your password?" on the login screen.</p>
+      <h3>A customer says the product doesn't suit them</h3>
+      <p>If they haven't paid the delivery person yet, they can refuse the parcel ("Refused" status). If they already received it, they can open a complaint from "Track my order": see "Customer complaints" in section 7.</p>
     </section>
 
 </div>
