@@ -185,6 +185,13 @@ const EN_DICT = [
     'Annonce supprimee' => 'Announcement deleted',
     'Annonce introuvable' => 'Announcement not found',
     'Table des annonces absente : relancez /install puis reessayez' => 'Announcements table missing: run /install again then retry',
+    'Lien du bouton invalide' => 'Invalid button link',
+    'Traduction automatique indisponible : saisissez la version anglaise a la main' => 'Automatic translation unavailable: enter the English version by hand',
+    'Libelle du bouton trop long (60 caracteres maximum)' => 'Button label too long (60 characters maximum)',
+    'Date de debut invalide' => 'Invalid start date',
+    'La date de debut doit etre dans le futur' => 'The start date must not be in the past',
+    'La date de fin doit etre apres la date de debut' => 'The end date must be after the start date',
+    'Version anglaise / bouton : relancez /install puis reessayez' => 'English version / button: run /install again then retry',
     'Ecrivez un message d\'avertissement' => 'Write a warning message',
     'Avertissement envoye' => 'Warning sent',
     'Reponse envoyee' => 'Response sent',
@@ -1634,6 +1641,13 @@ function route_install() {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         PRIMARY KEY (announcement_id, user_id)
     )",
+    // Version anglaise facultative et bouton d'action (page du tableau de bord
+    // ou guide) d'une annonce - ajoutes apres coup, sans danger a rejouer.
+    "ALTER TABLE announcements ADD COLUMN IF NOT EXISTS title_en VARCHAR(120)",
+    "ALTER TABLE announcements ADD COLUMN IF NOT EXISTS message_en TEXT",
+    "ALTER TABLE announcements ADD COLUMN IF NOT EXISTS cta_target VARCHAR(20)",
+    "ALTER TABLE announcements ADD COLUMN IF NOT EXISTS cta_label VARCHAR(60)",
+    "ALTER TABLE announcements ADD COLUMN IF NOT EXISTS cta_label_en VARCHAR(60)",
     ];
 
     $created = [];
@@ -4765,6 +4779,8 @@ function route_admin($action) {
         case 'rates_save':            admin_rates_save(); break;
         case 'announcements_list':    admin_announcements_list(); break;
         case 'announcement_create':   admin_announcement_create(); break;
+        case 'announcement_update':   admin_announcement_update(); break;
+        case 'announcement_translate': admin_announcement_translate(); break;
         case 'announcement_audience_count': admin_announcement_audience_count(); break;
         case 'announcement_set_active': admin_announcement_set_active(); break;
         case 'announcement_delete':   admin_announcement_delete(); break;
@@ -5013,22 +5029,34 @@ function route_announcements($action) {
         default: fail('Action inconnue', 404);
     }
 }
-// Annonces en ligne (actives, dans leurs dates), destinees a CE marchand et
-// qu'il n'a pas fermees - 3 au maximum, la plus recente en premier. Une base
-// pas encore mise a jour (/install) donne simplement "aucune annonce".
+// Annonces en ligne (actives, deja commencees, pas terminees), destinees a CE
+// marchand et qu'il n'a pas fermees - 5 au maximum, la plus recente en
+// premier (le tableau de bord les fait defiler une par une). Colonnes
+// anglaise/bouton lues en priorite ; si la base n'a pas encore ete mise a
+// jour (/install), on retombe sur les colonnes d'origine plutot que de faire
+// disparaitre les bandeaux existants.
 function announcements_active($pl) {
+    $base = "a.id, a.title, a.message, a.level, a.audience, a.audience_value";
+    $extra = ", a.title_en, a.message_en, a.cta_target, a.cta_label, a.cta_label_en";
+    $tail = " FROM announcements a
+              WHERE a.active=1 AND a.starts_at <= NOW() AND (a.ends_at IS NULL OR a.ends_at > NOW())
+                AND NOT EXISTS (SELECT 1 FROM announcement_dismissals d WHERE d.announcement_id=a.id AND d.user_id=?)
+              ORDER BY a.created_at DESC LIMIT 30";
     try {
-        $rows = q("SELECT a.id, a.title, a.message, a.level, a.audience, a.audience_value FROM announcements a
-                   WHERE a.active=1 AND a.starts_at <= NOW() AND (a.ends_at IS NULL OR a.ends_at > NOW())
-                     AND NOT EXISTS (SELECT 1 FROM announcement_dismissals d WHERE d.announcement_id=a.id AND d.user_id=?)
-                   ORDER BY a.created_at DESC LIMIT 20", [$pl['sub']])->fetchAll();
+        try {
+            $rows = q("SELECT ".$base.$extra.$tail, [$pl['sub']])->fetchAll();
+        } catch (PDOException $e) {
+            $rows = q("SELECT ".$base.$tail, [$pl['sub']])->fetchAll();
+        }
         $out = [];
         foreach ($rows as $a) {
             $params = [];
             $where = announcement_audience_where($a['audience'], $a['audience_value'], $params);
             if (!q("SELECT 1 FROM users u WHERE u.id=? AND $where", array_merge([$pl['sub']], $params))->fetch()) continue;
-            $out[] = ['id' => $a['id'], 'title' => $a['title'], 'message' => $a['message'], 'level' => $a['level']];
-            if (count($out) >= 3) break;
+            $out[] = ['id' => $a['id'], 'title' => $a['title'], 'message' => $a['message'], 'level' => $a['level'],
+                      'title_en' => $a['title_en'] ?? null, 'message_en' => $a['message_en'] ?? null,
+                      'cta_target' => $a['cta_target'] ?? null, 'cta_label' => $a['cta_label'] ?? null, 'cta_label_en' => $a['cta_label_en'] ?? null];
+            if (count($out) >= 5) break;
         }
         ok($out);
     } catch (PDOException $e) {
@@ -5055,33 +5083,185 @@ function admin_announcement_audience_count() {
     if (!announcement_valid_audience($aud, $val)) ok(['count' => 0]);
     ok(['count' => announcement_recipients($aud, $val)]);
 }
-function admin_announcement_create() {
+// Traduction automatique FR -> EN d'un texte d'annonce (MyMemory : gratuit,
+// sans cle ; l'adresse ADMIN_NOTIFY_EMAIL, si configuree, releve sa limite
+// quotidienne). Ligne par ligne pour garder puces et retours a la ligne, en
+// segments de 450 caracteres maximum (limite de l'API). Toute erreur (quota,
+// reseau) sur UN segment annule la traduction entiere : mieux vaut un texte
+// francais complet qu'un melange francais/anglais. Renvoie null si impossible.
+function mymemory_translate($seg) {
+    $url = 'https://api.mymemory.translated.net/get?q='.rawurlencode($seg).'&langpair=fr%7Cen'
+         .(ADMIN_NOTIFY_EMAIL ? '&de='.rawurlencode(ADMIN_NOTIFY_EMAIL) : '');
+    $ch = curl_init($url);
+    curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 6, CURLOPT_CONNECTTIMEOUT => 3, CURLOPT_FOLLOWLOCATION => true]);
+    $body = curl_exec($ch);
+    curl_close($ch);
+    $j = $body ? json_decode($body, true) : null;
+    $t = is_array($j) ? ($j['responseData']['translatedText'] ?? null) : null;
+    if (!is_array($j) || (int)($j['responseStatus'] ?? 0) !== 200 || !is_string($t) || trim($t) === '' || stripos($t, 'MYMEMORY WARNING') !== false) return null;
+    return html_entity_decode($t, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+}
+// Coupe une ligne trop longue aux fins de phrase, en paquets <= 450 caracteres.
+function translation_segments($line) {
+    if (strlen($line) <= 450) return [$line];
+    $segs = []; $cur = '';
+    foreach (preg_split('/(?<=[.!?])\s+/u', $line) as $s) {
+        if ($cur !== '' && strlen($cur) + 1 + strlen($s) > 450) { $segs[] = $cur; $cur = $s; }
+        else $cur = $cur === '' ? $s : $cur.' '.$s;
+    }
+    if ($cur !== '') $segs[] = $cur;
+    return $segs;
+}
+// Vocabulaire de l'application : la boutique s'appelle "shop", pas "store".
+function translation_glossary($en) {
+    return preg_replace_callback('/\b(store)(s?)\b/i', function($m) {
+        $shop = ctype_upper($m[1][0]) ? 'Shop' : 'shop';
+        return $shop.$m[2];
+    }, $en);
+}
+function translate_fr_to_en($text) {
+    $text = trim((string)$text);
+    if ($text === '') return null;
+    $out = []; $calls = 0;
+    foreach (preg_split('/\R/u', $text) as $line) {
+        $line = trim($line);
+        if ($line === '' || !preg_match('/\p{L}/u', $line)) { $out[] = $line; continue; }
+        $parts = [];
+        foreach (translation_segments($line) as $seg) {
+            if (++$calls > 12) return null;
+            $t = mymemory_translate($seg);
+            if ($t === null) return null;
+            $parts[] = $t;
+        }
+        $out[] = implode(' ', $parts);
+    }
+    return translation_glossary(implode("\n", $out));
+}
+// Complete la version anglaise absente d'une annonce (a la publication ou a la
+// modification). Le libelle du bouton retombe sur le libelle anglais par
+// defaut de sa page si sa traduction echoue.
+function announcement_autotranslate(&$f) {
+    if ($f['message_en'] === null) { $t = translate_fr_to_en($f['message']); if ($t !== null) $f['message_en'] = $t; }
+    if ($f['title'] !== null && $f['title_en'] === null) { $t = translate_fr_to_en($f['title']); if ($t !== null) $f['title_en'] = $t; }
+    if ($f['cta_target'] !== null && $f['cta_label_en'] === null) {
+        $t = translate_fr_to_en($f['cta_label']);
+        $f['cta_label_en'] = $t !== null ? $t : announcement_default_cta($f['cta_target'], 'en');
+    }
+}
+// Bouton "Traduire" du formulaire admin : renvoie les traductions pour relecture
+// (une valeur null = traduction indisponible pour ce champ).
+function admin_announcement_translate() {
     $b = body();
+    $one = function($k) use ($b) { $v = trim((string)($b[$k] ?? '')); return $v === '' ? null : translate_fr_to_en($v); };
+    $res = ['title_en' => $one('title'), 'message_en' => $one('message'), 'cta_label_en' => $one('cta_label')];
+    if ($res['message_en'] === null && trim((string)($b['message'] ?? '')) !== '') fail('Traduction automatique indisponible : saisissez la version anglaise a la main', 503);
+    ok($res);
+}
+// Pages du tableau de bord (ou guide) qu'un bouton d'annonce peut ouvrir -
+// liste fermee : le bouton ne mene jamais vers une adresse libre.
+function announcement_targets() { return ['profile', 'billing', 'settings', 'orders', 'marketing', 'guide']; }
+function announcement_default_cta($target, $lang) {
+    $fr = ['profile' => 'Ouvrir mon profil', 'billing' => 'Voir mon abonnement', 'settings' => 'Ouvrir les paramètres',
+           'orders' => 'Voir mes commandes', 'marketing' => 'Ouvrir le marketing', 'guide' => 'Ouvrir le guide'];
+    $en = ['profile' => 'Open my profile', 'billing' => 'View my subscription', 'settings' => 'Open settings',
+           'orders' => 'View my orders', 'marketing' => 'Open marketing', 'guide' => 'Open the guide'];
+    $map = $lang === 'en' ? $en : $fr;
+    return $map[$target] ?? '';
+}
+// Lit et valide les champs du formulaire (creation ET modification) ;
+// $current = annonce existante lors d'une modification (sa date de debut
+// deja passee reste acceptee telle quelle).
+function announcement_parse_input($b, $current = null) {
+    $len = function_exists('mb_strlen') ? 'mb_strlen' : 'strlen';
     $title = trim((string)($b['title'] ?? ''));
     $message = trim((string)($b['message'] ?? ''));
-    $len = function_exists('mb_strlen') ? 'mb_strlen' : 'strlen';
+    $titleEn = trim((string)($b['title_en'] ?? ''));
+    $messageEn = trim((string)($b['message_en'] ?? ''));
     if ($message === '') fail('Ecrivez le message de l\'annonce');
-    if ($len($message) > 1000 || $len($title) > 120) fail('Message trop long (1000 caracteres maximum)');
+    if ($len($message) > 1000 || $len($messageEn) > 1000 || $len($title) > 120 || $len($titleEn) > 120) fail('Message trop long (1000 caracteres maximum)');
     $level = in_array($b['level'] ?? '', ['info', 'warning', 'success'], true) ? $b['level'] : 'info';
     $aud = $b['audience'] ?? 'all';
     $val = $b['audience_value'] ?? null;
     if (!announcement_valid_audience($aud, $val)) fail('Destinataires invalides');
+    $ctaTarget = trim((string)($b['cta_target'] ?? ''));
+    if ($ctaTarget !== '' && !in_array($ctaTarget, announcement_targets(), true)) fail('Lien du bouton invalide');
+    $ctaLabel = trim((string)($b['cta_label'] ?? ''));
+    $ctaLabelEn = trim((string)($b['cta_label_en'] ?? ''));
+    if ($len($ctaLabel) > 60 || $len($ctaLabelEn) > 60) fail('Libelle du bouton trop long (60 caracteres maximum)');
+    if ($ctaTarget === '') { $ctaLabel = ''; $ctaLabelEn = ''; }
+    else {
+        if ($ctaLabel === '') $ctaLabel = announcement_default_cta($ctaTarget, 'fr');
+        // Libelle francais personnalise sans version anglaise : laisse vide,
+        // announcement_autotranslate() le traduira.
+        if ($ctaLabelEn === '' && $ctaLabel === announcement_default_cta($ctaTarget, 'fr')) $ctaLabelEn = announcement_default_cta($ctaTarget, 'en');
+    }
+    $today = date('Y-m-d');
+    $startsOn = trim((string)($b['starts_on'] ?? ''));
+    $startsAt = null;
+    if ($startsOn !== '') {
+        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $startsOn)) fail('Date de debut invalide');
+        $currentStart = $current ? substr((string)$current['starts_at'], 0, 10) : null;
+        if ($startsOn < $today && $startsOn !== $currentStart) fail('La date de debut doit etre dans le futur');
+        $startsAt = $startsOn.' 00:00:00';
+    }
     $endsOn = trim((string)($b['ends_on'] ?? ''));
     $endsAt = null;
     if ($endsOn !== '') {
         if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $endsOn)) fail('Date de fin invalide');
-        if ($endsOn < date('Y-m-d')) fail('La date de fin doit etre dans le futur');
+        if ($endsOn < $today) fail('La date de fin doit etre dans le futur');
+        if ($startsOn !== '' && $endsOn < $startsOn) fail('La date de fin doit etre apres la date de debut');
         $endsAt = $endsOn.' 23:59:59';
     }
+    return ['title' => $title !== '' ? $title : null, 'message' => $message,
+            'title_en' => $titleEn !== '' ? $titleEn : null, 'message_en' => $messageEn !== '' ? $messageEn : null,
+            'level' => $level, 'aud' => $aud, 'val' => in_array($aud, ['plan', 'country'], true) ? $val : null,
+            'starts_at' => $startsAt, 'ends_at' => $endsAt,
+            'cta_target' => $ctaTarget !== '' ? $ctaTarget : null, 'cta_label' => $ctaLabel !== '' ? $ctaLabel : null, 'cta_label_en' => $ctaLabelEn !== '' ? $ctaLabelEn : null];
+}
+// Ecrit les colonnes ajoutees apres coup (anglais + bouton). Sur une base pas
+// encore mise a jour, on ne les touche que si elles servent, et on le dit.
+function announcement_save_extras($id, $f) {
+    $used = $f['title_en'] !== null || $f['message_en'] !== null || $f['cta_target'] !== null;
+    try {
+        q("UPDATE announcements SET title_en=?, message_en=?, cta_target=?, cta_label=?, cta_label_en=? WHERE id=?",
+          [$f['title_en'], $f['message_en'], $f['cta_target'], $f['cta_label'], $f['cta_label_en'], $id]);
+    } catch (PDOException $e) {
+        if ($used) { error_log('[MYBOUTIK] announcements: '.$e->getMessage()); return false; }
+    }
+    return true;
+}
+function admin_announcement_create() {
+    $f = announcement_parse_input(body());
+    announcement_autotranslate($f);
     $id = uid();
     try {
-        q("INSERT INTO announcements (id,title,message,level,audience,audience_value,ends_at) VALUES (?,?,?,?,?,?,?)",
-          [$id, $title !== '' ? $title : null, $message, $level, $aud, in_array($aud, ['plan', 'country'], true) ? $val : null, $endsAt]);
+        q("INSERT INTO announcements (id,title,message,level,audience,audience_value,starts_at,ends_at) VALUES (?,?,?,?,?,?,COALESCE(?::timestamp, NOW()),?)",
+          [$id, $f['title'], $f['message'], $f['level'], $f['aud'], $f['val'], $f['starts_at'], $f['ends_at']]);
     } catch (PDOException $e) {
         error_log('[MYBOUTIK] announcements: '.$e->getMessage());
         fail('Table des annonces absente : relancez /install puis reessayez', 500);
     }
-    ok(['id' => $id, 'recipients' => announcement_recipients($aud, $val)], 'Annonce publiee');
+    if (!announcement_save_extras($id, $f)) {
+        q("DELETE FROM announcements WHERE id=?", [$id]);
+        fail('Version anglaise / bouton : relancez /install puis reessayez', 500);
+    }
+    ok(['id' => $id, 'recipients' => announcement_recipients($f['aud'], $f['val'])], 'Annonce publiee');
+}
+function admin_announcement_update() {
+    $b = body();
+    $id = $b['id'] ?? '';
+    $cur = q("SELECT * FROM announcements WHERE id=?", [$id])->fetch();
+    if (!$cur) fail('Annonce introuvable', 404);
+    $f = announcement_parse_input($b, $cur);
+    announcement_autotranslate($f);
+    q("UPDATE announcements SET title=?, message=?, level=?, audience=?, audience_value=?, starts_at=COALESCE(?::timestamp, starts_at), ends_at=? WHERE id=?",
+      [$f['title'], $f['message'], $f['level'], $f['aud'], $f['val'], $f['starts_at'], $f['ends_at'], $id]);
+    // Date de debut videe sur une annonce encore programmee = publier maintenant.
+    if ($f['starts_at'] === null && strtotime((string)$cur['starts_at']) > time()) q("UPDATE announcements SET starts_at=NOW() WHERE id=?", [$id]);
+    if (!announcement_save_extras($id, $f)) fail('Version anglaise / bouton : relancez /install puis reessayez', 500);
+    // Texte modifie : option pour le re-montrer a ceux qui l'avaient fermee.
+    if (!empty($b['reshow'])) q("DELETE FROM announcement_dismissals WHERE announcement_id=?", [$id]);
+    ok(['recipients' => announcement_recipients($f['aud'], $f['val'])], 'Annonce mise a jour');
 }
 function admin_announcements_list() {
     try {
@@ -5094,7 +5274,8 @@ function admin_announcements_list() {
     foreach ($rows as &$r) {
         $r['recipients'] = announcement_recipients($r['audience'], $r['audience_value']);
         $ended = $r['ends_at'] && strtotime($r['ends_at']) < time();
-        $r['status'] = !(int)$r['active'] ? 'withdrawn' : ($ended ? 'ended' : 'live');
+        $scheduled = $r['starts_at'] && strtotime($r['starts_at']) > time();
+        $r['status'] = !(int)$r['active'] ? 'withdrawn' : ($scheduled ? 'scheduled' : ($ended ? 'ended' : 'live'));
     }
     unset($r);
     $countries = q("SELECT DISTINCT country FROM boutiques WHERE country IS NOT NULL AND country <> '' ORDER BY country")->fetchAll(PDO::FETCH_COLUMN);

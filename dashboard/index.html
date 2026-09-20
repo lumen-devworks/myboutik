@@ -146,14 +146,22 @@
   .country-opt:last-child{border-bottom:none}
   .country-opt:hover,.country-opt:active{background:#fff1e6}
   .country-opt.selected{background:#fff1e6;font-weight:700;color:var(--blue)}
-  /* Annonces de MYBOUTIK (bandeau en haut du tableau de bord) */
+  /* Annonces de MYBOUTIK (bandeau en haut du tableau de bord) : une annonce a la fois, defilement par fleches, texte replie a 3 lignes ("Lire la suite") */
   #announcementBar{padding:0 24px;max-width:1200px;width:100%;margin:0 auto}
   @media (max-width:820px){#announcementBar{padding:0 14px}}
   .announce{display:flex;gap:12px;align-items:flex-start;border:1px solid;border-radius:12px;padding:12px 14px;margin-top:12px;font-size:14px;line-height:1.5}
   .announce-info{background:#fff1e6;border-color:#fdba8c;color:#9a3412}
   .announce-warning{background:var(--amber-bg);border-color:#fde68a;color:#92400e}
   .announce-success{background:var(--green-bg);border-color:#a7f3d0;color:#166534}
-  .announce-body{flex:1;min-width:0;white-space:pre-wrap;word-break:break-word}
+  .announce-body{flex:1;min-width:0}
+  .announce-text{white-space:pre-wrap;word-break:break-word;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+  .announce-text.open{display:block;overflow:visible}
+  .announce-actions{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-top:8px}
+  .announce-more{background:none;border:none;color:inherit;font-weight:700;font-size:13px;text-decoration:underline;cursor:pointer;padding:0}
+  .announce-cta{background:transparent;color:inherit;border:1.5px solid currentColor;border-radius:8px;padding:5px 12px;font-size:13px;font-weight:700;cursor:pointer}
+  .announce-cta:hover{background:rgba(255,255,255,.55)}
+  .announce-nav{display:flex;align-items:center;gap:2px;font-size:13px;font-weight:700;flex-shrink:0;white-space:nowrap}
+  .announce-arrow{background:none;border:none;font-size:22px;line-height:1;cursor:pointer;color:inherit;padding:0 5px}
   .announce-close{background:none;border:none;cursor:pointer;font-size:16px;line-height:1;color:inherit;opacity:.7;padding:2px 4px;flex-shrink:0}
   .announce-close:hover{opacity:1}
   .country-empty{padding:11px 12px;font-size:13px;color:var(--gray)}
@@ -524,6 +532,8 @@ const I18N = {
     boutique_country_invalid: 'Veuillez choisir un pays dans la liste proposée',
     select_country_placeholder: 'Choisir un pays…',
     no_country_match: 'Aucun pays ne correspond',
+    ann_read_more: 'Lire la suite', ann_read_less: 'Réduire', ann_open: 'Ouvrir', ann_close: 'Fermer',
+    ann_prev: 'Annonce précédente', ann_next: 'Annonce suivante',
     label_currency: 'Devise',
     currency_auto_note: 'Se sélectionne automatiquement quand vous choisissez le pays — vous pouvez la modifier. Changer la devise ne convertit pas les montants déjà enregistrés (prix, commandes…) : seule l\'unité affichée change.',
     currency_auto_hint: 'Devise habituelle pour {country} : {currency}.',
@@ -1209,6 +1219,8 @@ const I18N = {
     boutique_country_invalid: 'Please choose a country from the suggested list',
     select_country_placeholder: 'Choose a country…',
     no_country_match: 'No matching country',
+    ann_read_more: 'Read more', ann_read_less: 'Show less', ann_open: 'Open', ann_close: 'Close',
+    ann_prev: 'Previous announcement', ann_next: 'Next announcement',
     label_currency: 'Currency',
     currency_auto_note: 'Selected automatically when you choose the country — you can change it. Changing the currency does not convert amounts already saved (prices, orders…): only the displayed unit changes.',
     currency_auto_hint: 'Usual currency for {country}: {currency}.',
@@ -1839,6 +1851,7 @@ function setLang(lang) {
   document.getElementById('langFr').classList.toggle('active', LANG === 'fr');
   document.getElementById('langEn').classList.toggle('active', LANG === 'en');
   document.getElementById('installBtnText').textContent = t('install_btn');
+  if (typeof renderAnnouncementBar === 'function') renderAnnouncementBar();
   document.getElementById('logoutBtn').textContent = t('btn_logout');
   document.getElementById('sideBackAll').textContent = t('side_back_all_boutiques');
   document.getElementById('sideDirectoryLink').textContent = t('side_directory');
@@ -4554,22 +4567,62 @@ function importSheetNow() {
   });
 }
 
-// Annonces de MYBOUTIK : bandeau(x) en haut du tableau de bord, choisis par
-// l'administration (voir route_announcements()). Charge au demarrage puis
-// toutes les 5 minutes ; une erreur reseau ne montre rien (jamais bloquant).
+// Annonces de MYBOUTIK : bandeau en haut du tableau de bord, choisies par
+// l'administration (voir route_announcements()). Une annonce affichee a la
+// fois (fleches "1/3" pour parcourir), texte replie a 3 lignes avec "Lire la
+// suite", version anglaise si le marchand utilise l'application en anglais,
+// et bouton d'action optionnel vers une page du tableau de bord. Charge au
+// demarrage puis toutes les 5 minutes ; une erreur reseau ne montre rien.
+let ANN_LIST = [], ANN_INDEX = 0, ANN_EXPANDED = false;
+const ANN_TARGET_PATHS = {profile: 'profile', billing: 'billing', settings: 'settings', orders: 'orders', marketing: 'marketing'};
+function annText(a) {
+  const en = LANG === 'en' && a.message_en;
+  return {
+    title: en ? (a.title_en || a.title) : a.title,
+    message: en ? a.message_en : a.message,
+    cta: (LANG === 'en' && a.cta_label_en) ? a.cta_label_en : (a.cta_label || t('ann_open')),
+  };
+}
+function announcementGo(target) {
+  if (target === 'guide') { window.open('../guide.html', '_blank'); return; }
+  const slug = (CURRENT && CURRENT.slug) || (BOUTIQUES && BOUTIQUES[0] && BOUTIQUES[0].slug);
+  if (!slug || !ANN_TARGET_PATHS[target]) return;
+  window.location.hash = '#/' + slug + '/' + ANN_TARGET_PATHS[target];
+}
+function renderAnnouncementBar() {
+  const bar = document.getElementById('announcementBar');
+  if (!ANN_LIST.length) { bar.innerHTML = ''; return; }
+  ANN_INDEX = Math.max(0, Math.min(ANN_INDEX, ANN_LIST.length - 1));
+  const a = ANN_LIST[ANN_INDEX], tx = annText(a), n = ANN_LIST.length, id = escapeHtml(a.id);
+  bar.innerHTML = '<div class="announce announce-'+escapeHtml(a.level||'info')+'">'
+    + '<div class="announce-body"><div class="announce-text'+(ANN_EXPANDED ? ' open' : '')+'" id="annText">'
+    +   (tx.title ? '<strong>'+escapeHtml(tx.title)+'</strong>\n' : '')+escapeHtml(tx.message)+'</div>'
+    + '<div class="announce-actions"><button type="button" class="announce-more" id="annMore" style="display:none" onclick="toggleAnnouncementText()">'+t(ANN_EXPANDED ? 'ann_read_less' : 'ann_read_more')+'</button>'
+    +   (a.cta_target ? '<button type="button" class="announce-cta" onclick="announcementGo(\''+escapeHtml(a.cta_target)+'\')">'+escapeHtml(tx.cta)+'</button>' : '')+'</div></div>'
+    + (n > 1 ? '<div class="announce-nav"><button type="button" class="announce-arrow" onclick="stepAnnouncement(-1)" aria-label="'+t('ann_prev')+'">‹</button>'
+        + '<span>'+(ANN_INDEX + 1)+'/'+n+'</span><button type="button" class="announce-arrow" onclick="stepAnnouncement(1)" aria-label="'+t('ann_next')+'">›</button></div>' : '')
+    + '<button type="button" class="announce-close" title="'+t('ann_close')+'" aria-label="'+t('ann_close')+'" onclick="dismissAnnouncement(\''+id+'\')">✕</button></div>';
+  // "Lire la suite" seulement si le texte est reellement coupe (ou deja deplie)
+  const el = document.getElementById('annText'), more = document.getElementById('annMore');
+  if (el && more && (ANN_EXPANDED || el.scrollHeight > el.clientHeight + 1)) more.style.display = '';
+}
+function toggleAnnouncementText() { ANN_EXPANDED = !ANN_EXPANDED; renderAnnouncementBar(); }
+function stepAnnouncement(delta) { ANN_INDEX = (ANN_INDEX + delta + ANN_LIST.length) % ANN_LIST.length; ANN_EXPANDED = false; renderAnnouncementBar(); }
+function dismissAnnouncement(id) {
+  ANN_LIST = ANN_LIST.filter(a => a.id !== id);
+  ANN_EXPANDED = false;
+  renderAnnouncementBar();
+  post('/announcements?action=dismiss', {id});
+}
 function loadAnnouncements() {
   api('/announcements?action=active').then(({data}) => {
     if (!data.success) return;
-    document.getElementById('announcementBar').innerHTML = (data.data || []).map(a =>
-      '<div class="announce announce-'+escapeHtml(a.level||'info')+'" id="ann_'+escapeHtml(a.id)+'">'
-      + '<div class="announce-body">'+(a.title ? '<strong>'+escapeHtml(a.title)+'</strong>\n' : '')+escapeHtml(a.message)+'</div>'
-      + '<button type="button" class="announce-close" title="Fermer" aria-label="Fermer" onclick="dismissAnnouncement(\''+escapeHtml(a.id)+'\')">✕</button></div>').join('');
+    const current = ANN_LIST[ANN_INDEX] && ANN_LIST[ANN_INDEX].id;
+    ANN_LIST = data.data || [];
+    const i = ANN_LIST.findIndex(a => a.id === current);
+    ANN_INDEX = i >= 0 ? i : 0;
+    renderAnnouncementBar();
   });
-}
-function dismissAnnouncement(id) {
-  const el = document.getElementById('ann_'+id);
-  if (el) el.remove();
-  post('/announcements?action=dismiss', {id});
 }
 loadAnnouncements();
 setInterval(loadAnnouncements, 300000);

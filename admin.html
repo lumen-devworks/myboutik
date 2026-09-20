@@ -48,6 +48,16 @@
   textarea{width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:10px;font-size:14px;margin-bottom:10px;font-family:inherit;color:var(--ink);background:#fff;resize:vertical}
   textarea:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px var(--blue-light)}
   .flabel{display:block;font-size:13px;font-weight:700;margin:0 0 6px}
+  /* Apercu du bandeau tel que le verra le marchand */
+  .announce{display:flex;gap:12px;align-items:flex-start;border:1px solid;border-radius:12px;padding:12px 14px;margin-top:8px;font-size:14px;line-height:1.5}
+  .announce-info{background:#fff1e6;border-color:#fdba8c;color:#9a3412}
+  .announce-warning{background:var(--amber-bg);border-color:#fde68a;color:#92400e}
+  .announce-success{background:#ecfdf5;border-color:#a7f3d0;color:#166534}
+  .announce-body{flex:1;min-width:0}
+  .announce-text{white-space:pre-wrap;word-break:break-word}
+  .announce-actions{margin-top:8px}
+  .announce-cta{display:inline-block;border:1.5px solid currentColor;border-radius:8px;padding:5px 12px;font-size:13px;font-weight:700}
+  .announce-close{opacity:.7;flex-shrink:0}
   input,select{width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:10px;font-size:14px;margin-bottom:10px;font-family:inherit;color:var(--ink);transition:border-color .15s,box-shadow .15s;background:#fff}
   input:focus,select:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px var(--blue-light)}
   .password-wrap{position:relative}
@@ -250,13 +260,32 @@
       <p class="muted" id="actionsLogNote" style="margin-bottom:12px"></p>
       <div class="table-wrap" id="actionsLogBody"></div>
     </div>
-    <div class="card" data-panel="announcements">
+    <div class="card" data-panel="announcements" id="announceFormCard">
       <h3 id="h3AnnounceNew">Nouvelle annonce</h3>
       <p class="muted" id="announceNote" style="margin-bottom:14px"></p>
+      <label class="flabel" for="annTemplate" id="lblAnnTemplate"></label>
+      <select id="annTemplate" onchange="applyAnnounceTemplate()"></select>
       <label class="flabel" for="annTitle" id="lblAnnTitle"></label>
       <input id="annTitle" maxlength="120">
       <label class="flabel" for="annMessage" id="lblAnnMessage"></label>
       <textarea id="annMessage" rows="4" maxlength="1000"></textarea>
+      <details id="annEnBox" style="margin-bottom:12px;border:1px solid var(--border);border-radius:10px;padding:10px 12px">
+        <summary id="sumAnnEn" style="cursor:pointer;font-weight:700;font-size:13px"></summary>
+        <p class="muted" id="annEnNote" style="margin:8px 0 10px"></p>
+        <button type="button" class="ghost" id="btnTranslateAnn" onclick="translateAnnouncement()" style="margin-bottom:12px"></button>
+        <label class="flabel" for="annTitleEn" id="lblAnnTitleEn"></label>
+        <input id="annTitleEn" maxlength="120">
+        <label class="flabel" for="annMessageEn" id="lblAnnMessageEn"></label>
+        <textarea id="annMessageEn" rows="4" maxlength="1000"></textarea>
+        <label class="flabel" for="annCtaLabelEn" id="lblAnnCtaLabelEn"></label>
+        <input id="annCtaLabelEn" maxlength="60">
+      </details>
+      <div style="display:flex;gap:12px;flex-wrap:wrap">
+        <div style="flex:1 1 220px"><label class="flabel" for="annCtaTarget" id="lblAnnCta"></label>
+          <select id="annCtaTarget" onchange="announceCtaChanged()"></select></div>
+        <div style="flex:1 1 220px;display:none" id="annCtaLabelWrap"><label class="flabel" for="annCtaLabel" id="lblAnnCtaLabel"></label>
+          <input id="annCtaLabel" maxlength="60"></div>
+      </div>
       <div style="display:flex;gap:12px;flex-wrap:wrap">
         <div style="flex:1 1 180px"><label class="flabel" for="annLevel" id="lblAnnLevel"></label>
           <select id="annLevel"><option value="info" id="optLvlInfo"></option><option value="warning" id="optLvlWarn"></option><option value="success" id="optLvlOk"></option></select></div>
@@ -266,13 +295,23 @@
             <option value="plan" id="optAudPlan"></option><option value="country" id="optAudCountry"></option></select></div>
         <div style="flex:1 1 180px;display:none" id="annValueWrap"><label class="flabel" for="annValue" id="lblAnnValue"></label>
           <select id="annValue" onchange="updateAudienceCount()"></select></div>
+      </div>
+      <div style="display:flex;gap:12px;flex-wrap:wrap">
+        <div style="flex:1 1 160px"><label class="flabel" for="annStarts" id="lblAnnStarts"></label>
+          <input id="annStarts" type="date" onchange="announceStartsChanged()"></div>
         <div style="flex:1 1 120px"><label class="flabel" for="annDays" id="lblAnnDays"></label>
           <input id="annDays" type="number" min="1" max="365" inputmode="numeric" placeholder="ex : 14" oninput="announceDaysChanged()"></div>
         <div style="flex:1 1 160px"><label class="flabel" for="annEnds" id="lblAnnEnds"></label>
           <input id="annEnds" type="date" onchange="announceEndsChanged()"></div>
       </div>
       <p class="muted" id="annRecipients" style="margin:0 0 12px"></p>
-      <button onclick="submitAnnouncement()" id="btnPublishAnnounce"></button>
+      <label id="annReshowWrap" style="display:none;margin-bottom:12px;font-size:13px;cursor:pointer"><input type="checkbox" id="annReshow" style="width:auto;margin:0 8px 0 0"><span id="lblAnnReshow"></span></label>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="ghost" onclick="previewAnnouncement()" id="btnPreviewAnnounce"></button>
+        <button onclick="submitAnnouncement()" id="btnPublishAnnounce"></button>
+        <button class="ghost" onclick="resetAnnouncementForm()" id="btnCancelAnnounceEdit" style="display:none"></button>
+      </div>
+      <div id="annPreview" style="margin-top:14px"></div>
     </div>
     <div class="card" data-panel="announcements">
       <h3 id="h3AnnounceList">Annonces publiées</h3>
@@ -472,8 +511,22 @@ const I18N = {
     mail_group_body: 'Bonjour,\n\n\n\nL\'équipe MYBOUTIK',
     mail_group_copied: '{n} adresses copiées : collez-les dans le champ « Cci » de votre message.',
     tab_announcements: 'Annonces',
+    lbl_ann_template: 'Modèle (facultatif)', tpl_none: '— Écrire mon propre texte —', tpl_news: 'Nouveautés MYBOUTIK', tpl_feedback: 'Votre avis compte',
+    tpl_grow: 'Faire connaître sa boutique', tpl_maintenance: 'Maintenance prévue',
+    sum_ann_en: '🌐 Version anglaise (traduite automatiquement si vous la laissez vide)',
+    ann_en_note: 'Les marchands qui utilisent MYBOUTIK en anglais verront cette version. Si vous ne la remplissez pas, elle est traduite automatiquement à la publication ; le bouton ci-dessous la génère tout de suite pour que vous puissiez la relire et la corriger.',
+    btn_translate_ann: '🌐 Traduire automatiquement', label_ann_title_en: 'Titre (anglais)', label_ann_message_en: 'Message (anglais)', label_ann_cta_label_en: 'Texte du bouton (anglais)',
+    label_ann_cta: 'Bouton vers une page (facultatif)', label_ann_cta_label: 'Texte du bouton',
+    cta_none: 'Aucun bouton', cta_profile: 'Mon profil', cta_billing: 'Abonnement', cta_settings: 'Paramètres généraux', cta_orders: 'Commandes', cta_marketing: 'Marketing', cta_guide: 'Guide d\'utilisation',
+    label_announce_start: 'Début (facultatif, pour programmer)',
+    btn_preview_ann: '👁 Aperçu', ann_preview_title: 'Aperçu tel que le marchand le verra', ann_preview_en_auto: 'Version anglaise : traduite automatiquement à la publication.',
+    h3_announce_edit: 'Modifier l\'annonce', btn_save_announce: 'Enregistrer les modifications', btn_cancel_edit: 'Annuler la modification',
+    label_reshow: 'Réafficher aux marchands qui l\'ont déjà fermée', btn_edit_announce: 'Modifier',
+    confirm_update_announce: 'Enregistrer les modifications ? L\'annonce sera mise à jour pour {n} marchand(s).',
+    status_scheduled: 'Programmée', announce_starts_on: 'dès le {d}', toast_translated: 'Traduction générée : relisez-la avant de publier.',
+    ann_saving: 'Enregistrement… (la traduction automatique peut prendre quelques secondes)',
     h3_announce_new: 'Nouvelle annonce',
-    announce_note: 'Un bandeau apparaît en haut du tableau de bord des marchands concernés. Chacun peut le fermer ; il disparaît aussi à la date de fin ou si vous le retirez.',
+    announce_note: 'Un bandeau apparaît en haut du tableau de bord des marchands concernés, dans leur langue (français ou anglais). Chacun peut le fermer ; il disparaît aussi à la date de fin ou si vous le retirez. Vous pouvez le programmer avec une date de début.',
     label_announce_title: 'Titre (facultatif)', label_announce_message: 'Message', label_announce_level: 'Type', label_announce_audience: 'Qui doit la voir ?',
     label_announce_days: 'Durée en jours (facultatif)', label_announce_end: 'Date de fin (facultatif)', label_announce_plan: 'Plan', label_announce_country: 'Pays',
     lvl_info: 'ℹ️ Information', lvl_warning: '⚠️ Important', lvl_success: '✅ Bonne nouvelle',
@@ -644,8 +697,22 @@ const I18N = {
     mail_group_body: 'Hello,\n\n\n\nThe MYBOUTIK team',
     mail_group_copied: '{n} addresses copied: paste them into the "Bcc" field of your message.',
     tab_announcements: 'Announcements',
+    lbl_ann_template: 'Template (optional)', tpl_none: '— Write my own text —', tpl_news: 'What\'s new on MYBOUTIK', tpl_feedback: 'Your feedback matters',
+    tpl_grow: 'Get your shop noticed', tpl_maintenance: 'Scheduled maintenance',
+    sum_ann_en: '🌐 English version (automatically translated if you leave it empty)',
+    ann_en_note: 'Merchants who use MYBOUTIK in English will see this version. If you leave it empty, it is translated automatically when you publish; the button below generates it right away so you can review and fix it.',
+    btn_translate_ann: '🌐 Translate automatically', label_ann_title_en: 'Title (English)', label_ann_message_en: 'Message (English)', label_ann_cta_label_en: 'Button text (English)',
+    label_ann_cta: 'Button to a page (optional)', label_ann_cta_label: 'Button text',
+    cta_none: 'No button', cta_profile: 'My profile', cta_billing: 'Subscription', cta_settings: 'General settings', cta_orders: 'Orders', cta_marketing: 'Marketing', cta_guide: 'User guide',
+    label_announce_start: 'Start (optional, to schedule)',
+    btn_preview_ann: '👁 Preview', ann_preview_title: 'Preview as the merchant will see it', ann_preview_en_auto: 'English version: automatically translated when published.',
+    h3_announce_edit: 'Edit the announcement', btn_save_announce: 'Save changes', btn_cancel_edit: 'Cancel editing',
+    label_reshow: 'Show again to merchants who already closed it', btn_edit_announce: 'Edit',
+    confirm_update_announce: 'Save the changes? The announcement will be updated for {n} merchant(s).',
+    status_scheduled: 'Scheduled', announce_starts_on: 'from {d}', toast_translated: 'Translation generated: review it before publishing.',
+    ann_saving: 'Saving… (automatic translation can take a few seconds)',
     h3_announce_new: 'New announcement',
-    announce_note: 'A banner appears at the top of the dashboard of the merchants concerned. Each can close it; it also disappears on the end date or if you withdraw it.',
+    announce_note: 'A banner appears at the top of the dashboard of the merchants concerned, in their language (French or English). Each can close it; it also disappears on the end date or if you withdraw it. You can schedule it with a start date.',
     label_announce_title: 'Title (optional)', label_announce_message: 'Message', label_announce_level: 'Type', label_announce_audience: 'Who should see it?',
     label_announce_days: 'Duration in days (optional)', label_announce_end: 'End date (optional)', label_announce_plan: 'Plan', label_announce_country: 'Country',
     lvl_info: 'ℹ️ Information', lvl_warning: '⚠️ Important', lvl_success: '✅ Good news',
@@ -970,12 +1037,37 @@ function loadPeriodData() {
 // ------------------------------------------------------------
 // ANNONCES : bandeau sur le tableau de bord des marchands
 // ------------------------------------------------------------
-let ANNOUNCEMENTS = [], ANNOUNCE_COUNTRIES = [], ANNOUNCE_COUNT = 0;
+let ANNOUNCEMENTS = [], ANNOUNCE_COUNTRIES = [], ANNOUNCE_COUNT = 0, ANN_EDIT_ID = null;
+const ANN_CTA_DEFAULTS = {
+  profile: ['Ouvrir mon profil', 'Open my profile'], billing: ['Voir mon abonnement', 'View my subscription'],
+  settings: ['Ouvrir les paramètres', 'Open settings'], orders: ['Voir mes commandes', 'View my orders'],
+  marketing: ['Ouvrir le marketing', 'Open marketing'], guide: ['Ouvrir le guide', 'Open the guide'],
+};
+// Modeles prets a l'emploi (textes francais + version anglaise relue)
+const ANN_TEMPLATES = {
+  news: {level: 'success', cta: '',
+    title: 'Nouveautés MYBOUTIK', title_en: 'What\'s new on MYBOUTIK',
+    message: '🆕 Nouveautés sur MYBOUTIK :\n• Devise automatique : elle se règle selon le pays de votre boutique (Paramètres > Général), et vos clients étrangers peuvent voir les prix aussi dans leur devise.\n• Réclamations : un client peut signaler un problème après livraison ; vous répondez depuis Commandes (badge ⚠️).\n• Installez l\'appli sur votre téléphone : bouton 📲 « Installer l\'appli » en haut de la page.\n• Sécurité : mot de passe oublié par email, et déconnexion de tous les autres appareils (Paramètres > Mon profil).\nLe guide d\'utilisation est à jour.',
+    message_en: '🆕 What\'s new on MYBOUTIK:\n• Automatic currency: it follows your shop\'s country (Settings > General), and your foreign customers can see prices in their own currency too.\n• Complaints: a customer can report a problem after delivery; you reply from Orders (⚠️ badge).\n• Install the app on your phone: 📲 "Install app" button at the top of the page.\n• Security: forgotten password by email, and logout from all other devices (Settings > My profile).\nThe user guide is up to date.'},
+  feedback: {level: 'info', cta: 'profile',
+    title: 'Votre avis compte', title_en: 'Your feedback matters',
+    message: 'Aidez-nous à améliorer MYBOUTIK : donnez votre avis en 1 minute dans Paramètres > Mon profil (carte « Votre avis sur MYBOUTIK »).\nUne idée, un problème, une fonction qui vous manque ? Écrivez-nous, nous lisons tout.',
+    message_en: 'Help us improve MYBOUTIK: give your feedback in 1 minute in Settings > My profile ("Your feedback on MYBOUTIK" card).\nAn idea, a problem, a feature you miss? Write to us, we read everything.'},
+  grow: {level: 'info', cta: 'settings',
+    title: 'Faites connaître votre boutique', title_en: 'Get your shop noticed',
+    message: 'Pour recevoir plus de commandes :\n• Activez « Lister ma boutique dans l\'annuaire public » (Paramètres > Général) et renseignez catégorie et ville : vos produits deviennent visibles par tous les visiteurs de l\'annuaire.\n• Partagez le lien de votre boutique sur WhatsApp, Facebook, Instagram ou TikTok avec les boutons juste en dessous du lien.\n• Ajoutez plusieurs photos par produit : la première devient la photo principale.',
+    message_en: 'To get more orders:\n• Turn on "List my shop in the public directory" (Settings > General) and fill in category and city: your products become visible to every visitor of the directory.\n• Share your shop link on WhatsApp, Facebook, Instagram or TikTok with the buttons right below the link.\n• Add several photos per product: the first one becomes the main photo.'},
+  maintenance: {level: 'warning', cta: '',
+    title: 'Maintenance prévue', title_en: 'Scheduled maintenance',
+    message: 'MYBOUTIK sera indisponible le [JOUR] de [HEURE] à [HEURE] pour une mise à jour. Vos boutiques et vos données ne sont pas touchées. Merci de votre patience.',
+    message_en: 'MYBOUTIK will be unavailable on [DAY] from [TIME] to [TIME] for an update. Your shops and your data are not affected. Thank you for your patience.'},
+};
 function loadAnnouncements() {
   call('announcements_list').then(d => {
     if (!d.success) { document.getElementById('announceListBody').innerHTML = '<p style="color:#b91c1c">'+d.message+'</p>'; return; }
     ANNOUNCEMENTS = d.data.items || []; ANNOUNCE_COUNTRIES = d.data.countries || [];
-    renderAnnouncements(); announceAudienceChanged();
+    renderAnnouncements();
+    if (!ANN_EDIT_ID) announceAudienceChanged();
   });
 }
 function currentAnnounceAudience() {
@@ -1003,40 +1095,137 @@ function updateAudienceCount() {
     document.getElementById('annRecipients').textContent = d.success ? tf('announce_recipients', {n: ANNOUNCE_COUNT}) : '';
   });
 }
-function submitAnnouncement() {
-  const msgEl = document.getElementById('announceMsg');
-  const message = document.getElementById('annMessage').value.trim();
-  if (!message) { showToast(t('announce_message_required'), 'error'); return; }
-  const body = Object.assign({
-    title: document.getElementById('annTitle').value.trim(), message,
-    level: document.getElementById('annLevel').value, ends_on: document.getElementById('annEnds').value,
-  }, currentAnnounceAudience());
-  customConfirm(tf('confirm_publish_announce', {n: ANNOUNCE_COUNT})).then(ok => {
-    if (!ok) return;
-    call('announcement_create', body).then(d => {
-      showToast(d.message || (d.success ? t('toast_done') : t('toast_error')), d.success ? 'success' : 'error');
-      if (d.success) { document.getElementById('annTitle').value = ''; document.getElementById('annMessage').value = ''; document.getElementById('annEnds').value = ''; document.getElementById('annDays').value = ''; loadAnnouncements(); }
-    });
-  });
+// Bouton d'action : choisir une page pre-remplit son texte (modifiable).
+function announceCtaChanged() {
+  const target = document.getElementById('annCtaTarget').value;
+  document.getElementById('annCtaLabelWrap').style.display = target ? '' : 'none';
+  if (target && ANN_CTA_DEFAULTS[target]) {
+    document.getElementById('annCtaLabel').value = ANN_CTA_DEFAULTS[target][0];
+    document.getElementById('annCtaLabelEn').value = ANN_CTA_DEFAULTS[target][1];
+  } else { document.getElementById('annCtaLabel').value = ''; document.getElementById('annCtaLabelEn').value = ''; }
 }
-// Duree en jours et date de fin restent synchronisees : saisir un nombre de
-// jours calcule la date (aujourd'hui + N), choisir une date recalcule le
-// nombre de jours restants.
+// Duree en jours, date de debut et date de fin restent synchronisees : les
+// jours se comptent a partir de la date de debut (sinon d'aujourd'hui).
+function announceBaseDate() {
+  const s = document.getElementById('annStarts').value;
+  if (s) { const p = s.split('-').map(Number); return new Date(p[0], p[1] - 1, p[2]); }
+  const d = new Date(); d.setHours(0, 0, 0, 0); return d;
+}
 function announceDaysChanged() {
   const daysEl = document.getElementById('annDays'), endsEl = document.getElementById('annEnds');
   let n = parseInt(daysEl.value, 10);
   if (!n || n < 1) { endsEl.value = ''; return; }
   if (n > 365) { n = 365; daysEl.value = 365; }
-  const d = new Date(); d.setDate(d.getDate() + n);
+  const d = announceBaseDate(); d.setDate(d.getDate() + n);
   endsEl.value = ymd(d);
 }
 function announceEndsChanged() {
   const v = document.getElementById('annEnds').value, daysEl = document.getElementById('annDays');
   if (!v) { daysEl.value = ''; return; }
   const p = v.split('-').map(Number);
-  const today = new Date(); today.setHours(0, 0, 0, 0);
-  const diff = Math.round((new Date(p[0], p[1] - 1, p[2]) - today) / 86400000);
+  const diff = Math.round((new Date(p[0], p[1] - 1, p[2]) - announceBaseDate()) / 86400000);
   daysEl.value = diff >= 1 ? diff : '';
+}
+function announceStartsChanged() {
+  const s = document.getElementById('annStarts').value;
+  document.getElementById('annEnds').min = s || ymd(new Date());
+  if (document.getElementById('annDays').value) announceDaysChanged();
+}
+function applyAnnounceTemplate() {
+  const key = document.getElementById('annTemplate').value;
+  const tpl = ANN_TEMPLATES[key];
+  if (!tpl) return;
+  document.getElementById('annTitle').value = tpl.title; document.getElementById('annMessage').value = tpl.message;
+  document.getElementById('annTitleEn').value = tpl.title_en; document.getElementById('annMessageEn').value = tpl.message_en;
+  document.getElementById('annLevel').value = tpl.level;
+  document.getElementById('annCtaTarget').value = tpl.cta; announceCtaChanged();
+  document.getElementById('annEnBox').open = true;
+  document.getElementById('annTemplate').value = '';
+  document.getElementById('annPreview').innerHTML = '';
+}
+// Traduit le texte francais pour relecture (le meme service tourne
+// automatiquement a la publication si la version anglaise est laissee vide).
+function translateAnnouncement() {
+  const message = document.getElementById('annMessage').value.trim();
+  if (!message) { showToast(t('announce_message_required'), 'error'); return; }
+  call('announcement_translate', {title: document.getElementById('annTitle').value.trim(), message, cta_label: document.getElementById('annCtaLabel').value.trim()}).then(d => {
+    if (!d.success) { showToast(d.message || t('toast_error'), 'error'); return; }
+    if (d.data.title_en) document.getElementById('annTitleEn').value = d.data.title_en;
+    if (d.data.message_en) document.getElementById('annMessageEn').value = d.data.message_en;
+    if (d.data.cta_label_en) document.getElementById('annCtaLabelEn').value = d.data.cta_label_en;
+    document.getElementById('annEnBox').open = true;
+    showToast(t('toast_translated'), 'success');
+  });
+}
+function annBannerHtml(level, title, message, cta, badge) {
+  return '<div class="announce announce-'+level+'"><div class="announce-body"><div class="announce-text">'
+    + '<span class="pill" style="background:#fff;color:var(--ink);margin-right:6px">'+badge+'</span>'
+    + (title ? '<strong>'+escapeAttr(title)+'</strong>\n' : '') + escapeAttr(message) + '</div>'
+    + (cta ? '<div class="announce-actions"><span class="announce-cta">'+escapeAttr(cta)+'</span></div>' : '') + '</div><span class="announce-close">✕</span></div>';
+}
+function previewAnnouncement() {
+  const v = id => document.getElementById(id).value.trim();
+  if (!v('annMessage')) { showToast(t('announce_message_required'), 'error'); return; }
+  const level = v('annLevel'), target = v('annCtaTarget');
+  let html = '<div class="muted" style="font-size:12px;font-weight:700">'+t('ann_preview_title')+'</div>'
+    + annBannerHtml(level, v('annTitle'), v('annMessage'), target ? (v('annCtaLabel') || ANN_CTA_DEFAULTS[target][0]) : '', 'FR');
+  if (v('annMessageEn')) html += annBannerHtml(level, v('annTitleEn') || v('annTitle'), v('annMessageEn'), target ? (v('annCtaLabelEn') || ANN_CTA_DEFAULTS[target][1]) : '', 'EN');
+  else html += '<p class="muted" style="font-size:12px;margin-top:8px">🌐 '+t('ann_preview_en_auto')+'</p>';
+  document.getElementById('annPreview').innerHTML = html;
+}
+function annFormBody() {
+  const v = id => document.getElementById(id).value.trim();
+  return Object.assign({
+    title: v('annTitle'), message: v('annMessage'), title_en: v('annTitleEn'), message_en: v('annMessageEn'),
+    level: v('annLevel'), starts_on: document.getElementById('annStarts').value, ends_on: document.getElementById('annEnds').value,
+    cta_target: v('annCtaTarget'), cta_label: v('annCtaLabel'), cta_label_en: v('annCtaLabelEn'),
+  }, currentAnnounceAudience());
+}
+function resetAnnouncementForm() {
+  ANN_EDIT_ID = null;
+  ['annTitle','annMessage','annTitleEn','annMessageEn','annCtaLabel','annCtaLabelEn','annStarts','annDays','annEnds'].forEach(id => { document.getElementById(id).value = ''; });
+  document.getElementById('annCtaTarget').value = ''; document.getElementById('annCtaLabelWrap').style.display = 'none';
+  document.getElementById('annLevel').value = 'info'; document.getElementById('annAudience').value = 'all';
+  document.getElementById('annEnBox').open = false; document.getElementById('annPreview').innerHTML = '';
+  document.getElementById('annReshow').checked = false; document.getElementById('annReshowWrap').style.display = 'none';
+  document.getElementById('btnCancelAnnounceEdit').style.display = 'none';
+  document.getElementById('annEnds').min = ymd(new Date());
+  applyAnnounceLabels(); announceAudienceChanged();
+}
+function submitAnnouncement() {
+  const body = annFormBody();
+  if (!body.message) { showToast(t('announce_message_required'), 'error'); return; }
+  const editing = !!ANN_EDIT_ID;
+  if (editing) { body.id = ANN_EDIT_ID; body.reshow = document.getElementById('annReshow').checked; }
+  customConfirm(tf(editing ? 'confirm_update_announce' : 'confirm_publish_announce', {n: ANNOUNCE_COUNT})).then(ok => {
+    if (!ok) return;
+    showToast(t('ann_saving'), 'info');
+    call(editing ? 'announcement_update' : 'announcement_create', body).then(d => {
+      showToast(d.message || (d.success ? t('toast_done') : t('toast_error')), d.success ? 'success' : 'error');
+      if (d.success) { resetAnnouncementForm(); loadAnnouncements(); }
+    });
+  });
+}
+function editAnnouncement(id) {
+  const x = ANNOUNCEMENTS.find(r => r.id === id);
+  if (!x) return;
+  resetAnnouncementForm();
+  ANN_EDIT_ID = id;
+  const set = (el, v) => { document.getElementById(el).value = v == null ? '' : v; };
+  set('annTitle', x.title); set('annMessage', x.message); set('annTitleEn', x.title_en); set('annMessageEn', x.message_en);
+  set('annLevel', x.level); set('annAudience', x.audience);
+  announceAudienceChanged();
+  if (x.audience === 'plan' || x.audience === 'country') set('annValue', x.audience_value);
+  updateAudienceCount();
+  set('annCtaTarget', x.cta_target); announceCtaChanged();
+  if (x.cta_target) { set('annCtaLabel', x.cta_label); set('annCtaLabelEn', x.cta_label_en); }
+  if (x.status === 'scheduled') set('annStarts', String(x.starts_at).slice(0, 10));
+  if (x.ends_at) { set('annEnds', String(x.ends_at).slice(0, 10)); announceEndsChanged(); }
+  if (x.message_en) document.getElementById('annEnBox').open = true;
+  document.getElementById('annReshowWrap').style.display = '';
+  document.getElementById('btnCancelAnnounceEdit').style.display = '';
+  applyAnnounceLabels();
+  document.getElementById('announceFormCard').scrollIntoView({behavior: 'smooth', block: 'start'});
 }
 function announceAudienceLabel(a) {
   const base = t('aud_' + a.audience);
@@ -1044,13 +1233,16 @@ function announceAudienceLabel(a) {
 }
 function renderAnnouncements() {
   const el = document.getElementById('announceListBody');
-  const statusPill = a => a.status === 'live' ? '<span class="pill pill-ok">'+t('status_live')+'</span>' : a.status === 'ended' ? '<span class="pill pill-warn">'+t('status_ended')+'</span>' : '<span class="pill pill-bad">'+t('status_withdrawn')+'</span>';
+  const statusPill = a => a.status === 'live' ? '<span class="pill pill-ok">'+t('status_live')+'</span>'
+    : a.status === 'scheduled' ? '<span class="pill pill-warn">'+t('status_scheduled')+'</span><br><span class="muted" style="font-size:12px">'+tf('announce_starts_on', {d: fmtDate(a.starts_at)})+'</span>'
+    : a.status === 'ended' ? '<span class="pill pill-warn">'+t('status_ended')+'</span>' : '<span class="pill pill-bad">'+t('status_withdrawn')+'</span>';
   el.innerHTML = ANNOUNCEMENTS.length ? '<table><thead><tr><th>'+t('col_date')+'</th><th>'+t('label_announce_message')+'</th><th>'+t('col_audience')+'</th><th>'+t('col_seen_by')+'</th><th>'+t('col_ends')+'</th><th>'+t('col_status')+'</th><th></th></tr></thead><tbody>' +
     ANNOUNCEMENTS.map(a => '<tr><td>'+fmtDate(a.created_at)+'</td>' +
-      '<td style="max-width:320px;white-space:pre-line">'+(a.title ? '<strong>'+escapeAttr(a.title)+'</strong><br>' : '')+escapeAttr(a.message)+'</td>' +
+      '<td style="max-width:320px;white-space:pre-line">'+(a.title ? '<strong>'+escapeAttr(a.title)+'</strong><br>' : '')+escapeAttr(a.message)+(a.message_en ? '<br><span class="pill" style="background:var(--bg);color:var(--gray)">🌐 EN</span>' : '')+'</td>' +
       '<td>'+escapeAttr(announceAudienceLabel(a))+'<br><span class="muted" style="font-size:12px">'+tf('announce_recipients', {n: a.recipients})+'</span></td>' +
       '<td>'+a.dismissed_count+'</td><td>'+(a.ends_at ? fmtDate(a.ends_at) : '—')+'</td><td>'+statusPill(a)+'</td>' +
-      '<td style="white-space:nowrap"><button class="ghost" onclick="toggleAnnouncement(\''+a.id+'\','+(a.status === 'withdrawn' ? 'true' : 'false')+')">'+(a.status === 'withdrawn' ? t('btn_republish') : t('btn_withdraw'))+'</button> ' +
+      '<td style="white-space:nowrap"><button class="ghost" onclick="editAnnouncement(\''+a.id+'\')">'+t('btn_edit_announce')+'</button> ' +
+      '<button class="ghost" onclick="toggleAnnouncement(\''+a.id+'\','+(a.status === 'withdrawn' ? 'true' : 'false')+')">'+(a.status === 'withdrawn' ? t('btn_republish') : t('btn_withdraw'))+'</button> ' +
       '<button class="ghost" onclick="deleteAnnouncement(\''+a.id+'\')">'+t('btn_delete_announce')+'</button></td></tr>').join('') +
     '</tbody></table>' : '<p style="color:var(--gray)">'+t('no_announcements')+'</p>';
 }
@@ -1065,13 +1257,24 @@ function deleteAnnouncement(id) {
 }
 function applyAnnounceLabels() {
   const set = (id, key) => { const el = document.getElementById(id); if (el) el.textContent = t(key); };
-  set('h3AnnounceNew', 'h3_announce_new'); set('announceNote', 'announce_note'); set('lblAnnTitle', 'label_announce_title');
+  const editing = !!ANN_EDIT_ID;
+  set('h3AnnounceNew', editing ? 'h3_announce_edit' : 'h3_announce_new'); set('announceNote', 'announce_note'); set('lblAnnTitle', 'label_announce_title');
   set('lblAnnMessage', 'label_announce_message'); set('lblAnnLevel', 'label_announce_level'); set('lblAnnAudience', 'label_announce_audience');
-  set('lblAnnEnds', 'label_announce_end'); set('lblAnnDays', 'label_announce_days');
-  const endsInput = document.getElementById('annEnds'); if (endsInput) endsInput.min = ymd(new Date()); set('btnPublishAnnounce', 'btn_publish_announce'); set('h3AnnounceList', 'h3_announce_list');
+  set('lblAnnEnds', 'label_announce_end'); set('lblAnnDays', 'label_announce_days'); set('lblAnnStarts', 'label_announce_start');
+  set('btnPublishAnnounce', editing ? 'btn_save_announce' : 'btn_publish_announce'); set('h3AnnounceList', 'h3_announce_list');
+  set('lblAnnTemplate', 'lbl_ann_template'); set('sumAnnEn', 'sum_ann_en'); set('annEnNote', 'ann_en_note'); set('btnTranslateAnn', 'btn_translate_ann');
+  set('lblAnnTitleEn', 'label_ann_title_en'); set('lblAnnMessageEn', 'label_ann_message_en'); set('lblAnnCtaLabelEn', 'label_ann_cta_label_en');
+  set('lblAnnCta', 'label_ann_cta'); set('lblAnnCtaLabel', 'label_ann_cta_label'); set('btnPreviewAnnounce', 'btn_preview_ann');
+  set('btnCancelAnnounceEdit', 'btn_cancel_edit'); set('lblAnnReshow', 'label_reshow');
   set('optLvlInfo', 'lvl_info'); set('optLvlWarn', 'lvl_warning'); set('optLvlOk', 'lvl_success');
   set('optAudAll', 'aud_all'); set('optAudExpiring', 'aud_expiring'); set('optAudExpired', 'aud_expired'); set('optAudPlan', 'aud_plan'); set('optAudCountry', 'aud_country');
-  const cur = document.getElementById('annAudience'); if (cur && document.getElementById('annValueWrap').style.display !== 'none') announceAudienceChanged();
+  const tpl = document.getElementById('annTemplate');
+  if (tpl) tpl.innerHTML = '<option value="">'+t('tpl_none')+'</option>' + Object.keys(ANN_TEMPLATES).map(k => '<option value="'+k+'">'+t('tpl_'+k)+'</option>').join('');
+  const cta = document.getElementById('annCtaTarget');
+  if (cta) { const cur = cta.value; cta.innerHTML = '<option value="">'+t('cta_none')+'</option>' + Object.keys(ANN_CTA_DEFAULTS).map(k => '<option value="'+k+'">'+t('cta_'+k)+'</option>').join(''); cta.value = cur; }
+  const endsInput = document.getElementById('annEnds'); if (endsInput) endsInput.min = document.getElementById('annStarts').value || ymd(new Date());
+  const startsInput = document.getElementById('annStarts'); if (startsInput) startsInput.min = ymd(new Date());
+  if (document.getElementById('annValueWrap') && document.getElementById('annValueWrap').style.display !== 'none') announceAudienceChanged();
 }
 function loadRates() {
   call('rates_list').then(d => { if (!d.success) { document.getElementById('ratesBody').innerHTML = '<p style="color:#b91c1c">'+d.message+'</p>'; return; } RATES_ROWS = d.data || []; renderRates(); });
