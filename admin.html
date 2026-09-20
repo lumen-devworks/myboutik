@@ -1047,7 +1047,7 @@ function renderAnnouncements() {
   const statusPill = a => a.status === 'live' ? '<span class="pill pill-ok">'+t('status_live')+'</span>' : a.status === 'ended' ? '<span class="pill pill-warn">'+t('status_ended')+'</span>' : '<span class="pill pill-bad">'+t('status_withdrawn')+'</span>';
   el.innerHTML = ANNOUNCEMENTS.length ? '<table><thead><tr><th>'+t('col_date')+'</th><th>'+t('label_announce_message')+'</th><th>'+t('col_audience')+'</th><th>'+t('col_seen_by')+'</th><th>'+t('col_ends')+'</th><th>'+t('col_status')+'</th><th></th></tr></thead><tbody>' +
     ANNOUNCEMENTS.map(a => '<tr><td>'+fmtDate(a.created_at)+'</td>' +
-      '<td style="max-width:320px;white-space:normal">'+(a.title ? '<strong>'+escapeAttr(a.title)+'</strong><br>' : '')+escapeAttr(a.message)+'</td>' +
+      '<td style="max-width:320px;white-space:pre-line">'+(a.title ? '<strong>'+escapeAttr(a.title)+'</strong><br>' : '')+escapeAttr(a.message)+'</td>' +
       '<td>'+escapeAttr(announceAudienceLabel(a))+'<br><span class="muted" style="font-size:12px">'+tf('announce_recipients', {n: a.recipients})+'</span></td>' +
       '<td>'+a.dismissed_count+'</td><td>'+(a.ends_at ? fmtDate(a.ends_at) : '—')+'</td><td>'+statusPill(a)+'</td>' +
       '<td style="white-space:nowrap"><button class="ghost" onclick="toggleAnnouncement(\''+a.id+'\','+(a.status === 'withdrawn' ? 'true' : 'false')+')">'+(a.status === 'withdrawn' ? t('btn_republish') : t('btn_withdraw'))+'</button> ' +
