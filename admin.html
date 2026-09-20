@@ -58,6 +58,12 @@
   .announce-actions{margin-top:8px}
   .announce-cta{display:inline-block;border:1.5px solid currentColor;border-radius:8px;padding:5px 12px;font-size:13px;font-weight:700}
   .announce-close{opacity:.7;flex-shrink:0}
+  /* Choix des marchands destinataires : liste a cocher avec recherche */
+  .annpick{max-height:240px;overflow-y:auto;border:1px solid var(--border);border-radius:10px;margin-bottom:6px}
+  .annpick label{display:flex;gap:10px;align-items:flex-start;padding:8px 12px;border-bottom:1px solid var(--border);cursor:pointer;font-size:13px;line-height:1.4}
+  .annpick label:last-child{border-bottom:none}
+  .annpick label:hover{background:var(--bg)}
+  .annpick input[type=checkbox]{width:auto;margin:3px 0 0;flex-shrink:0}
   input,select{width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:10px;font-size:14px;margin-bottom:10px;font-family:inherit;color:var(--ink);transition:border-color .15s,box-shadow .15s;background:#fff}
   input:focus,select:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px var(--blue-light)}
   .password-wrap{position:relative}
@@ -298,8 +304,17 @@
           <select id="annValue" onchange="updateAudienceCount()"></select></div>
       </div>
       <div id="annEmailsWrap" style="display:none;margin-bottom:12px">
-        <label class="flabel" for="annEmails" id="lblAnnEmails"></label>
-        <textarea id="annEmails" rows="3" placeholder="marchand1@exemple.com, marchand2@exemple.com" oninput="updateAudienceCountDebounced()"></textarea>
+        <label class="flabel" for="annPickSearch" id="lblAnnEmails"></label>
+        <input id="annPickSearch" type="search" autocomplete="off" oninput="renderAnnPicker()" style="margin-bottom:8px">
+        <div class="annpick" id="annPickList"></div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:6px 0">
+          <button type="button" class="ghost" onclick="annPickAllVisible(true)" id="btnPickAll"></button>
+          <button type="button" class="ghost" onclick="annPickAllVisible(false)" id="btnPickNone"></button>
+          <span class="muted" id="annPickCount"></span>
+        </div>
+        <details><summary id="sumAnnPaste" style="cursor:pointer;font-size:13px;font-weight:700"></summary>
+          <textarea id="annEmails" rows="3" placeholder="marchand1@exemple.com, marchand2@exemple.com" oninput="annEmailsTyped()" style="margin-top:8px"></textarea>
+        </details>
       </div>
       <div style="display:flex;gap:12px;flex-wrap:wrap">
         <div style="flex:1 1 160px"><label class="flabel" for="annStarts" id="lblAnnStarts"></label>
@@ -540,7 +555,9 @@ const I18N = {
     label_announce_days: 'Durée en jours (facultatif)', label_announce_end: 'Date de fin (facultatif)', label_announce_plan: 'Plan', label_announce_country: 'Pays',
     lvl_info: 'ℹ️ Information', lvl_warning: '⚠️ Important', lvl_success: '✅ Bonne nouvelle',
     aud_all: 'Tous les marchands', aud_expiring: 'Abonnement qui expire dans 5 jours ou moins', aud_expired: 'Abonnement expiré',
-    aud_users: 'Des marchands précis (emails)', label_announce_emails: 'Emails des marchands (séparés par une virgule, un espace ou un retour à la ligne)',
+    aud_users: 'Des marchands précis (emails)', label_announce_emails: 'Choisissez les marchands destinataires',
+    ann_pick_search: 'Rechercher (nom, boutique, email)…', btn_pick_all: 'Tout cocher (affichés)', btn_pick_none: 'Tout décocher (affichés)',
+    ann_pick_count: '{n} marchand(s) coché(s)', ann_pick_none: 'Aucun marchand trouvé', sum_ann_paste: 'Ou coller des adresses email (séparées par une virgule, un espace ou un retour à la ligne)',
     announce_unknown_emails: '⚠ Sans compte actif : {list}.', confirm_duplicate_announce: '⚠ Une annonce identique est déjà en ligne ou programmée. Publier quand même ?',
     btn_clear_form: 'Vider le formulaire', draft_restored: 'Brouillon d\'annonce restauré.', stats_hint: 'Vue par / destinataires · fermée par · clics sur le bouton',
     aud_plan: 'Un plan précis', aud_country: 'Boutiques d\'un pays précis',
@@ -732,7 +749,9 @@ const I18N = {
     label_announce_days: 'Duration in days (optional)', label_announce_end: 'End date (optional)', label_announce_plan: 'Plan', label_announce_country: 'Country',
     lvl_info: 'ℹ️ Information', lvl_warning: '⚠️ Important', lvl_success: '✅ Good news',
     aud_all: 'All merchants', aud_expiring: 'Subscription expiring within 5 days', aud_expired: 'Expired subscription',
-    aud_users: 'Specific merchants (emails)', label_announce_emails: 'Merchants\' emails (separated by a comma, a space or a new line)',
+    aud_users: 'Specific merchants (emails)', label_announce_emails: 'Choose the recipient merchants',
+    ann_pick_search: 'Search (name, shop, email)…', btn_pick_all: 'Check all (shown)', btn_pick_none: 'Uncheck all (shown)',
+    ann_pick_count: '{n} merchant(s) checked', ann_pick_none: 'No merchant found', sum_ann_paste: 'Or paste email addresses (separated by a comma, a space or a new line)',
     announce_unknown_emails: '⚠ No active account: {list}.', confirm_duplicate_announce: '⚠ An identical announcement is already live or scheduled. Publish anyway?',
     btn_clear_form: 'Clear the form', draft_restored: 'Announcement draft restored.', stats_hint: 'Seen by / recipients · closed by · button clicks',
     aud_plan: 'A specific plan', aud_country: 'Shops in a specific country',
@@ -1104,6 +1123,7 @@ function announceAudienceChanged() {
   const wrap = document.getElementById('annValueWrap'), sel = document.getElementById('annValue');
   wrap.style.display = (aud === 'plan' || aud === 'country') ? '' : 'none';
   document.getElementById('annEmailsWrap').style.display = aud === 'users' ? '' : 'none';
+  if (aud === 'users') renderAnnPicker();
   if (aud === 'plan') {
     document.getElementById('lblAnnValue').textContent = t('label_announce_plan');
     sel.innerHTML = ['starter','pro','premium'].map(p => '<option value="'+p+'">'+p.charAt(0).toUpperCase()+p.slice(1)+'</option>').join('');
@@ -1114,6 +1134,38 @@ function announceAudienceChanged() {
   updateAudienceCount();
 }
 let ANN_COUNT_TIMER = null;
+// Liste a cocher des marchands (depuis l'onglet Clients). La zone "coller des
+// adresses" (annEmails) reste la source de verite envoyee au serveur : cocher
+// une case la met a jour, et la modifier a la main met les cases a jour.
+function annEmailsList() { return String(document.getElementById('annEmails').value).toLowerCase().split(/[\s,;]+/).filter(x => x); }
+function annSetPicked(list) {
+  document.getElementById('annEmails').value = list.join(', ');
+  saveAnnounceDraft(); updateAudienceCountDebounced(); annPickCount();
+}
+function annPickCount() { document.getElementById('annPickCount').textContent = tf('ann_pick_count', {n: annEmailsList().length}); }
+function renderAnnPicker() {
+  const norm = s => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  const q = norm(document.getElementById('annPickSearch').value.trim());
+  const picked = new Set(annEmailsList());
+  const rows = (CLIENTS || []).filter(c => !q || norm(c.email + ' ' + (c.full_name || '') + ' ' + (c.boutique_names || []).join(' ')).includes(q));
+  document.getElementById('annPickList').innerHTML = rows.length ? rows.map(c => {
+    const shops = (c.boutique_names || []).join(', ');
+    return '<label><input type="checkbox" data-email="'+escapeAttr(c.email)+'" '+(picked.has(String(c.email).toLowerCase()) ? 'checked' : '')+' onchange="annPickToggle(this)">'
+      + '<span><strong>'+escapeAttr(c.full_name || c.email)+'</strong><br><span class="muted">'+escapeAttr(c.email)+(shops ? ' · '+escapeAttr(shops) : '')+'</span></span></label>';
+  }).join('') : '<p class="muted" style="padding:10px;margin:0">'+t('ann_pick_none')+'</p>';
+  annPickCount();
+}
+function annPickToggle(cb) {
+  const set = new Set(annEmailsList()), e = cb.dataset.email.toLowerCase();
+  if (cb.checked) set.add(e); else set.delete(e);
+  annSetPicked([...set]);
+}
+function annPickAllVisible(on) {
+  const set = new Set(annEmailsList());
+  document.querySelectorAll('#annPickList input[type=checkbox]').forEach(cb => { cb.checked = on; const e = cb.dataset.email.toLowerCase(); if (on) set.add(e); else set.delete(e); });
+  annSetPicked([...set]);
+}
+function annEmailsTyped() { renderAnnPicker(); updateAudienceCountDebounced(); }
 function updateAudienceCountDebounced() { clearTimeout(ANN_COUNT_TIMER); ANN_COUNT_TIMER = setTimeout(updateAudienceCount, 500); }
 function updateAudienceCount() {
   call('announcement_audience_count', currentAnnounceAudience()).then(d => {
@@ -1285,7 +1337,7 @@ document.getElementById('announceFormCard').addEventListener('change', saveAnnou
 function resetAnnouncementForm(keepDraft) {
   ANN_EDIT_ID = null;
   if (keepDraft !== true) clearAnnounceDraft();
-  ['annTitle','annMessage','annTitleEn','annMessageEn','annCtaLabel','annCtaLabelEn','annStarts','annDays','annEnds','annEmails'].forEach(id => { document.getElementById(id).value = ''; });
+  ['annTitle','annMessage','annTitleEn','annMessageEn','annCtaLabel','annCtaLabelEn','annStarts','annDays','annEnds','annEmails','annPickSearch'].forEach(id => { document.getElementById(id).value = ''; });
   document.getElementById('annCtaTarget').value = ''; document.getElementById('annCtaLabelWrap').style.display = 'none'; document.getElementById('annCtaLabelEnWrap').style.display = 'none';
   document.getElementById('annLevel').value = 'info'; document.getElementById('annAudience').value = 'all';
   document.getElementById('annEnBox').open = true; document.getElementById('annPreview').innerHTML = '';
@@ -1322,7 +1374,7 @@ function editAnnouncement(id) {
   set('annLevel', x.level); set('annAudience', x.audience);
   announceAudienceChanged();
   if (x.audience === 'plan' || x.audience === 'country') set('annValue', x.audience_value);
-  if (x.audience === 'users') set('annEmails', String(x.audience_value || '').split(',').join('\n'));
+  if (x.audience === 'users') { set('annEmails', String(x.audience_value || '').split(',').join('\n')); renderAnnPicker(); }
   updateAudienceCount();
   set('annCtaTarget', x.cta_target); announceCtaChanged();
   if (x.cta_target) { set('annCtaLabel', x.cta_label); set('annCtaLabelEn', x.cta_label_en); }
@@ -1377,6 +1429,8 @@ function applyAnnounceLabels() {
   set('optLvlInfo', 'lvl_info'); set('optLvlWarn', 'lvl_warning'); set('optLvlOk', 'lvl_success');
   set('optAudAll', 'aud_all'); set('optAudExpiring', 'aud_expiring'); set('optAudExpired', 'aud_expired'); set('optAudPlan', 'aud_plan'); set('optAudCountry', 'aud_country'); set('optAudUsers', 'aud_users');
   set('lblAnnEmails', 'label_announce_emails'); set('btnClearAnnounce', 'btn_clear_form');
+  set('btnPickAll', 'btn_pick_all'); set('btnPickNone', 'btn_pick_none'); set('sumAnnPaste', 'sum_ann_paste');
+  const ps = document.getElementById('annPickSearch'); if (ps) ps.placeholder = t('ann_pick_search');
   const tpl = document.getElementById('annTemplate');
   if (tpl) tpl.innerHTML = '<option value="">'+t('tpl_none')+'</option>' + Object.keys(ANN_TEMPLATES).map(k => '<option value="'+k+'">'+t('tpl_'+k)+'</option>').join('');
   const cta = document.getElementById('annCtaTarget');
@@ -1563,6 +1617,7 @@ function loadAll() {
     call('clients_list').then(d3 => {
       if (!d3.success) { document.getElementById('clientsBody').innerHTML = '<p style="color:#b91c1c">'+d3.message+'</p>'; return; }
       CLIENTS = d3.data || []; renderStats(CLIENTS); renderClients();
+      if (document.getElementById('annAudience').value === 'users') renderAnnPicker();
     });
     call('subscription_history').then(d4 => {
       if (!d4.success) { document.getElementById('historyBody').innerHTML = '<p style="color:#b91c1c">'+d4.message+'</p>'; return; }
