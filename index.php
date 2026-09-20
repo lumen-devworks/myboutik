@@ -665,15 +665,69 @@ function money_fmt($amount, $code) { return number_format((float)$amount, curren
 // rattache a l'euro) sont connues d'avance et non modifiables ; les autres
 // devises n'ont de taux que si l'admin en a saisi un (table currency_rates).
 const FIXED_CFA_RATES = ['XOF' => 1.0, 'XAF' => 1.0, 'EUR' => 655.957, 'KMF' => 1.3333333333];
+// Taux saisis a la main par l'admin : ils remplacent le taux du jour.
+function currency_rates_custom() {
+    static $custom = null;
+    if ($custom !== null) return $custom;
+    $custom = [];
+    try {
+        foreach (q("SELECT currency, rate_to_xof FROM currency_rates")->fetchAll() as $r) {
+            if (!isset(FIXED_CFA_RATES[$r['currency']])) $custom[$r['currency']] = (float)$r['rate_to_xof'];
+        }
+    } catch (PDOException $e) { /* table pas encore creee (/install a relancer) */ }
+    return $custom;
+}
+// Taux du jour (ExchangeRate-API, gratuit, sans cle, mis a jour une fois par
+// jour cote fournisseur - mention de la source obligatoire, voir la vitrine) :
+// recuperes cote serveur au plus toutes les 12 h et gardes en base, pour que
+// ni la vitrine ni le panneau admin n'appellent un service tiers a chaque
+// visite. Sert aux prix INDICATIFS de la vitrine et au total admin ; jamais
+// aux montants factures.
+const FX_API_URL = 'https://open.er-api.com/v6/latest/USD';
+const FX_MAX_AGE_SECONDS = 43200;
+function fx_live_rates() {
+    static $cache = null;
+    if ($cache !== null) return $cache;
+    $cache = [];
+    try {
+        $m = q("SELECT MAX(updated_at) AS m FROM fx_rates")->fetch()['m'] ?? null;
+        if (!$m || strtotime($m) < time() - FX_MAX_AGE_SECONDS) fx_refresh();
+        foreach (q("SELECT currency, per_usd FROM fx_rates")->fetchAll() as $r) $cache[$r['currency']] = (float)$r['per_usd'];
+    } catch (PDOException $e) { /* table absente : /install a relancer, seuls les taux fixes/saisis servent */ }
+    return $cache;
+}
+function fx_refresh() {
+    $ch = curl_init(FX_API_URL);
+    curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 5, CURLOPT_CONNECTTIMEOUT => 3, CURLOPT_FOLLOWLOCATION => true]);
+    $body = curl_exec($ch);
+    curl_close($ch);
+    $j = $body ? json_decode($body, true) : null;
+    if (!is_array($j) || ($j['result'] ?? '') !== 'success' || empty($j['rates']['XOF'])) {
+        // Echec : nouvel essai dans ~15 min (et non a chaque requete) ; les
+        // taux deja en base restent utilises en attendant.
+        try { q("UPDATE fx_rates SET updated_at = NOW() - INTERVAL '11 hours 45 minutes'"); } catch (PDOException $e) {}
+        return false;
+    }
+    $vals = []; $params = [];
+    foreach (array_unique(array_merge(array_values(COUNTRY_CURRENCY), ['USD'])) as $code) {
+        if (!empty($j['rates'][$code]) && $j['rates'][$code] > 0) { $vals[] = '(?,?)'; $params[] = $code; $params[] = (float)$j['rates'][$code]; }
+    }
+    if (!$vals) return false;
+    q("INSERT INTO fx_rates (currency, per_usd) VALUES ".implode(',', $vals)."
+       ON CONFLICT (currency) DO UPDATE SET per_usd=EXCLUDED.per_usd, updated_at=NOW()", $params);
+    return true;
+}
+// Taux vers le FCFA, par priorite : parite fixe > taux saisi par l'admin >
+// taux du jour. Absent = devise sans taux connu.
 function currency_rates() {
     static $cache = null;
     if ($cache !== null) return $cache;
     $rates = FIXED_CFA_RATES;
-    try {
-        foreach (q("SELECT currency, rate_to_xof FROM currency_rates")->fetchAll() as $r) {
-            if (!isset(FIXED_CFA_RATES[$r['currency']])) $rates[$r['currency']] = (float)$r['rate_to_xof'];
-        }
-    } catch (PDOException $e) { /* table pas encore creee (/install a relancer) : parites fixes seulement */ }
+    foreach (currency_rates_custom() as $code => $r) $rates[$code] = $r;
+    $live = fx_live_rates();
+    if (!empty($live['XOF'])) {
+        foreach ($live as $code => $perUsd) if (!isset($rates[$code]) && $perUsd > 0) $rates[$code] = $live['XOF'] / $perUsd;
+    }
     return $cache = $rates;
 }
 
@@ -1541,6 +1595,13 @@ function route_install() {
         rate_to_xof DECIMAL(18,6) NOT NULL,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )",
+    // Taux du jour (base USD) recuperes automatiquement et gardes ~12 h - voir
+    // fx_live_rates() ; les taux saisis par l'admin (currency_rates) priment.
+    "CREATE TABLE IF NOT EXISTS fx_rates (
+        currency VARCHAR(3) PRIMARY KEY,
+        per_usd DECIMAL(24,10) NOT NULL,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )",
     ];
 
     $created = [];
@@ -2380,6 +2441,7 @@ function supplier_order_update_status($pl) {
 function route_shop($action) {
     switch ($action) {
         case 'boutique':         shop_boutique(); break;
+        case 'rates':            shop_rates(); break;
         case 'products':         shop_products(); break;
         case 'product':          shop_product(); break;
         case 'checkout':         shop_checkout(); break;
@@ -2607,6 +2669,24 @@ function public_boutique_by_slug($slug) {
 
 function shop_boutique() {
     ok(public_boutique_by_slug($_GET['slug'] ?? ''));
+}
+// Taux INDICATIFS pour la vitrine : combien d'unites de chaque devise pour 1
+// unite de la devise de la boutique (l'acheteur voit "≈ X" sous le prix
+// officiel, jamais utilise pour facturer). Vide si aucun taux n'est connu
+// pour la devise de la boutique - la vitrine masque alors le choix de devise.
+function shop_rates() {
+    rate_limit_check('shop_rates', 60, 300);
+    $bt = public_boutique_by_slug($_GET['slug'] ?? '');
+    $cur = $bt['currency'] ?: 'XOF';
+    $rates = currency_rates();
+    $out = [];
+    if (isset($rates[$cur])) {
+        foreach (array_unique(array_values(COUNTRY_CURRENCY)) as $code) {
+            if ($code === $cur || !isset($rates[$code]) || $rates[$code] <= 0) continue;
+            $out[$code] = round($rates[$cur] / $rates[$code], 10);
+        }
+    }
+    ok(['currency' => $cur, 'rates' => $out]);
 }
 
 // Promotion "produit" active (independante des codes promo - visible
@@ -4858,15 +4938,18 @@ function admin_top_boutiques() {
 }
 // Taux de change : une ligne par devise utilisee par au moins une boutique
 // (hors XOF, qui vaut 1). source : 'fixed' (parite officielle, non
-// modifiable), 'custom' (saisi par l'admin) ou 'missing' (a renseigner).
+// modifiable), 'custom' (saisi par l'admin), 'live' (taux du jour
+// automatique) ou 'missing' (aucun taux connu, a renseigner).
 function admin_rates_list() {
     $rates = currency_rates();
+    $custom = currency_rates_custom();
     $codes = q("SELECT DISTINCT COALESCE(currency,'XOF') AS c FROM boutiques ORDER BY c")->fetchAll(PDO::FETCH_COLUMN);
     $out = [];
     foreach ($codes as $c) {
         if ($c === 'XOF') continue;
-        $out[] = ['currency' => $c, 'rate' => $rates[$c] ?? null,
-                  'source' => isset(FIXED_CFA_RATES[$c]) ? 'fixed' : (isset($rates[$c]) ? 'custom' : 'missing')];
+        // 'live' = taux du jour automatique (modifiable : la valeur saisie le remplace)
+        $out[] = ['currency' => $c, 'rate' => isset($rates[$c]) ? round($rates[$c], 6) : null,
+                  'source' => isset(FIXED_CFA_RATES[$c]) ? 'fixed' : (isset($custom[$c]) ? 'custom' : (isset($rates[$c]) ? 'live' : 'missing'))];
     }
     ok($out);
 }

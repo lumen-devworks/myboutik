@@ -77,6 +77,11 @@
   .qty-row{display:flex;align-items:center;gap:12px;margin:14px 0}
   .qty-row button{width:32px;height:32px;border-radius:8px;border:1px solid var(--border);background:#fff;font-size:16px;cursor:pointer}
   .cart-line{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border);font-size:14px}
+  /* Prix indicatif dans la devise de l'acheteur, en petit sous le prix officiel */
+  .approx{display:block;font-size:.8em;font-weight:500;color:var(--gray);line-height:1.3;margin-top:1px}
+  .cart-line .approx,.cart-total .approx{text-align:right}
+  .approx-note{font-size:12px;color:var(--gray);line-height:1.4;margin:8px 0 12px}
+  @media (max-width:640px){#buyerCurrency{font-size:16px}}
   .cart-line button{border:none;background:none;color:var(--gray);cursor:pointer;font-size:16px}
   .cart-total{display:flex;justify-content:space-between;font-weight:800;font-size:16px;padding:14px 0}
   .msg{font-size:13px;border-radius:10px;padding:9px 11px;margin-bottom:12px}
@@ -144,6 +149,41 @@ function currencyDecimals(code) { return ZERO_DECIMAL_CURRENCIES.includes(code |
 function fmtMoney(n, currency) {
   const dec = currencyDecimals(currency);
   return Number(n||0).toLocaleString(LANG === 'en' ? 'en-US' : 'fr-FR', {minimumFractionDigits: dec, maximumFractionDigits: dec}) + ' ' + (currency||'FCFA');
+}
+// PRIX INDICATIFS dans la devise de l'acheteur : FX_RATES = unites de chaque
+// devise pour 1 unite de la devise de la boutique (voir shop_rates() cote
+// serveur). Affichage seulement : la commande reste facturee et payee dans la
+// devise de la boutique.
+let FX_RATES = {}, BUYER_CURRENCY = '';
+try { BUYER_CURRENCY = localStorage.getItem('myboutik_buyer_currency') || ''; } catch (e) {}
+function approxMoney(n) {
+  if (!BUYER_CURRENCY || !BOUTIQUE || BUYER_CURRENCY === BOUTIQUE.currency || !FX_RATES[BUYER_CURRENCY]) return '';
+  return fmtMoney(Number(n||0) * FX_RATES[BUYER_CURRENCY], BUYER_CURRENCY);
+}
+function approxHtml(n, neg) { const a = approxMoney(n); return a ? '<span class="approx">≈ '+(neg ? '-' : '')+a+'</span>' : ''; }
+function moneyHtml(n, neg) { return (neg ? '-' : '') + fmtMoney(n, BOUTIQUE.currency) + approxHtml(n, neg); }
+function approxNoteHtml() {
+  if (!approxMoney(1)) return '';
+  return '<div class="approx-note">'+t('approx_note').replace('{shop}', BOUTIQUE.currency).replace('{buyer}', BUYER_CURRENCY)+'</div>';
+}
+function currencyBarHtml() {
+  const codes = Object.keys(FX_RATES);
+  if (!codes.length) return '';
+  let names = null;
+  try { names = new Intl.DisplayNames([LANG === 'en' ? 'en' : 'fr'], {type: 'currency'}); } catch (e) {}
+  const label = c => { let nm = ''; try { nm = names ? names.of(c) : ''; } catch (e) {} return c + (nm && nm !== c ? ' — ' + nm : ''); };
+  const opts = codes.map(c => ({c, l: label(c)})).sort((x, y) => x.l.localeCompare(y.l, LANG === 'en' ? 'en' : 'fr'));
+  return '<div class="wrap" id="currencyBar" style="padding-top:10px;display:flex;justify-content:flex-end;align-items:center;gap:8px;flex-wrap:wrap;font-size:13px">'
+    + '<label for="buyerCurrency" style="color:var(--gray)">💱 '+t('prices_also_in')+'</label>'
+    + '<select id="buyerCurrency" onchange="setBuyerCurrency(this.value)" style="width:auto;max-width:240px;padding:6px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:#fff">'
+    + '<option value="">'+t('currency_shop_only')+'</option>'
+    + opts.map(o => '<option value="'+o.c+'" '+(o.c === BUYER_CURRENCY ? 'selected' : '')+'>'+escapeHtml(o.l)+'</option>').join('')
+    + '</select></div>';
+}
+function setBuyerCurrency(code) {
+  BUYER_CURRENCY = FX_RATES[code] ? code : '';
+  try { localStorage.setItem('myboutik_buyer_currency', BUYER_CURRENCY); } catch (e) {}
+  renderProductGrid();
 }
 function fmtDateTime(iso) { if (!iso) return ''; const d = new Date(iso); const loc = LANG === 'en' ? 'en-US' : 'fr-FR'; return d.toLocaleDateString(loc) + ' ' + d.toLocaleTimeString(loc, {hour:'2-digit', minute:'2-digit'}); }
 function escapeHtml(s){ return (s==null?'':String(s)).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
@@ -330,6 +370,10 @@ const I18N = {
     delivery_method_free: 'Gratuit',
     shipping_country_label: 'Pays de destination',
     no_country_match: 'Aucun pays ne correspond',
+    prices_also_in: 'Prix aussi en :',
+    currency_shop_only: 'Devise de la boutique seulement',
+    approx_note: 'Montants indicatifs : votre commande est facturée et payée en {shop} ; le montant en {buyer} est une estimation au taux du jour, non contractuelle.',
+    rates_credit: 'Taux indicatifs : ExchangeRate-API',
     select_country_placeholder: 'Choisir un pays…',
     shipping_country_required: 'Le pays de destination est requis pour une expédition',
     shipping_country_invalid: 'Veuillez choisir un pays dans la liste proposée',
@@ -433,6 +477,10 @@ const I18N = {
     delivery_method_free: 'Free',
     shipping_country_label: 'Destination country',
     no_country_match: 'No matching country',
+    prices_also_in: 'Prices also in:',
+    currency_shop_only: 'Shop currency only',
+    approx_note: 'Indicative amounts: your order is billed and paid in {shop}; the amount in {buyer} is an estimate at today\'s rate, not contractual.',
+    rates_credit: 'Indicative rates: ExchangeRate-API',
     select_country_placeholder: 'Choose a country…',
     shipping_country_required: 'The destination country is required for shipping',
     shipping_country_invalid: 'Please choose a country from the suggested list',
@@ -502,10 +550,12 @@ function renderCartCount() {
 if (!SLUG) {
   document.getElementById('root').innerHTML = '<div class="empty"><div class="big">🏬</div>'+t('shop_not_found')+'<br><span style="font-size:13px">'+t('add_slug_hint')+'</span></div>';
 } else {
-  Promise.all([api('/shop?action=boutique&slug='+encodeURIComponent(SLUG)), api('/shop?action=products&slug='+encodeURIComponent(SLUG)), api('/shop?action=active_promos&slug='+encodeURIComponent(SLUG)), api('/shop?action=categories&slug='+encodeURIComponent(SLUG))]).then(([bt, prods, promos, cats]) => {
+  Promise.all([api('/shop?action=boutique&slug='+encodeURIComponent(SLUG)), api('/shop?action=products&slug='+encodeURIComponent(SLUG)), api('/shop?action=active_promos&slug='+encodeURIComponent(SLUG)), api('/shop?action=categories&slug='+encodeURIComponent(SLUG)), api('/shop?action=rates&slug='+encodeURIComponent(SLUG))]).then(([bt, prods, promos, cats, fx]) => {
     if (!bt.data.success) { document.getElementById('root').innerHTML = '<div class="empty"><div class="big">🏬</div>'+t('shop_not_found_closed')+'</div>'; return; }
     BOUTIQUE = bt.data.data; PRODUCTS = prods.data.data || []; ACTIVE_PROMOS = (promos.data.success && promos.data.data) || [];
     CATEGORIES = (cats.data.success && cats.data.data) || [];
+    FX_RATES = (fx && fx.data && fx.data.success && fx.data.data && fx.data.data.rates) || {};
+    if (BUYER_CURRENCY && (!FX_RATES[BUYER_CURRENCY] || BUYER_CURRENCY === BOUTIQUE.currency)) BUYER_CURRENCY = '';
     document.title = BOUTIQUE.name;
     renderShop();
     post('/shop?action=track_visit', {slug:SLUG, session_id:sessionId(), path:window.location.pathname, referrer:document.referrer});
@@ -534,6 +584,7 @@ function renderShop() {
         <button id="cartBtn" onclick="openCart()">${t('cart_btn')}<span id="cartCount">0</span></button>
       </div>
     </div></header>
+    ${currencyBarHtml()}
     ${ACTIVE_PROMOS.length ? `<div class="wrap" style="padding-top:12px">
       <div style="background:#fff1e6;border:1px solid #fdba8c;border-radius:10px;padding:10px 14px;font-size:14px;color:#9a3412">
         🎉 ${ACTIVE_PROMOS.map(p => 'Code <strong>'+escapeHtml(p.code)+'</strong> : -'+(p.type==='percent' ? Number(p.value)+'%' : fmtMoney(p.value, BOUTIQUE.currency))).join(' &nbsp;|&nbsp; ')}${t('promo_banner_suffix')}
@@ -566,6 +617,7 @@ function renderShop() {
         <button class="btn btn-primary" onclick="sendContactMessage()">${t('contact_send_btn')}</button>
       </div>
     </div></footer>
+    ${Object.keys(FX_RATES).length ? '<div style="text-align:center;font-size:11px;color:var(--gray);padding:0 12px 18px"><a href="https://www.exchangerate-api.com" target="_blank" rel="noopener" style="text-decoration:underline">'+t('rates_credit')+'</a></div>' : ''}
   `;
   renderCartCount();
   renderCategoryPills();
@@ -602,7 +654,7 @@ function renderProductGrid() {
       <div class="product-card" onclick="openProduct('${p.id}')">
         ${p.image_url ? '<img src="'+escapeHtml(p.image_url)+'" alt="">' : '<div class="ph">🛍️</div>'}
         <div class="body"><div class="name">${escapeHtml(p.name)}</div>
-          <div class="price">${fmtMoney(p.price, BOUTIQUE.currency)}${p.compare_at_price && Number(p.compare_at_price) > Number(p.price) ? ' <span style="color:var(--gray);font-weight:400;text-decoration:line-through;font-size:13px">'+fmtMoney(p.compare_at_price, BOUTIQUE.currency)+'</span>' : ''}</div>
+          <div class="price">${fmtMoney(p.price, BOUTIQUE.currency)}${p.compare_at_price && Number(p.compare_at_price) > Number(p.price) ? ' <span style="color:var(--gray);font-weight:400;text-decoration:line-through;font-size:13px">'+fmtMoney(p.compare_at_price, BOUTIQUE.currency)+'</span>' : ''}${approxHtml(p.price)}</div>
         </div>
       </div>`).join('')+'</div>'
     : '<div class="empty"><div class="big">🔍</div>'+t('no_products_match')+'</div>')
@@ -746,9 +798,9 @@ function submitReview(productId) {
 function renderPriceHtml(price, compareAt) {
   const main = '<span style="font-weight:800;font-size:20px;color:var(--blue)">'+fmtMoney(price, BOUTIQUE.currency)+'</span>';
   if (compareAt && Number(compareAt) > Number(price)) {
-    return main + ' <span style="color:var(--gray);text-decoration:line-through;font-size:14px">'+fmtMoney(compareAt, BOUTIQUE.currency)+'</span>';
+    return main + ' <span style="color:var(--gray);text-decoration:line-through;font-size:14px">'+fmtMoney(compareAt, BOUTIQUE.currency)+'</span>' + approxHtml(price);
   }
-  return main;
+  return main + approxHtml(price);
 }
 function stepQty(d) { window.__pdQty = Math.max(1, (window.__pdQty||1)+d); document.getElementById('pdQty').textContent = window.__pdQty; }
 function updateVariantPrice(productId) {
@@ -867,7 +919,7 @@ function deliveryMethodRadiosInnerHtml() {
     <label style="display:flex;align-items:center;gap:8px;border:1.5px solid ${SELECTED_DELIVERY_METHOD===method?'var(--blue)':'var(--border)'};border-radius:10px;padding:10px 12px;margin-bottom:8px;cursor:pointer">
       <input type="radio" name="deliveryMethod" value="${method}" ${SELECTED_DELIVERY_METHOD===method?'checked':''} onchange="selectDeliveryMethod('${method}')">
       <span style="flex:1">${icon} ${label}</span>
-      <span style="font-weight:700">${fee>0?fmtMoney(fee,BOUTIQUE.currency):t('delivery_method_free')}</span>
+      <span style="font-weight:700">${fee>0?moneyHtml(fee):t('delivery_method_free')}</span>
     </label>`;
   return opt('delivery','🚚',t('delivery_method_delivery'),deliveryFee) + opt('shipping','📮',t('delivery_method_shipping'),shippingFee);
 }
@@ -912,10 +964,10 @@ let APPLIED_PROMO = null; // {code, type, value, discount} - revalide de toute f
 function cartTotalsHtml(subtotal, deliveryFee) {
   const discount = APPLIED_PROMO ? Math.min(APPLIED_PROMO.discount, subtotal) : 0;
   const total = Math.max(0, subtotal + deliveryFee - discount);
-  return `<div class="cart-line"><div>${t('subtotal_label')}</div><div>${fmtMoney(subtotal, BOUTIQUE.currency)}</div></div>
-       ${deliveryFee > 0 ? '<div class="cart-line"><div>'+(SELECTED_DELIVERY_METHOD==='shipping'?t('shipping_fee_label'):t('delivery_fee_label'))+'</div><div>'+fmtMoney(deliveryFee, BOUTIQUE.currency)+'</div></div>' : ''}
-       ${discount > 0 ? '<div class="cart-line" style="color:var(--green,#16a34a)"><div>Code '+escapeHtml(APPLIED_PROMO.code)+'</div><div>-'+fmtMoney(discount, BOUTIQUE.currency)+'</div></div>' : ''}
-       <div class="cart-total"><div>${t('total_label')}</div><div>${fmtMoney(total, BOUTIQUE.currency)}</div></div>`;
+  return `<div class="cart-line"><div>${t('subtotal_label')}</div><div>${moneyHtml(subtotal)}</div></div>
+       ${deliveryFee > 0 ? '<div class="cart-line"><div>'+(SELECTED_DELIVERY_METHOD==='shipping'?t('shipping_fee_label'):t('delivery_fee_label'))+'</div><div>'+moneyHtml(deliveryFee)+'</div></div>' : ''}
+       ${discount > 0 ? '<div class="cart-line" style="color:var(--green,#16a34a)"><div>Code '+escapeHtml(APPLIED_PROMO.code)+'</div><div>'+moneyHtml(discount, true)+'</div></div>' : ''}
+       <div class="cart-total"><div>${t('total_label')}</div><div>${moneyHtml(total)}</div></div>${approxNoteHtml()}`;
 }
 function promoFieldHtml() {
   return `<div class="field-row" style="margin:10px 0">
@@ -972,7 +1024,7 @@ function renderCartSheet(step, prefill) {
     document.getElementById('cartSheet').innerHTML = `
       <button class="close" onclick="closeOverlay('cartOverlay')">✕</button>
       <h2>${t('cart_title')}</h2>
-      ${CART.length ? CART.map(l => `<div class="cart-line"><div>${escapeHtml(l.name)} × ${l.qty}<br><span style="color:var(--gray)">${fmtMoney(l.price,BOUTIQUE.currency)}</span></div><button onclick="removeFromCart('${l.key}')">✕</button></div>`).join('')
+      ${CART.length ? CART.map(l => `<div class="cart-line"><div>${escapeHtml(l.name)} × ${l.qty}<br><span style="color:var(--gray)">${moneyHtml(l.price)}</span></div><button onclick="removeFromCart('${l.key}')">✕</button></div>`).join('')
         : '<div class="empty" style="padding:30px 0"><div class="big">🛒</div>'+t('cart_empty')+'</div>'}
       ${CART.length ? totalsHtml+'<button class="btn btn-primary" onclick="renderCartSheet(\'checkout\', loadCustomerProfile())">'+(cartHasPhysicalItem() ? t('order_cod_btn') : t('order_digital_btn'))+'</button>' : ''}
     `;
@@ -1162,7 +1214,7 @@ function submitTrackOrder() {
         ${o.delivery_status ? '<div style="color:var(--gray);font-size:13px;margin-top:4px">'+t('delivery_label')+(trackDeliveryLabels()[o.delivery_status]||o.delivery_status)+'</div>' : ''}
         ${o.delivery_person_name ? '<div style="color:var(--gray);font-size:13px">'+t('delivery_person_label')+escapeHtml(o.delivery_person_name)+' ('+escapeHtml(o.delivery_person_phone||'')+')</div>' : ''}
         <div style="margin-top:10px">${(o.items||[]).map(it=>'<div style="font-size:13px">'+it.qty+' × '+escapeHtml(it.product_name)+'</div>').join('')}</div>
-        <div style="font-weight:700;margin-top:8px">${t('order_total_label')}${fmtMoney(o.total, BOUTIQUE.currency)}</div>
+        <div style="font-weight:700;margin-top:8px">${t('order_total_label')}${moneyHtml(o.total)}</div>
         ${o.status === 'delivered' ? renderDisputeBlock(o) : ''}
       </div>`;
   });
