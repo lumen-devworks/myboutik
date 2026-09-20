@@ -59,6 +59,11 @@
   .overlay.open{display:flex}
   @media (min-width:640px){.overlay{align-items:center}}
   .sheet{background:#fff;border-radius:18px 18px 0 0;max-width:520px;width:100%;max-height:92vh;overflow-y:auto;padding:24px;position:relative}
+  .country-list{display:none;max-height:210px;overflow-y:auto;border:1px solid var(--border);border-radius:9px;margin-top:6px;background:#fff;-webkit-overflow-scrolling:touch}
+  .country-opt{padding:11px 12px;font-size:14px;cursor:pointer;border-bottom:1px solid var(--border)}
+  .country-opt:last-child{border-bottom:none}
+  .country-opt:hover,.country-opt:active{background:#fff1e6}
+  .country-empty{padding:11px 12px;font-size:13px;color:var(--gray)}
   @media (min-width:640px){.sheet{border-radius:18px}}
   .sheet .close{position:absolute;top:14px;right:16px;border:none;background:none;font-size:20px;cursor:pointer;color:var(--gray)}
   .field{margin-bottom:14px}
@@ -155,6 +160,77 @@ function countryFlag(name) {
 // plutot que recopiee, pour le champ "pays de destination" en mode
 // Expedition (voir shippingCountryFieldHtml()).
 const COUNTRIES_FR = Object.keys(COUNTRY_ISO);
+// Selecteur de pays : champ texte + liste deroulante geree par nos soins,
+// plutot que <input list>/<datalist>. Le datalist natif ne montre AUCUNE
+// suggestion sur beaucoup de telephones (navigateur Samsung, Firefox,
+// WebView de Facebook/Instagram/TikTok, certains iPhone) - le client ne
+// voyait alors aucun pays a choisir. Ici la liste complete s'ouvre des qu'on
+// touche le champ, se filtre en tapant (sans tenir compte des accents/
+// majuscules) et un tap sur un pays le choisit. canonicalCountry() sert de
+// garde-fou avant sauvegarde : il renvoie l'ecriture exacte de la liste (ou
+// null) - la comparaison par pays cote annuaire/frais d'expedition est
+// exacte, une variante orthographique la casserait.
+function normCountry(s) {
+  return String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[‘’`]/g, "'").toLowerCase().trim();
+}
+function canonicalCountry(value) {
+  const n = normCountry(value);
+  return n ? (COUNTRIES_FR.find(c => normCountry(c) === n) || null) : null;
+}
+// extraAttrs : attributs supplementaires du champ (ex: oninput="...").
+function countryPickerHtml(inputId, value, extraAttrs) {
+  return '<div class="country-field"><input id="'+inputId+'" class="country-input" autocomplete="off" autocapitalize="off" spellcheck="false" value="'+escapeHtml(value || '')+'" placeholder="'+escapeHtml(t('select_country_placeholder'))+'" '+(extraAttrs || '')+'>'
+    + '<div class="country-list" id="'+inputId+'_list"></div></div>';
+}
+let COUNTRY_SILENT = false; // evite de rouvrir la liste quand c'est le code (et non la personne) qui modifie le champ
+function renderCountryList(input) {
+  const list = document.getElementById(input.id + '_list');
+  if (!list) return;
+  const q = normCountry(input.value);
+  const matches = COUNTRIES_FR.filter(c => !q || normCountry(c).includes(q));
+  matches.sort((a, b) => Number(normCountry(b).startsWith(q)) - Number(normCountry(a).startsWith(q)));
+  list.innerHTML = matches.length
+    ? matches.map(c => '<div class="country-opt" data-value="'+escapeHtml(c)+'">'+escapeHtml(c)+'</div>').join('')
+    : '<div class="country-empty">'+escapeHtml(t('no_country_match'))+'</div>';
+  list.style.display = 'block';
+  try { list.scrollIntoView({block: 'nearest'}); } catch (e) {}
+}
+function hideCountryLists() {
+  document.querySelectorAll('.country-list').forEach(l => { l.style.display = 'none'; });
+}
+function pickCountry(input, value) {
+  COUNTRY_SILENT = true;
+  input.value = value;
+  input.dispatchEvent(new Event('input', {bubbles: true}));
+  input.dispatchEvent(new Event('change', {bubbles: true}));
+  COUNTRY_SILENT = false;
+  hideCountryLists();
+}
+const isCountryInput = el => !!(el && el.classList && el.classList.contains('country-input'));
+document.addEventListener('focusin', e => { if (isCountryInput(e.target)) renderCountryList(e.target); });
+document.addEventListener('click', e => {
+  if (isCountryInput(e.target)) { renderCountryList(e.target); return; }
+  const opt = e.target.closest && e.target.closest('.country-opt');
+  if (opt) pickCountry(opt.closest('.country-field').querySelector('.country-input'), opt.dataset.value);
+});
+document.addEventListener('input', e => { if (!COUNTRY_SILENT && isCountryInput(e.target)) renderCountryList(e.target); });
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Enter' || !isCountryInput(e.target)) return;
+  e.preventDefault();
+  const first = document.querySelector('#'+e.target.id+'_list .country-opt');
+  if (first) pickCountry(e.target, first.dataset.value);
+});
+// Sortie du champ : si ce qui est tape correspond a un pays a l'accent/
+// majuscule pres ("cote d'ivoire"), on le remplace par l'ecriture exacte.
+document.addEventListener('focusout', e => {
+  if (!isCountryInput(e.target)) return;
+  const canon = canonicalCountry(e.target.value);
+  if (canon && canon !== e.target.value) pickCountry(e.target, canon);
+});
+// Un tap en dehors du selecteur referme la liste.
+document.addEventListener('pointerdown', e => {
+  if (!e.target.closest || !e.target.closest('.country-field')) hideCountryLists();
+});
 
 // ============================================================
 // TRADUCTION (FR/EN) - textes fixes de la vitrine publique. Les messages
@@ -233,6 +309,7 @@ const I18N = {
     delivery_method_shipping: 'Expédition',
     delivery_method_free: 'Gratuit',
     shipping_country_label: 'Pays de destination',
+    no_country_match: 'Aucun pays ne correspond',
     select_country_placeholder: 'Choisir un pays…',
     shipping_country_required: 'Le pays de destination est requis pour une expédition',
     shipping_country_invalid: 'Veuillez choisir un pays dans la liste proposée',
@@ -335,6 +412,7 @@ const I18N = {
     delivery_method_shipping: 'Shipping',
     delivery_method_free: 'Free',
     shipping_country_label: 'Destination country',
+    no_country_match: 'No matching country',
     select_country_placeholder: 'Choose a country…',
     shipping_country_required: 'The destination country is required for shipping',
     shipping_country_invalid: 'Please choose a country from the suggested list',
@@ -780,9 +858,8 @@ function deliveryMethodRadiosInnerHtml() {
 function shippingCountryFieldHtml() {
   if (SELECTED_DELIVERY_METHOD !== 'shipping') return '';
   return `<div class="field"><label>${t('shipping_country_label')}</label>
-      <input id="coShippingCountry" list="shipCountryList" value="${escapeHtml(SELECTED_SHIPPING_COUNTRY)}" oninput="onShippingCountryInput()" placeholder="${t('select_country_placeholder')}">
-    </div>
-    <datalist id="shipCountryList">${COUNTRIES_FR.map(c => '<option value="'+escapeHtml(c)+'">').join('')}</datalist>`;
+      ${countryPickerHtml('coShippingCountry', SELECTED_SHIPPING_COUNTRY, 'oninput="onShippingCountryInput()"')}
+    </div>`;
 }
 function deliveryMethodChoiceHtml() {
   if (!cartHasPhysicalItem()) return '';
@@ -800,7 +877,8 @@ function selectDeliveryMethod(method) {
 // le formulaire - appele a chaque frappe dans le champ pays, la ou un
 // renderCartSheet() complet ferait perdre le focus de ce meme champ.
 function onShippingCountryInput() {
-  SELECTED_SHIPPING_COUNTRY = document.getElementById('coShippingCountry').value.trim();
+  const rawCountry = document.getElementById('coShippingCountry').value.trim();
+  SELECTED_SHIPPING_COUNTRY = canonicalCountry(rawCountry) || rawCountry;
   const radios = document.getElementById('deliveryMethodRadios');
   if (radios) radios.innerHTML = deliveryMethodRadiosInnerHtml();
   const totalsBlock = document.getElementById('checkoutTotalsBlock');

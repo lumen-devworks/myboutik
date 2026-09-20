@@ -141,6 +141,11 @@
   .toast-error{background:#fee2e2;color:#991b1b;border:1px solid #fecaca}
   .toast-info{background:#eff6ff;color:#1e40af;border:1px solid #bfdbfe}
   .modal{background:#fff;border-radius:16px;max-width:440px;width:100%;padding:28px;max-height:88vh;overflow-y:auto}
+  .country-list{display:none;max-height:210px;overflow-y:auto;border:1px solid var(--border);border-radius:9px;margin-top:6px;background:#fff;-webkit-overflow-scrolling:touch}
+  .country-opt{padding:11px 12px;font-size:14px;cursor:pointer;border-bottom:1px solid var(--border)}
+  .country-opt:last-child{border-bottom:none}
+  .country-opt:hover,.country-opt:active{background:#fff1e6}
+  .country-empty{padding:11px 12px;font-size:13px;color:var(--gray)}
   .modal h2{font-size:18px;margin-bottom:16px}
   .modal-actions{display:flex;gap:10px;margin-top:8px}
   .msg{font-size:13px;border-radius:10px;padding:9px 11px;margin-bottom:12px}
@@ -485,6 +490,7 @@ const I18N = {
     boutique_country_required: 'Le pays de la boutique est requis',
     boutique_country_invalid: 'Veuillez choisir un pays dans la liste proposée',
     select_country_placeholder: 'Choisir un pays…',
+    no_country_match: 'Aucun pays ne correspond',
     btn_cancel: 'Annuler',
     confirm_ok_btn: 'Confirmer',
     btn_create: 'Créer',
@@ -1164,6 +1170,7 @@ const I18N = {
     boutique_country_required: 'The shop country is required',
     boutique_country_invalid: 'Please choose a country from the suggested list',
     select_country_placeholder: 'Choose a country…',
+    no_country_match: 'No matching country',
     btn_cancel: 'Cancel',
     confirm_ok_btn: 'Confirm',
     btn_create: 'Create',
@@ -1813,18 +1820,77 @@ function DIRECTORY_CATEGORIES_FN() { return [
 // les variantes orthographiques d'un pays tape librement, et permet a
 // l'annuaire de filtrer dessus de facon fiable (voir directory_filters()).
 const COUNTRIES_FR = ["Afghanistan","Afrique du Sud","Albanie","Algérie","Allemagne","Andorre","Angola","Arabie saoudite","Argentine","Arménie","Australie","Autriche","Azerbaïdjan","Bahamas","Bahreïn","Bangladesh","Barbade","Belgique","Belize","Bénin","Bhoutan","Biélorussie","Birmanie","Bolivie","Bosnie-Herzégovine","Botswana","Brésil","Brunei","Bulgarie","Burkina Faso","Burundi","Cambodge","Cameroun","Canada","Cap-Vert","Chili","Chine","Chypre","Colombie","Comores","Congo-Brazzaville","Congo-Kinshasa","Corée du Nord","Corée du Sud","Costa Rica","Côte d'Ivoire","Croatie","Cuba","Danemark","Djibouti","Dominique","Égypte","Émirats arabes unis","Équateur","Érythrée","Espagne","Estonie","Eswatini","États-Unis","Éthiopie","Fidji","Finlande","France","Gabon","Gambie","Géorgie","Ghana","Grèce","Grenade","Guatemala","Guinée","Guinée-Bissau","Guinée équatoriale","Guyana","Haïti","Honduras","Hongrie","Inde","Indonésie","Irak","Iran","Irlande","Islande","Israël","Italie","Jamaïque","Japon","Jordanie","Kazakhstan","Kenya","Kirghizistan","Kiribati","Koweït","Laos","Lesotho","Lettonie","Liban","Liberia","Libye","Liechtenstein","Lituanie","Luxembourg","Macédoine du Nord","Madagascar","Malaisie","Malawi","Maldives","Mali","Malte","Maroc","Marshall","Maurice","Mauritanie","Mexique","Micronésie","Moldavie","Monaco","Mongolie","Monténégro","Mozambique","Namibie","Nauru","Népal","Nicaragua","Niger","Nigeria","Norvège","Nouvelle-Zélande","Oman","Ouganda","Ouzbékistan","Pakistan","Palaos","Palestine","Panama","Papouasie-Nouvelle-Guinée","Paraguay","Pays-Bas","Pérou","Philippines","Pologne","Portugal","Qatar","République centrafricaine","République dominicaine","République tchèque","Roumanie","Royaume-Uni","Russie","Rwanda","Saint-Christophe-et-Niévès","Saint-Marin","Saint-Vincent-et-les-Grenadines","Sainte-Lucie","Salomon","Salvador","Samoa","São Tomé-et-Príncipe","Sénégal","Serbie","Seychelles","Sierra Leone","Singapour","Slovaquie","Slovénie","Somalie","Soudan","Soudan du Sud","Sri Lanka","Suède","Suisse","Suriname","Syrie","Tadjikistan","Tanzanie","Tchad","Thaïlande","Timor oriental","Togo","Tonga","Trinité-et-Tobago","Tunisie","Turkménistan","Turquie","Tuvalu","Ukraine","Uruguay","Vanuatu","Vatican","Venezuela","Vietnam","Yémen","Zambie","Zimbabwe"];
-// Champ texte + <datalist> plutot qu'un <select> classique : taper "ma"
-// filtre nativement sur Mali/Madagascar/Malaisie/Malawi/Maldives/Malte/
-// Maroc/Mauritanie/Maurice au lieu d'obliger a faire defiler 194 pays un
-// par un. isValidCountryValue() sert de garde-fou avant sauvegarde (voir
-// submitCreateBoutique()/saveSettings()) puisqu'un champ texte libre
-// pourrait sinon laisser passer une saisie qui ne correspond a aucun pays
-// de la liste (fautes de frappe), ce qui casserait le filtre par pays de
-// l'annuaire (comparaison exacte, voir directory_boutiques()).
-function countryDatalistHtml(datalistId) {
-  return '<datalist id="'+datalistId+'">' + COUNTRIES_FR.map(c => '<option value="'+c+'">').join('') + '</datalist>';
+// Selecteur de pays : champ texte + liste deroulante geree par nos soins,
+// plutot que <input list>/<datalist>. Le datalist natif ne montre AUCUNE
+// suggestion sur beaucoup de telephones (navigateur Samsung, Firefox,
+// WebView de Facebook/Instagram/TikTok, certains iPhone) - le client ne
+// voyait alors aucun pays a choisir. Ici la liste complete s'ouvre des qu'on
+// touche le champ, se filtre en tapant (sans tenir compte des accents/
+// majuscules) et un tap sur un pays le choisit. canonicalCountry() sert de
+// garde-fou avant sauvegarde : il renvoie l'ecriture exacte de la liste (ou
+// null) - la comparaison par pays cote annuaire/frais d'expedition est
+// exacte, une variante orthographique la casserait.
+function normCountry(s) {
+  return String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[‘’`]/g, "'").toLowerCase().trim();
 }
-function isValidCountryValue(value) { return COUNTRIES_FR.includes(value); }
+function canonicalCountry(value) {
+  const n = normCountry(value);
+  return n ? (COUNTRIES_FR.find(c => normCountry(c) === n) || null) : null;
+}
+// extraAttrs : attributs supplementaires du champ (ex: oninput="...").
+function countryPickerHtml(inputId, value, extraAttrs) {
+  return '<div class="country-field"><input id="'+inputId+'" class="country-input" autocomplete="off" autocapitalize="off" spellcheck="false" value="'+escapeHtml(value || '')+'" placeholder="'+escapeHtml(t('select_country_placeholder'))+'" '+(extraAttrs || '')+'>'
+    + '<div class="country-list" id="'+inputId+'_list"></div></div>';
+}
+let COUNTRY_SILENT = false; // evite de rouvrir la liste quand c'est le code (et non la personne) qui modifie le champ
+function renderCountryList(input) {
+  const list = document.getElementById(input.id + '_list');
+  if (!list) return;
+  const q = normCountry(input.value);
+  const matches = COUNTRIES_FR.filter(c => !q || normCountry(c).includes(q));
+  matches.sort((a, b) => Number(normCountry(b).startsWith(q)) - Number(normCountry(a).startsWith(q)));
+  list.innerHTML = matches.length
+    ? matches.map(c => '<div class="country-opt" data-value="'+escapeHtml(c)+'">'+escapeHtml(c)+'</div>').join('')
+    : '<div class="country-empty">'+escapeHtml(t('no_country_match'))+'</div>';
+  list.style.display = 'block';
+  try { list.scrollIntoView({block: 'nearest'}); } catch (e) {}
+}
+function hideCountryLists() {
+  document.querySelectorAll('.country-list').forEach(l => { l.style.display = 'none'; });
+}
+function pickCountry(input, value) {
+  COUNTRY_SILENT = true;
+  input.value = value;
+  input.dispatchEvent(new Event('input', {bubbles: true}));
+  input.dispatchEvent(new Event('change', {bubbles: true}));
+  COUNTRY_SILENT = false;
+  hideCountryLists();
+}
+const isCountryInput = el => !!(el && el.classList && el.classList.contains('country-input'));
+document.addEventListener('focusin', e => { if (isCountryInput(e.target)) renderCountryList(e.target); });
+document.addEventListener('click', e => {
+  if (isCountryInput(e.target)) { renderCountryList(e.target); return; }
+  const opt = e.target.closest && e.target.closest('.country-opt');
+  if (opt) pickCountry(opt.closest('.country-field').querySelector('.country-input'), opt.dataset.value);
+});
+document.addEventListener('input', e => { if (!COUNTRY_SILENT && isCountryInput(e.target)) renderCountryList(e.target); });
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Enter' || !isCountryInput(e.target)) return;
+  e.preventDefault();
+  const first = document.querySelector('#'+e.target.id+'_list .country-opt');
+  if (first) pickCountry(e.target, first.dataset.value);
+});
+// Sortie du champ : si ce qui est tape correspond a un pays a l'accent/
+// majuscule pres ("cote d'ivoire"), on le remplace par l'ecriture exacte.
+document.addEventListener('focusout', e => {
+  if (!isCountryInput(e.target)) return;
+  const canon = canonicalCountry(e.target.value);
+  if (canon && canon !== e.target.value) pickCountry(e.target, canon);
+});
+// Un tap en dehors du selecteur referme la liste.
+document.addEventListener('pointerdown', e => {
+  if (!e.target.closest || !e.target.closest('.country-field')) hideCountryLists();
+});
 // Le libelle du tarif d'expedition "meme pays" nomme le pays de LA
 // BOUTIQUE (CURRENT) pour lever toute ambiguite avec le tarif "autre pays"
 // juste a cote - sans pays configure (vieille boutique creee avant ce
@@ -2074,7 +2140,7 @@ function openCreateBoutique() {
     <h2>${t('modal_create_boutique_title')}</h2>
     <div id="createBoutiqueMsg"></div>
     <div class="field"><label>${t('label_boutique_name')}</label><input id="newBoutiqueName" placeholder="${t('placeholder_boutique_name')}"></div>
-    <div class="field"><label>${t('label_boutique_country')}</label><input id="newBoutiqueCountry" list="newBoutiqueCountryList" placeholder="${t('select_country_placeholder')}">${countryDatalistHtml('newBoutiqueCountryList')}</div>
+    <div class="field"><label>${t('label_boutique_country')}</label>${countryPickerHtml('newBoutiqueCountry', '')}</div>
     <div class="field"><label>${t('label_boutique_city')}</label><input id="newBoutiqueCity" placeholder="${t('placeholder_boutique_city')}"></div>
     <div class="modal-actions">
       <button class="btn btn-ghost" onclick="closeModal()">${t('btn_cancel')}</button>
@@ -2085,10 +2151,11 @@ function openCreateBoutique() {
 function submitCreateBoutique() {
   const name = document.getElementById('newBoutiqueName').value.trim();
   const city = document.getElementById('newBoutiqueCity').value.trim();
-  const country = document.getElementById('newBoutiqueCountry').value.trim();
+  const countryRaw = document.getElementById('newBoutiqueCountry').value.trim();
+  const country = canonicalCountry(countryRaw);
   if (!name) return;
-  if (!country) { document.getElementById('createBoutiqueMsg').innerHTML = '<div class="msg error">'+t('boutique_country_required')+'</div>'; return; }
-  if (!isValidCountryValue(country)) { document.getElementById('createBoutiqueMsg').innerHTML = '<div class="msg error">'+t('boutique_country_invalid')+'</div>'; return; }
+  if (!countryRaw) { document.getElementById('createBoutiqueMsg').innerHTML = '<div class="msg error">'+t('boutique_country_required')+'</div>'; return; }
+  if (!country) { document.getElementById('createBoutiqueMsg').innerHTML = '<div class="msg error">'+t('boutique_country_invalid')+'</div>'; return; }
   if (!city) { document.getElementById('createBoutiqueMsg').innerHTML = '<div class="msg error">'+t('boutique_city_required')+'</div>'; return; }
   post('/boutiques?action=create', {name, city, country}).then(({data}) => {
     if (!data.success) { document.getElementById('createBoutiqueMsg').innerHTML = '<div class="msg error">'+data.message+'</div>'; return; }
@@ -3929,7 +3996,7 @@ function renderSettings(bt) {
           </select>
         </div>
         <div class="field"><label>${t('label_directory_city')}</label><input id="setCity" value="${escapeHtml(bt.city||'')}" placeholder="${t('placeholder_directory_city')}"></div>
-        <div class="field"><label>${t('label_boutique_country')}</label><input id="setCountry" list="setCountryList" value="${escapeHtml(bt.country||'')}" placeholder="${t('select_country_placeholder')}">${countryDatalistHtml('setCountryList')}</div>
+        <div class="field"><label>${t('label_boutique_country')}</label>${countryPickerHtml('setCountry', bt.country||'')}</div>
       </div>
       <button class="btn btn-primary" onclick="saveSettings('settingsMsg')">${t('btn_save')}</button>
     </div>
@@ -3964,8 +4031,9 @@ function handleLogoFile(input) {
 // passait, le message apparaissant hors de vue plus haut).
 function saveSettings(targetMsgId) {
   const msgEl = document.getElementById(targetMsgId || 'settingsMsg');
-  const countryInput = document.getElementById('setCountry').value.trim();
-  if (countryInput && !isValidCountryValue(countryInput)) { msgEl.innerHTML = '<div class="msg error">'+t('boutique_country_invalid')+'</div>'; return; }
+  const countryRaw = document.getElementById('setCountry').value.trim();
+  const countryInput = countryRaw ? canonicalCountry(countryRaw) : '';
+  if (countryRaw && !countryInput) { msgEl.innerHTML = '<div class="msg error">'+t('boutique_country_invalid')+'</div>'; return; }
   post('/boutiques?action=update', {
     id:CURRENT.id, name:document.getElementById('setName').value.trim(),
     description:document.getElementById('setDescription').value.trim(),
