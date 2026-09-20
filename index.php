@@ -5091,16 +5091,28 @@ function admin_announcement_audience_count() {
 // reseau) sur UN segment annule la traduction entiere : mieux vaut un texte
 // francais complet qu'un melange francais/anglais. Renvoie null si impossible.
 function mymemory_translate($seg, $from = 'fr', $to = 'en') {
-    $url = 'https://api.mymemory.translated.net/get?q='.rawurlencode($seg).'&langpair='.$from.'%7C'.$to
-         .(ADMIN_NOTIFY_EMAIL ? '&de='.rawurlencode(ADMIN_NOTIFY_EMAIL) : '');
-    $ch = curl_init($url);
-    curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 6, CURLOPT_CONNECTTIMEOUT => 3, CURLOPT_FOLLOWLOCATION => true]);
-    $body = curl_exec($ch);
-    curl_close($ch);
-    $j = $body ? json_decode($body, true) : null;
-    $t = is_array($j) ? ($j['responseData']['translatedText'] ?? null) : null;
-    if (!is_array($j) || (int)($j['responseStatus'] ?? 0) !== 200 || !is_string($t) || trim($t) === '' || stripos($t, 'MYMEMORY WARNING') !== false) return null;
-    return html_entity_decode($t, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    // L'adresse de l'operateur releve la limite quotidienne, mais MyMemory refuse
+    // toute la requete si elle est invalide : on ne l'envoie que valide, et on
+    // retente sans elle si le service la rejette. Le motif du dernier echec est
+    // garde dans $GLOBALS['mm_error'] pour le message d'erreur de l'admin.
+    $email = (ADMIN_NOTIFY_EMAIL && filter_var(ADMIN_NOTIFY_EMAIL, FILTER_VALIDATE_EMAIL)) ? ADMIN_NOTIFY_EMAIL : null;
+    foreach ($email ? [$email, null] : [null] as $de) {
+        $url = 'https://api.mymemory.translated.net/get?q='.rawurlencode($seg).'&langpair='.$from.'%7C'.$to
+              .($de ? '&de='.rawurlencode($de) : '');
+        $ch = curl_init($url);
+        curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 8, CURLOPT_CONNECTTIMEOUT => 4, CURLOPT_FOLLOWLOCATION => true]);
+        $body = curl_exec($ch);
+        $curlErr = curl_error($ch);
+        curl_close($ch);
+        $j = $body ? json_decode($body, true) : null;
+        $t = is_array($j) ? ($j['responseData']['translatedText'] ?? null) : null;
+        if (is_array($j) && (int)($j['responseStatus'] ?? 0) === 200 && is_string($t) && trim($t) !== '' && stripos($t, 'MYMEMORY WARNING') === false) {
+            return html_entity_decode($t, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        }
+        $GLOBALS['mm_error'] = !is_array($j) ? ($curlErr !== '' ? $curlErr : 'reponse vide') : (is_string($t) ? $t : 'reponse inattendue');
+        error_log('MyMemory: '.$GLOBALS['mm_error']);
+    }
+    return null;
 }
 // Coupe une ligne trop longue aux fins de phrase, en paquets <= 450 caracteres.
 function translation_segments($line) {
@@ -5162,7 +5174,7 @@ function admin_announcement_translate() {
     if (isset($b['text'])) {
         $en2fr = ($b['dir'] ?? '') === 'en2fr';
         $r = translate_text((string)$b['text'], $en2fr ? 'en' : 'fr', $en2fr ? 'fr' : 'en');
-        if ($r === null) fail($en2fr ? 'Traduction automatique indisponible : saisissez la version francaise a la main' : 'Traduction automatique indisponible : saisissez la version anglaise a la main', 503);
+        if ($r === null) fail(($en2fr ? 'Traduction automatique indisponible : saisissez la version francaise a la main' : 'Traduction automatique indisponible : saisissez la version anglaise a la main').(!empty($GLOBALS['mm_error']) ? ' ['.$GLOBALS['mm_error'].']' : ''), 503);
         ok(['text' => $r]);
     }
     $one = function($k) use ($b) { $v = trim((string)($b[$k] ?? '')); return $v === '' ? null : translate_fr_to_en($v); };
