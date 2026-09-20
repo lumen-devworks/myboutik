@@ -172,6 +172,9 @@ const EN_DICT = [
     'Aucune reclamation ouverte pour cette commande' => 'No open complaint for this order',
     'Ecrivez une reponse' => 'Write a response',
     'Devise invalide' => 'Invalid currency',
+    'Taux de change invalide' => 'Invalid exchange rate',
+    'Taux enregistres' => 'Rates saved',
+    'Table des taux absente : relancez /install puis reessayez' => 'Rates table missing: run /install again then retry',
     'Ecrivez un message d\'avertissement' => 'Write a warning message',
     'Avertissement envoye' => 'Warning sent',
     'Reponse envoyee' => 'Response sent',
@@ -657,6 +660,22 @@ function currency_for_country($country) { return COUNTRY_CURRENCY[$country] ?? '
 function valid_currency($code) { return in_array($code, COUNTRY_CURRENCY, true); }
 function currency_decimals($code) { return in_array($code ?: 'XOF', ZERO_DECIMAL_CURRENCIES, true) ? 0 : 2; }
 function money_fmt($amount, $code) { return number_format((float)$amount, currency_decimals($code), ',', ' '); }
+// Taux vers le FCFA (1 unite de devise = X FCFA). Les parites FIXES (franc CFA
+// d'Afrique centrale, euro a 655,957 par accord officiel, franc comorien
+// rattache a l'euro) sont connues d'avance et non modifiables ; les autres
+// devises n'ont de taux que si l'admin en a saisi un (table currency_rates).
+const FIXED_CFA_RATES = ['XOF' => 1.0, 'XAF' => 1.0, 'EUR' => 655.957, 'KMF' => 1.3333333333];
+function currency_rates() {
+    static $cache = null;
+    if ($cache !== null) return $cache;
+    $rates = FIXED_CFA_RATES;
+    try {
+        foreach (q("SELECT currency, rate_to_xof FROM currency_rates")->fetchAll() as $r) {
+            if (!isset(FIXED_CFA_RATES[$r['currency']])) $rates[$r['currency']] = (float)$r['rate_to_xof'];
+        }
+    } catch (PDOException $e) { /* table pas encore creee (/install a relancer) : parites fixes seulement */ }
+    return $cache = $rates;
+}
 
 function require_boutique_owned($boutiqueId, $userId) {
     if (!$boutiqueId) fail('boutique_id manquant', 400);
@@ -1514,6 +1533,13 @@ function route_install() {
         bucket VARCHAR(50),
         ip_address VARCHAR(64),
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )",
+    // Taux de change saisis par l'admin (1 unite de la devise = rate_to_xof
+    // FCFA) - sert uniquement aux totaux/classements du panneau admin.
+    "CREATE TABLE IF NOT EXISTS currency_rates (
+        currency VARCHAR(3) PRIMARY KEY,
+        rate_to_xof DECIMAL(18,6) NOT NULL,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )",
     ];
 
@@ -4623,6 +4649,8 @@ function route_admin($action) {
         case 'low_reviews_list':      admin_low_reviews_list(); break;
         case 'top_boutiques':         admin_top_boutiques(); break;
         case 'period_stats':          admin_period_stats(); break;
+        case 'rates_list':            admin_rates_list(); break;
+        case 'rates_save':            admin_rates_save(); break;
         case 'seed_demo_data':        admin_seed_demo_data(); break;
         case 'delete_demo_data':      admin_delete_demo_data(); break;
         default: fail('Action inconnue', 404);
@@ -4796,7 +4824,7 @@ function admin_top_boutiques() {
     [$from, $to] = admin_period_bounds($b);
     $ordParams = []; $ordDate = admin_period_sql('created_at', $from, $to, $ordParams);
     $itemParams = []; $itemDate = admin_period_sql('o.created_at', $from, $to, $itemParams);
-    ok(q("SELECT b.id, b.name, b.slug, b.city, b.country, b.currency,
+    $rows = q("SELECT b.id, b.name, b.slug, b.city, b.country, b.currency,
                  COALESCE(ord.orders_count,0) AS orders_count,
                  COALESCE(ord.revenue,0) AS revenue,
                  COALESCE(items.items_sold,0) AS items_sold
@@ -4812,7 +4840,54 @@ function admin_top_boutiques() {
             WHERE o.status IN ".ENCAISSE_STATUSES.$itemDate."
             GROUP BY o.boutique_id
           ) items ON items.boutique_id = b.id
-          ORDER BY $orderCol DESC LIMIT 10", array_merge($ordParams, $itemParams))->fetchAll());
+          ORDER BY $orderCol DESC".($orderCol === 'revenue' ? '' : ' LIMIT 10'), array_merge($ordParams, $itemParams))->fetchAll();
+    // Le CA de boutiques en devises differentes ne se compare qu'une fois
+    // converti en FCFA : classement par revenue_xof (null = taux manquant, en
+    // fin de liste). Les classements par articles/commandes n'en dependent pas.
+    $rates = currency_rates();
+    foreach ($rows as &$r) {
+        $rate = $rates[$r['currency'] ?: 'XOF'] ?? null;
+        $r['revenue_xof'] = $rate === null ? null : round((float)$r['revenue'] * $rate);
+    }
+    unset($r);
+    if ($orderCol === 'revenue') {
+        usort($rows, function($x, $y) { return ($y['revenue_xof'] ?? -1) <=> ($x['revenue_xof'] ?? -1); });
+        $rows = array_slice($rows, 0, 10);
+    }
+    ok($rows);
+}
+// Taux de change : une ligne par devise utilisee par au moins une boutique
+// (hors XOF, qui vaut 1). source : 'fixed' (parite officielle, non
+// modifiable), 'custom' (saisi par l'admin) ou 'missing' (a renseigner).
+function admin_rates_list() {
+    $rates = currency_rates();
+    $codes = q("SELECT DISTINCT COALESCE(currency,'XOF') AS c FROM boutiques ORDER BY c")->fetchAll(PDO::FETCH_COLUMN);
+    $out = [];
+    foreach ($codes as $c) {
+        if ($c === 'XOF') continue;
+        $out[] = ['currency' => $c, 'rate' => $rates[$c] ?? null,
+                  'source' => isset(FIXED_CFA_RATES[$c]) ? 'fixed' : (isset($rates[$c]) ? 'custom' : 'missing')];
+    }
+    ok($out);
+}
+// Enregistre les taux saisis ({rates:{USD: 600.5, ...}}) : une valeur vide
+// supprime le taux de cette devise ; les parites fixes ne sont jamais modifiees.
+function admin_rates_save() {
+    $b = body();
+    $in = is_array($b['rates'] ?? null) ? $b['rates'] : [];
+    try {
+        foreach ($in as $code => $val) {
+            if (!valid_currency($code) || isset(FIXED_CFA_RATES[$code])) continue;
+            if ($val === '' || $val === null) { q("DELETE FROM currency_rates WHERE currency=?", [$code]); continue; }
+            if (!is_numeric($val) || (float)$val <= 0) fail('Taux de change invalide');
+            q("INSERT INTO currency_rates (currency, rate_to_xof) VALUES (?,?)
+               ON CONFLICT (currency) DO UPDATE SET rate_to_xof=EXCLUDED.rate_to_xof, updated_at=NOW()", [$code, (float)$val]);
+        }
+    } catch (PDOException $e) {
+        error_log('[MYBOUTIK] currency_rates: '.$e->getMessage());
+        fail('Table des taux absente : relancez /install puis reessayez', 500);
+    }
+    ok(null, 'Taux enregistres');
 }
 // Bornes de periode envoyees par la barre de periode du panneau admin
 // (from/to = dates AAAA-MM-JJ, l'une ou l'autre ou les deux, ou aucune =
@@ -4841,8 +4916,15 @@ function admin_period_stats() {
     $vol = q("SELECT COUNT(*) c FROM orders WHERE status IN ".ENCAISSE_STATUSES.$d, $p)->fetch();
     // Une somme melangeant XOF, EUR... n'aurait aucun sens : volume par devise.
     $pv = []; $dv = admin_period_sql('o.created_at', $from, $to, $pv);
-    $volByCurrency = q("SELECT b.currency, COALESCE(SUM(o.total),0) AS amount FROM orders o JOIN boutiques b ON b.id=o.boutique_id
-                        WHERE o.status IN ".ENCAISSE_STATUSES.$dv." GROUP BY b.currency ORDER BY amount DESC", $pv)->fetchAll();
+    $volByCurrency = q("SELECT COALESCE(b.currency,'XOF') AS currency, COALESCE(SUM(o.total),0) AS amount FROM orders o JOIN boutiques b ON b.id=o.boutique_id
+                        WHERE o.status IN ".ENCAISSE_STATUSES.$dv." GROUP BY COALESCE(b.currency,'XOF') ORDER BY amount DESC", $pv)->fetchAll();
+    // Total converti en FCFA avec les taux connus ; une devise sans taux est
+    // listee a part (volume_missing_rates) et exclue du total.
+    $rates = currency_rates(); $totalXof = 0.0; $missingRates = [];
+    foreach ($volByCurrency as $v) {
+        if (isset($rates[$v['currency']])) $totalXof += (float)$v['amount'] * $rates[$v['currency']];
+        else $missingRates[] = $v['currency'];
+    }
     $p2 = []; $d2 = admin_period_sql('COALESCE(reviewed_at, created_at)', $from, $to, $p2);
     $subs = q("SELECT plan, billing_cycle FROM subscription_requests WHERE status='approved'".$d2, $p2)->fetchAll();
     $gains = 0; foreach ($subs as $r) $gains += subscription_request_amount($r);
@@ -4854,6 +4936,7 @@ function admin_period_stats() {
     $disputes = (int)q("SELECT COUNT(*) c FROM orders WHERE dispute_status IS NOT NULL".$d4, $p4)->fetch()['c'];
     ok([
         'volume_orders' => (int)$vol['c'], 'volume_by_currency' => $volByCurrency,
+        'volume_total_xof' => round($totalXof), 'volume_missing_rates' => $missingRates,
         'gains' => $gains, 'approved_count' => count($subs),
         'new_users' => $newUsers, 'new_boutiques' => $newBoutiques,
         'disputes' => $disputes, 'low_reviews' => $lowReviews,

@@ -201,6 +201,11 @@
       <h3 id="h3PeriodStats" style="margin:4px 0 12px"></h3>
       <div class="stats-grid" id="periodStatsGrid"></div>
     </div>
+    <div class="card" data-panel="overview">
+      <h3 id="h3Rates">Taux de change (vers FCFA)</h3>
+      <p class="muted" id="ratesNote" style="margin-bottom:12px"></p>
+      <div id="ratesBody"></div>
+    </div>
     <div class="card" data-panel="boutiques">
       <h3 id="h3Boutiques">Boutiques</h3>
       <div class="stats-grid" id="boutiquesStatsGrid" style="margin-bottom:16px"></div>
@@ -422,6 +427,13 @@ const I18N = {
     actions_log_note: 'Suspensions, réactivations et avertissements envoyés — pour se souvenir de ce qui a déjà été fait sur une boutique.',
     no_actions_log: 'Aucune action admin pour le moment.',
     col_action: 'Action',
+    h3_rates: 'Taux de change (vers FCFA)',
+    rates_note: 'Un taux = combien de FCFA vaut 1 unité de la devise. Il sert au total converti (Volume des ventes) et au classement du Top 10 par chiffre d\'affaires. L\'euro et le franc CFA d\'Afrique centrale sont à parité fixe officielle ; pour les autres devises, saisissez le taux du jour et mettez-le à jour quand il change. Une devise sans taux est comptée à part et exclue du total.',
+    rates_none: 'Toutes les boutiques sont en FCFA : aucun taux à saisir.',
+    col_currency: 'Devise', col_rate: 'Valeur en FCFA',
+    rate_fixed: 'parité fixe', rate_missing: 'à renseigner', rate_missing_short: 'taux manquant',
+    btn_save_rates: 'Enregistrer les taux',
+    rates_missing_warning: 'Sans taux (exclues du total) : {list}',
     tab_overview: 'Vue d\'ensemble', tab_boutiques: 'Boutiques', tab_quality: 'Qualité', tab_subs: 'Abonnements',
     tab_clients: 'Clients', tab_revenue: 'Revenus', tab_feedback: 'Avis', tab_demo: 'Démo',
     period_label: 'Période',
@@ -435,7 +447,7 @@ const I18N = {
     period_scope_clients: 'appliquée à la date d\'inscription des clients',
     period_scope_feedback: 'appliquée à la date de l\'avis',
     h3_period_stats: 'Sur la période',
-    stat_volume: 'Volume des ventes (toutes boutiques)', stat_volume_orders: 'Commandes encaissées',
+    stat_volume: 'Volume des ventes (toutes boutiques, en FCFA)', stat_volume_orders: 'Commandes encaissées',
     stat_gains: 'Gains MYBOUTIK (abonnements)', stat_approved: 'Paiements approuvés',
     stat_new_users: 'Nouveaux clients', stat_new_boutiques: 'Nouvelles boutiques',
     stat_disputes_period: 'Réclamations', stat_low_reviews_period: 'Avis ≤2★',
@@ -456,7 +468,7 @@ const I18N = {
     no_flagged_boutiques: 'Aucune boutique signalée pour le moment.',
     col_issues: 'Total signalements',
     h3_top_boutiques: 'Top 10 des boutiques',
-    top_boutiques_note: 'Classées par chiffre d\'affaires encaissé (commandes validées, expédiées ou livrées).',
+    top_boutiques_note: 'Classées par chiffre d\'affaires encaissé (commandes validées, expédiées ou livrées) — le classement par CA compare les boutiques après conversion en FCFA avec les taux ci-dessous.',
     col_rank: '#', col_orders_count: 'Commandes', col_top_revenue: 'CA encaissé', col_items_sold: 'Articles vendus',
     no_top_boutiques: 'Aucune vente encaissée pour le moment.',
     no_history_to_export: 'Aucun historique à exporter.',
@@ -559,6 +571,13 @@ const I18N = {
     actions_log_note: 'Suspensions, reactivations and warnings sent - to remember what has already been done on a shop.',
     no_actions_log: 'No admin action yet.',
     col_action: 'Action',
+    h3_rates: 'Exchange rates (to FCFA)',
+    rates_note: 'A rate = how many FCFA 1 unit of the currency is worth. It is used for the converted total (Sales volume) and the revenue Top 10 ranking. The euro and the Central African CFA franc have an official fixed parity; for other currencies, enter today\'s rate and update it when it changes. A currency without a rate is counted separately and left out of the total.',
+    rates_none: 'All shops are in FCFA: no rate to enter.',
+    col_currency: 'Currency', col_rate: 'Value in FCFA',
+    rate_fixed: 'fixed parity', rate_missing: 'to fill in', rate_missing_short: 'rate missing',
+    btn_save_rates: 'Save rates',
+    rates_missing_warning: 'No rate (left out of the total): {list}',
     tab_overview: 'Overview', tab_boutiques: 'Shops', tab_quality: 'Quality', tab_subs: 'Subscriptions',
     tab_clients: 'Customers', tab_revenue: 'Revenue', tab_feedback: 'Feedback', tab_demo: 'Demo',
     period_label: 'Period',
@@ -572,7 +591,7 @@ const I18N = {
     period_scope_clients: 'applied to the customers\' registration date',
     period_scope_feedback: 'applied to the feedback date',
     h3_period_stats: 'Over the period',
-    stat_volume: 'Sales volume (all shops)', stat_volume_orders: 'Cashed-in orders',
+    stat_volume: 'Sales volume (all shops, in FCFA)', stat_volume_orders: 'Cashed-in orders',
     stat_gains: 'MYBOUTIK earnings (subscriptions)', stat_approved: 'Approved payments',
     stat_new_users: 'New customers', stat_new_boutiques: 'New shops',
     stat_disputes_period: 'Complaints', stat_low_reviews_period: 'Reviews ≤2★',
@@ -593,7 +612,7 @@ const I18N = {
     no_flagged_boutiques: 'No flagged shop at the moment.',
     col_issues: 'Total flags',
     h3_top_boutiques: 'Top 10 shops',
-    top_boutiques_note: 'Ranked by cashed-in revenue (confirmed, shipped, or delivered orders).',
+    top_boutiques_note: 'Ranked by cashed-in revenue (confirmed, shipped, or delivered orders) — the revenue ranking compares shops after conversion to FCFA using the rates below.',
     col_rank: '#', col_orders_count: 'Orders', col_top_revenue: 'Revenue', col_items_sold: 'Items sold',
     no_top_boutiques: 'No cashed-in sale yet.',
     no_history_to_export: 'No history to export.',
@@ -624,7 +643,7 @@ function setLang(lang) {
     renderTopBoutiquesTable('topBoutiquesItemsBody', TOP_BOUTIQUES.items_sold, 'items_sold');
     renderTopBoutiquesTable('topBoutiquesOrdersBody', TOP_BOUTIQUES.orders_count, 'orders_count');
     renderActionsLog(ACTIONS_LOG_ROWS);
-    renderPeriodStats(); updatePeriodBar(); updateTabBadges();
+    renderPeriodStats(); renderRates(); updatePeriodBar(); updateTabBadges();
     if (CURRENT_REVENUE_YEAR) renderRevenue();
   }
 }
@@ -638,6 +657,8 @@ function applyStaticTranslations() {
   document.getElementById('installBtnText').textContent = t('install_btn');
   document.getElementById('periodLabel').textContent = t('period_label');
   document.getElementById('h3PeriodStats').textContent = t('h3_period_stats');
+  document.getElementById('h3Rates').textContent = t('h3_rates');
+  document.getElementById('ratesNote').textContent = t('rates_note');
   updatePeriodBar();
   document.getElementById('adminPassword').placeholder = t('admin_password_placeholder');
   document.getElementById('loginBtn').textContent = t('login_btn');
@@ -740,6 +761,7 @@ let TOP_BOUTIQUES = {revenue: [], items_sold: [], orders_count: []};
 let ACTIONS_LOG_ROWS = [];
 let BOUTIQUE_FILTER = 'all';
 let PERIOD_STATS = null;
+let RATES_ROWS = [];
 
 // ============================================================
 // ONGLETS + BARRE DE PERIODE
@@ -847,11 +869,53 @@ function loadPeriodData() {
   });
   call('period_stats', pb).then(d => { if (d.success) { PERIOD_STATS = d.data; renderPeriodStats(); } });
 }
+// Taux de change (vers FCFA) : l'admin saisit combien de FCFA vaut 1 unite de
+// chaque devise utilisee par les boutiques ; l'euro et le franc CFA d'Afrique
+// centrale sont a parite fixe (non modifiables).
+function loadRates() {
+  call('rates_list').then(d => { if (!d.success) { document.getElementById('ratesBody').innerHTML = '<p style="color:#b91c1c">'+d.message+'</p>'; return; } RATES_ROWS = d.data || []; renderRates(); });
+}
+function renderRates() {
+  const el = document.getElementById('ratesBody');
+  if (!RATES_ROWS.length) { el.innerHTML = '<p style="color:var(--gray)">'+t('rates_none')+'</p>'; return; }
+  const pill = r => r.source === 'fixed' ? '<span class="pill pill-ok">'+t('rate_fixed')+'</span>' : r.source === 'missing' ? '<span class="pill pill-bad">'+t('rate_missing')+'</span>' : '';
+  el.innerHTML = '<table><thead><tr><th>'+t('col_currency')+'</th><th>'+t('col_rate')+'</th><th></th></tr></thead><tbody>' +
+    RATES_ROWS.map(r => '<tr><td><strong>1 '+escapeAttr(r.currency)+'</strong> =</td><td style="white-space:nowrap">'+
+      '<input type="number" step="any" min="0" id="rate_'+escapeAttr(r.currency)+'" value="'+(r.rate == null ? '' : r.rate)+'" '+(r.source === 'fixed' ? 'disabled' : '')+' style="width:150px;margin:0"> FCFA</td><td>'+pill(r)+'</td></tr>').join('') +
+    '</tbody></table><div style="margin-top:12px"><button onclick="saveRates()">'+t('btn_save_rates')+'</button></div>';
+}
+function saveRates() {
+  const rates = {};
+  RATES_ROWS.filter(r => r.source !== 'fixed').forEach(r => { rates[r.currency] = document.getElementById('rate_'+r.currency).value.trim(); });
+  call('rates_save', {rates}).then(d => {
+    showToast(d.message || (d.success ? t('toast_done') : t('toast_error')), d.success ? 'success' : 'error');
+    if (d.success) { loadRates(); loadPeriodData(); }
+  });
+}
+// Carte "Volume des ventes" : total converti en FCFA en gros ; le detail par
+// devise en dessous seulement s'il y a autre chose que du XOF (sinon le total
+// suffit, comme avant) ; avertissement si une devise n'a pas encore de taux.
+function volumeTileHtml(s) {
+  const vbc = s.volume_by_currency || [];
+  let html = fmtMoney(s.volume_total_xof || 0);
+  if (vbc.length > 1 || (vbc.length === 1 && vbc[0].currency !== 'XOF')) {
+    html += '<div style="font-size:12px;font-weight:600;color:var(--gray);margin-top:4px;line-height:1.5">' + vbc.map(v => fmtMoney(v.amount, v.currency)).join('<br>') + '</div>';
+  }
+  if (s.volume_missing_rates && s.volume_missing_rates.length) {
+    html += '<div style="font-size:12px;font-weight:600;color:var(--red);margin-top:4px">⚠ ' + tf('rates_missing_warning', {list: s.volume_missing_rates.join(', ')}) + '</div>';
+  }
+  return html;
+}
+function revenueConvNote(b) {
+  if (!b.currency || b.currency === 'XOF' || b.currency === 'XAF') return '';
+  if (b.revenue_xof == null) return '<div style="font-size:11px;color:var(--red)">'+t('rate_missing_short')+'</div>';
+  return '<div style="font-size:11px;color:var(--gray)">≈ '+fmtMoney(b.revenue_xof)+'</div>';
+}
 function renderPeriodStats() {
   const s = PERIOD_STATS; if (!s) return;
   const tile = (accent, lbl, val) => '<div class="stat" style="--accent:'+accent+'"><div class="lbl">'+lbl+'</div><div class="val">'+val+'</div></div>';
   document.getElementById('periodStatsGrid').innerHTML =
-    tile('#7c3aed', t('stat_volume'), (s.volume_by_currency && s.volume_by_currency.length ? s.volume_by_currency.map(v => fmtMoney(v.amount, v.currency)).join('<br>') : fmtMoney(0, 'XOF'))) +
+    tile('#7c3aed', t('stat_volume'), volumeTileHtml(s)) +
     tile('#ea580c', t('stat_volume_orders'), s.volume_orders) +
     tile('#0f9d63', t('stat_gains'), fmtMoney(s.gains)) +
     tile('#2563eb', t('stat_approved'), s.approved_count) +
@@ -1004,6 +1068,7 @@ function loadAll() {
       LOW_REVIEWS_ROWS = d9.data || []; renderLowReviews(LOW_REVIEWS_ROWS);
     });
     loadPeriodData();
+    loadRates();
     call('actions_log').then(d13 => {
       if (!d13.success) { document.getElementById('actionsLogBody').innerHTML = '<p style="color:#b91c1c">'+d13.message+'</p>'; return; }
       ACTIONS_LOG_ROWS = d13.data || []; renderActionsLog(ACTIONS_LOG_ROWS);
@@ -1505,7 +1570,7 @@ function renderTopBoutiquesTable(containerId, rows, sortKey) {
       <td>${escapeAttr(b.city||'—')}</td>
       <td style="${emp('orders_count')}">${b.orders_count}</td>
       <td style="${emp('items_sold')}">${b.items_sold}</td>
-      <td style="${emp('revenue')}">${fmtMoney(b.revenue, b.currency)}</td>
+      <td style="${emp('revenue')}">${fmtMoney(b.revenue, b.currency)}${revenueConvNote(b)}</td>
     </tr>`).join('')}
     </tbody></table>` : '<p style="color:var(--gray)">'+t('no_top_boutiques')+'</p>';
 }
