@@ -81,7 +81,18 @@
   .approx{display:block;font-size:.8em;font-weight:500;color:var(--gray);line-height:1.3;margin-top:1px}
   .cart-line .approx,.cart-total .approx{text-align:right}
   .approx-note{font-size:12px;color:var(--gray);line-height:1.4;margin:8px 0 12px}
-  @media (max-width:640px){#buyerCurrency{font-size:16px}}
+  /* Choix de devise avec recherche : bouton + panneau (champ de recherche et liste filtree) */
+  .curpick{position:relative}
+  #curPickBtn{width:auto;max-width:260px;padding:6px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:#fff;color:inherit;cursor:pointer;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .curpick-panel{position:absolute;right:0;top:calc(100% + 4px);z-index:30;width:min(300px,86vw);background:#fff;border:1px solid var(--border);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.14);padding:8px}
+  .curpick-panel[hidden]{display:none}
+  #curPickSearch{width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:14px;margin-bottom:6px;box-sizing:border-box}
+  #curPickList{max-height:260px;overflow-y:auto}
+  .curpick-opt{display:block;width:100%;text-align:left;background:none;border:none;border-radius:6px;padding:8px 10px;font-size:13px;color:inherit;cursor:pointer}
+  .curpick-opt:hover,.curpick-opt:focus{background:#f1f5f9;outline:none}
+  .curpick-opt.sel{font-weight:700;color:var(--blue)}
+  .curpick-none{padding:10px;font-size:13px;color:var(--gray)}
+  @media (max-width:640px){#curPickSearch{font-size:16px}}
   .cart-line button{border:none;background:none;color:var(--gray);cursor:pointer;font-size:16px}
   .cart-total{display:flex;justify-content:space-between;font-weight:800;font-size:16px;padding:14px 0}
   .msg{font-size:13px;border-radius:10px;padding:9px 11px;margin-bottom:12px}
@@ -148,8 +159,11 @@ const ZERO_DECIMAL_CURRENCIES = ["XOF","XAF","XPF","KMF","DJF","GNF","RWF","UGX"
 function currencyDecimals(code) { return ZERO_DECIMAL_CURRENCIES.includes(code || 'XOF') ? 0 : 2; }
 function fmtMoney(n, currency) {
   const dec = currencyDecimals(currency);
-  return Number(n||0).toLocaleString(LANG === 'en' ? 'en-US' : 'fr-FR', {minimumFractionDigits: dec, maximumFractionDigits: dec}) + ' ' + (currency||'FCFA');
+  return Number(n||0).toLocaleString(LANG === 'en' ? 'en-US' : 'fr-FR', {minimumFractionDigits: dec, maximumFractionDigits: dec}) + ' ' + curLabel(currency);
 }
+// Les deux francs CFA (XOF = Afrique de l'Ouest, XAF = Afrique centrale) sont
+// affiches "FCFA" comme partout dans la region ; le code ISO reste utilise en interne.
+function curLabel(c) { return (c === 'XOF' || c === 'XAF') ? 'FCFA' : (c || 'FCFA'); }
 // PRIX INDICATIFS dans la devise de l'acheteur : FX_RATES = unites de chaque
 // devise pour 1 unite de la devise de la boutique (voir shop_rates() cote
 // serveur). Affichage seulement : la commande reste facturee et payee dans la
@@ -164,25 +178,56 @@ function approxHtml(n, neg) { const a = approxMoney(n); return a ? '<span class=
 function moneyHtml(n, neg) { return (neg ? '-' : '') + fmtMoney(n, BOUTIQUE.currency) + approxHtml(n, neg); }
 function approxNoteHtml() {
   if (!approxMoney(1)) return '';
-  return '<div class="approx-note">'+t('approx_note').replace('{shop}', BOUTIQUE.currency).replace('{buyer}', BUYER_CURRENCY)+'</div>';
+  return '<div class="approx-note">'+t('approx_note').replace('{shop}', curLabel(BOUTIQUE.currency)).replace('{buyer}', curLabel(BUYER_CURRENCY))+'</div>';
 }
+let CUR_OPTS = [];
+function curNorm(x) { return String(x || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase(); }
+function curOptionLabel(c, names) {
+  if (c === 'XOF') return 'FCFA (XOF) — ' + (LANG === 'en' ? 'West Africa' : 'Afrique de l\'Ouest');
+  if (c === 'XAF') return 'FCFA (XAF) — ' + (LANG === 'en' ? 'Central Africa' : 'Afrique centrale');
+  let nm = ''; try { nm = names ? names.of(c) : ''; } catch (e) {}
+  return c + (nm && nm !== c ? ' — ' + nm : '');
+}
+function curBtnText() { const o = CUR_OPTS.find(x => x.c === (BUYER_CURRENCY || '')); return (o ? o.l : t('currency_shop_only')) + ' ▾'; }
+// Choix de devise avec recherche : on tape une partie du nom, du code ou "fcfa"
+// et la liste se filtre (sans tenir compte des accents).
 function currencyBarHtml() {
   const codes = Object.keys(FX_RATES);
   if (!codes.length) return '';
   let names = null;
   try { names = new Intl.DisplayNames([LANG === 'en' ? 'en' : 'fr'], {type: 'currency'}); } catch (e) {}
-  const label = c => { let nm = ''; try { nm = names ? names.of(c) : ''; } catch (e) {} return c + (nm && nm !== c ? ' — ' + nm : ''); };
-  const opts = codes.map(c => ({c, l: label(c)})).sort((x, y) => x.l.localeCompare(y.l, LANG === 'en' ? 'en' : 'fr'));
+  CUR_OPTS = codes.map(c => ({c, l: curOptionLabel(c, names)})).sort((x, y) => x.l.localeCompare(y.l, LANG === 'en' ? 'en' : 'fr'));
+  CUR_OPTS.unshift({c: '', l: t('currency_shop_only')});
   return '<div class="wrap" id="currencyBar" style="padding-top:10px;display:flex;justify-content:flex-end;align-items:center;gap:8px;flex-wrap:wrap;font-size:13px">'
-    + '<label for="buyerCurrency" style="color:var(--gray)">💱 '+t('prices_also_in')+'</label>'
-    + '<select id="buyerCurrency" onchange="setBuyerCurrency(this.value)" style="width:auto;max-width:240px;padding:6px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:#fff">'
-    + '<option value="">'+t('currency_shop_only')+'</option>'
-    + opts.map(o => '<option value="'+o.c+'" '+(o.c === BUYER_CURRENCY ? 'selected' : '')+'>'+escapeHtml(o.l)+'</option>').join('')
-    + '</select></div>';
+    + '<span style="color:var(--gray)">💱 '+t('prices_also_in')+'</span>'
+    + '<div class="curpick"><button type="button" id="curPickBtn" onclick="toggleCurPick(event)" aria-haspopup="listbox" aria-expanded="false">'+escapeHtml(curBtnText())+'</button>'
+    + '<div class="curpick-panel" id="curPickPanel" hidden><input id="curPickSearch" type="search" autocomplete="off" placeholder="'+escapeHtml(t('currency_search'))+'" oninput="renderCurList()" onkeydown="curPickKey(event)"><div id="curPickList" role="listbox"></div></div></div></div>';
 }
+function renderCurList() {
+  const q = curNorm(document.getElementById('curPickSearch').value.trim());
+  const list = CUR_OPTS.filter(o => !q || curNorm(o.l).includes(q) || curNorm(o.c).includes(q));
+  document.getElementById('curPickList').innerHTML = list.length
+    ? list.map(o => '<button type="button" role="option" class="curpick-opt'+(o.c === (BUYER_CURRENCY || '') ? ' sel' : '')+'" data-c="'+escapeHtml(o.c)+'" onclick="pickCurrency(this.dataset.c)">'+escapeHtml(o.l)+'</button>').join('')
+    : '<div class="curpick-none">'+t('currency_none_found')+'</div>';
+}
+function toggleCurPick(e) {
+  if (e) e.stopPropagation();
+  const panel = document.getElementById('curPickPanel'), btn = document.getElementById('curPickBtn');
+  panel.hidden = !panel.hidden;
+  btn.setAttribute('aria-expanded', panel.hidden ? 'false' : 'true');
+  if (!panel.hidden) { const inp = document.getElementById('curPickSearch'); inp.value = ''; renderCurList(); inp.focus(); }
+}
+function closeCurPick() { const p = document.getElementById('curPickPanel'); if (p) p.hidden = true; const b = document.getElementById('curPickBtn'); if (b) b.setAttribute('aria-expanded', 'false'); }
+function curPickKey(e) {
+  if (e.key === 'Escape') { closeCurPick(); return; }
+  if (e.key === 'Enter') { e.preventDefault(); const first = document.querySelector('#curPickList .curpick-opt'); if (first) pickCurrency(first.dataset.c); }
+}
+function pickCurrency(code) { closeCurPick(); setBuyerCurrency(code); }
+document.addEventListener('click', e => { if (!e.target.closest || !e.target.closest('.curpick')) closeCurPick(); });
 function setBuyerCurrency(code) {
   BUYER_CURRENCY = FX_RATES[code] ? code : '';
   try { localStorage.setItem('myboutik_buyer_currency', BUYER_CURRENCY); } catch (e) {}
+  const btn = document.getElementById('curPickBtn'); if (btn) btn.textContent = curBtnText();
   renderProductGrid();
 }
 function fmtDateTime(iso) { if (!iso) return ''; const d = new Date(iso); const loc = LANG === 'en' ? 'en-US' : 'fr-FR'; return d.toLocaleDateString(loc) + ' ' + d.toLocaleTimeString(loc, {hour:'2-digit', minute:'2-digit'}); }
@@ -372,6 +417,7 @@ const I18N = {
     no_country_match: 'Aucun pays ne correspond',
     prices_also_in: 'Prix aussi en :',
     currency_shop_only: 'Devise de la boutique seulement',
+    currency_search: 'Rechercher une devise…', currency_none_found: 'Aucune devise ne correspond',
     approx_note: 'Montants indicatifs : votre commande est facturée et payée en {shop} ; le montant en {buyer} est une estimation au taux du jour, non contractuelle.',
     rates_credit: 'Taux indicatifs : ExchangeRate-API',
     select_country_placeholder: 'Choisir un pays…',
@@ -479,6 +525,7 @@ const I18N = {
     no_country_match: 'No matching country',
     prices_also_in: 'Prices also in:',
     currency_shop_only: 'Shop currency only',
+    currency_search: 'Search a currency…', currency_none_found: 'No matching currency',
     approx_note: 'Indicative amounts: your order is billed and paid in {shop}; the amount in {buyer} is an estimate at today\'s rate, not contractual.',
     rates_credit: 'Indicative rates: ExchangeRate-API',
     select_country_placeholder: 'Choose a country…',

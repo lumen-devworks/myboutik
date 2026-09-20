@@ -337,13 +337,17 @@ function currencyOptionsHtml(current) {
   const codes = Array.from(new Set(Object.values(COUNTRY_CURRENCY).concat(current ? [current] : [])));
   let names = null;
   try { names = new Intl.DisplayNames([LANG === 'en' ? 'en' : 'fr'], {type: 'currency'}); } catch (e) {}
-  const label = c => { let n = ''; try { n = names ? names.of(c) : ''; } catch (e) {} return c + (n && n !== c ? ' — ' + n : ''); };
+  const label = c => {
+    if (c === 'XOF') return 'FCFA (XOF) — ' + (LANG === 'en' ? 'West Africa' : 'Afrique de l\'Ouest');
+    if (c === 'XAF') return 'FCFA (XAF) — ' + (LANG === 'en' ? 'Central Africa' : 'Afrique centrale');
+    let n = ''; try { n = names ? names.of(c) : ''; } catch (e) {} return c + (n && n !== c ? ' — ' + n : '');
+  };
   return codes.map(c => ({c, l: label(c)})).sort((a, b) => a.l.localeCompare(b.l, LANG === 'en' ? 'en' : 'fr'))
     .map(o => '<option value="'+o.c+'" '+(o.c === current ? 'selected' : '')+'>'+escapeHtml(o.l)+'</option>').join('');
 }
 function fmtMoney(n, currency) {
   const dec = currencyDecimals(currency);
-  return Number(n||0).toLocaleString('fr-FR', {minimumFractionDigits: dec, maximumFractionDigits: dec}) + ' ' + (currency||'FCFA');
+  return Number(n||0).toLocaleString('fr-FR', {minimumFractionDigits: dec, maximumFractionDigits: dec}) + ' ' + ((currency === 'XOF' || currency === 'XAF') ? 'FCFA' : (currency || 'FCFA'));
 }
 function fmtDate(iso) { if(!iso) return '—'; const d = new Date(iso); return d.toLocaleDateString('fr-FR') + ' ' + d.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}); }
 function escapeHtml(s){ return (s==null?'':String(s)).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
