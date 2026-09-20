@@ -59,6 +59,8 @@ define('ADMIN_PASSWORD', getenv('ADMIN_PASSWORD') ?: null);
 // simplement sautes (l'operateur garde de toute facon la vue d'ensemble
 // dans le panneau admin), rien ne casse.
 define('ADMIN_NOTIFY_EMAIL', getenv('ADMIN_NOTIFY_EMAIL') ?: null);
+// Adresse declaree a MyMemory (traduction des annonces) pour passer de 5 000 a 50 000 caracteres/jour. Distincte de ADMIN_NOTIFY_EMAIL pour ne pas declencher les alertes qualite.
+define('MYMEMORY_EMAIL', getenv('MYMEMORY_EMAIL') ?: null);
 
 // Envoi d'email transactionnel (Brevo, https://app.brevo.com/settings/keys/api)
 // - optionnel : en son absence, send_email() se contente de journaliser
@@ -5095,7 +5097,8 @@ function mymemory_translate($seg, $from = 'fr', $to = 'en') {
     // toute la requete si elle est invalide : on ne l'envoie que valide, et on
     // retente sans elle si le service la rejette. Le motif du dernier echec est
     // garde dans $GLOBALS['mm_error'] pour le message d'erreur de l'admin.
-    $email = (ADMIN_NOTIFY_EMAIL && filter_var(ADMIN_NOTIFY_EMAIL, FILTER_VALIDATE_EMAIL)) ? ADMIN_NOTIFY_EMAIL : null;
+    $mmEmail = MYMEMORY_EMAIL ?: ADMIN_NOTIFY_EMAIL;
+    $email = ($mmEmail && filter_var($mmEmail, FILTER_VALIDATE_EMAIL)) ? $mmEmail : null;
     foreach ($email ? [$email, null] : [null] as $de) {
         $url = 'https://api.mymemory.translated.net/get?q='.rawurlencode($seg).'&langpair='.$from.'%7C'.$to
               .($de ? '&de='.rawurlencode($de) : '');
