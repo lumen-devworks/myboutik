@@ -5512,10 +5512,16 @@ function admin_period_stats() {
     // Total converti en FCFA avec les taux connus ; une devise sans taux est
     // listee a part (volume_missing_rates) et exclue du total.
     $rates = currency_rates(); $totalXof = 0.0; $missingRates = [];
-    foreach ($volByCurrency as $v) {
-        if (isset($rates[$v['currency']])) $totalXof += (float)$v['amount'] * $rates[$v['currency']];
-        else $missingRates[] = $v['currency'];
+    foreach ($volByCurrency as &$v) {
+        if (isset($rates[$v['currency']])) {
+            $totalXof += (float)$v['amount'] * $rates[$v['currency']];
+            $v['amount_xof'] = round((float)$v['amount'] * $rates[$v['currency']]); // equivalent FCFA de cette ligne
+        } else {
+            $missingRates[] = $v['currency'];
+            $v['amount_xof'] = null;
+        }
     }
+    unset($v);
     $p2 = []; $d2 = admin_period_sql('COALESCE(reviewed_at, created_at)', $from, $to, $p2);
     $subs = q("SELECT plan, billing_cycle FROM subscription_requests WHERE status='approved'".$d2, $p2)->fetchAll();
     $gains = 0; foreach ($subs as $r) $gains += subscription_request_amount($r);

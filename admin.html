@@ -1474,7 +1474,12 @@ function volumeTileHtml(s) {
   const vbc = s.volume_by_currency || [];
   let html = fmtMoney(s.volume_total_xof || 0);
   if (vbc.length > 1 || (vbc.length === 1 && vbc[0].currency !== 'XOF')) {
-    html += '<div style="font-size:12px;font-weight:600;color:var(--gray);margin-top:4px;line-height:1.5">' + vbc.map(v => fmtMoney(v.amount, v.currency)).join('<br>') + '</div>';
+    // Une ligne par devise : montant dans la devise a gauche, equivalent en FCFA a droite
+    html += '<div style="font-size:12px;font-weight:600;color:var(--gray);margin-top:6px;line-height:1.6">' + vbc.map(v => {
+      const same = v.currency === 'XOF' || v.currency === 'XAF';
+      const eq = v.amount_xof == null ? '<span style="color:var(--red)">' + t('rate_missing_short') + '</span>' : (same ? '= ' : '≈ ') + fmtMoney(v.amount_xof);
+      return '<div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap"><span>' + fmtMoney(v.amount, v.currency) + '</span><span style="text-align:right">' + eq + '</span></div>';
+    }).join('') + '</div>';
   }
   if (s.volume_missing_rates && s.volume_missing_rates.length) {
     html += '<div style="font-size:12px;font-weight:600;color:var(--red);margin-top:4px">⚠ ' + tf('rates_missing_warning', {list: s.volume_missing_rates.join(', ')}) + '</div>';
@@ -1666,7 +1671,7 @@ function curSymbol(c) {
 function fmtMoney(n, currency) {
   const zero = ["XOF","XAF","XPF","KMF","DJF","GNF","RWF","UGX","BIF","CLP","JPY","KRW","PYG","VND","VUV","ISK","MGA"];
   const dec = (!currency || zero.includes(currency)) ? 0 : 2;
-  return Number(n||0).toLocaleString(LANG === 'en' ? 'en-US' : 'fr-FR', {minimumFractionDigits: dec, maximumFractionDigits: dec}) + ' ' + curSymbol(currency);
+  return Number(n||0).toLocaleString(LANG === 'en' ? 'en-US' : 'fr-FR', {minimumFractionDigits: dec, maximumFractionDigits: dec}).replace(/\u202f/g, '\u00a0') + ' ' + curSymbol(currency);
 }
 function fmtDate(d) { return d ? new Date(d).toLocaleDateString(LANG === 'en' ? 'en-US' : 'fr-FR') : '—'; }
 // 'ok'/'warn'/'bad' - reutilise par le pill d'affichage ET par le filtre de statut.
@@ -1925,7 +1930,7 @@ function renderSubs(rows) {
 function renderPayouts(rows) {
   PAYOUTS_ROWS = rows;
   document.getElementById('payoutsBody').innerHTML = rows.length ? `<table><thead><tr><th>${t('col_email')}</th><th>${t('col_amount')}</th><th>${t('col_method')}</th><th>${t('col_number')}</th><th></th></tr></thead><tbody>
-    ${rows.map(r => `<tr><td>${r.email}</td><td>${Math.round(r.amount).toLocaleString(LANG === 'en' ? 'en-US' : 'fr-FR')} FCFA</td><td>${r.method||'—'}</td><td>${r.phone||'—'}</td>
+    ${rows.map(r => `<tr><td>${r.email}</td><td>${Math.round(r.amount).toLocaleString(LANG === 'en' ? 'en-US' : 'fr-FR').replace(/\u202f/g, '\u00a0')} FCFA</td><td>${r.method||'—'}</td><td>${r.phone||'—'}</td>
       <td><button onclick="markPayoutPaid('${r.id}','${r.email}',${Math.round(r.amount)})">${t('btn_mark_paid')}</button></td></tr>`).join('')}
     </tbody></table>` : '<p style="color:var(--gray)">'+t('no_pending_payouts')+'</p>';
 }
@@ -1940,7 +1945,7 @@ function review(id, action, email, plan, isApprove, isAnnual) {
   });
 }
 function markPayoutPaid(id, email, amount) {
-  customConfirm(tf('confirm_payout', {amount: amount.toLocaleString(LANG === 'en' ? 'en-US' : 'fr-FR'), email})).then(ok => {
+  customConfirm(tf('confirm_payout', {amount: amount.toLocaleString(LANG === 'en' ? 'en-US' : 'fr-FR').replace(/\u202f/g, '\u00a0'), email})).then(ok => {
     if (!ok) return;
     call('payout_mark_paid', {id}).then(data => {
       showToast(data.message || (data.success ? t('toast_payout_marked') : t('toast_error')), data.success ? 'success' : 'error');

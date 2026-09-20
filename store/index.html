@@ -174,7 +174,7 @@ function curSymbol(c) {
 }
 function fmtMoney(n, currency) {
   const dec = currencyDecimals(currency);
-  const num = Number(n||0).toLocaleString(LANG === 'en' ? 'en-US' : 'fr-FR', {minimumFractionDigits: dec, maximumFractionDigits: dec});
+  const num = Number(n||0).toLocaleString(LANG === 'en' ? 'en-US' : 'fr-FR', {minimumFractionDigits: dec, maximumFractionDigits: dec}).replace(/\u202f/g, '\u00a0');
   const sym = curSymbol(currency);
   return (LANG === 'en' && sym !== currency && sym !== 'FCFA') ? sym + num : num + ' ' + sym;
 }

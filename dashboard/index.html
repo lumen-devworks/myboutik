@@ -362,7 +362,7 @@ function curSymbol(c) {
 }
 function fmtMoney(n, currency) {
   const dec = currencyDecimals(currency);
-  return Number(n||0).toLocaleString('fr-FR', {minimumFractionDigits: dec, maximumFractionDigits: dec}) + ' ' + curSymbol(currency);
+  return Number(n||0).toLocaleString('fr-FR', {minimumFractionDigits: dec, maximumFractionDigits: dec}).replace(/\u202f/g, '\u00a0') + ' ' + curSymbol(currency);
 }
 function fmtDate(iso) { if(!iso) return '—'; const d = new Date(iso); return d.toLocaleDateString('fr-FR') + ' ' + d.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}); }
 function escapeHtml(s){ return (s==null?'':String(s)).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
