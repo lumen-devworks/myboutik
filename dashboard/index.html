@@ -722,6 +722,7 @@ const I18N = {
     modal_new_ad_expense: 'Nouvelle dépense publicitaire',
     label_campaign_name: 'Nom de campagne',
     label_linked_products_optional: 'Produit(s) lié(s) (optionnel — cochez-en plusieurs pour un carrousel/une promo groupée)',
+    select_all_products: 'Tout sélectionner',
     no_products_in_catalog: 'Aucun produit dans le catalogue.',
     label_link_to_use_in_ad: 'Lien à utiliser dans votre publicité',
     ad_link_hint_multi_suffix: ' produits sélectionnés — le lien renvoie vers la boutique entière, le suivi se fait par campagne.',
@@ -1400,6 +1401,7 @@ const I18N = {
     modal_new_ad_expense: 'New ad expense',
     label_campaign_name: 'Campaign name',
     label_linked_products_optional: 'Linked product(s) (optional — check several for a carousel/bundled promo)',
+    select_all_products: 'Select all',
     no_products_in_catalog: 'No products in the catalog.',
     label_link_to_use_in_ad: 'Link to use in your ad',
     ad_link_hint_multi_suffix: ' products selected — the link points to the whole shop, tracking is done by campaign.',
@@ -2885,9 +2887,12 @@ function openAddAdExpense() {
     openModal(`<h2>${t('modal_new_ad_expense')}</h2>
       <div class="field"><label>${t('label_campaign_name')}</label><input id="adCampaign" oninput="updateAdCampaignLink()"></div>
       <div class="field"><label>${t('label_linked_products_optional')}</label>
+        ${products.length > 1 ? `<label style="display:flex;align-items:center;gap:8px;padding:2px 0 8px;font-size:13px;font-weight:700;cursor:pointer">
+          <input type="checkbox" id="adSelectAll" style="width:auto;flex-shrink:0" onchange="toggleAllAdProducts(this.checked)"> <span>${t('select_all_products')}</span>
+        </label>` : ''}
         <div style="max-height:160px;overflow-y:auto;border:1px solid var(--border);border-radius:9px;padding:8px">
           ${products.length ? products.map(p=>`<label style="display:flex;align-items:center;gap:8px;padding:4px 0;font-size:13px">
-            <input type="checkbox" class="adProductCheck" style="width:auto;flex-shrink:0" value="${p.id}" data-slug="${escapeHtml(p.slug||'')}" onchange="updateAdCampaignLink()"> <span>${escapeHtml(p.name)}</span>
+            <input type="checkbox" class="adProductCheck" style="width:auto;flex-shrink:0" value="${p.id}" data-slug="${escapeHtml(p.slug||'')}" onchange="updateAdCampaignLink();syncAdSelectAll()"> <span>${escapeHtml(p.name)}</span>
           </label>`).join('') : '<div class="muted">'+t('no_products_in_catalog')+'</div>'}
         </div>
       </div>
@@ -2916,6 +2921,20 @@ function buildAdLink(campaignName, productSlug) {
 }
 function selectedAdProductChecks() {
   return Array.from(document.querySelectorAll('.adProductCheck:checked'));
+}
+// "Tout selectionner" : coche/decoche tous les produits d'un coup, puis
+// recalcule le lien de campagne comme apres une case cochee a la main.
+function toggleAllAdProducts(checked) {
+  document.querySelectorAll('.adProductCheck').forEach(c => { c.checked = checked; });
+  updateAdCampaignLink();
+}
+// Garde la case "Tout selectionner" coherente quand on coche/decoche un
+// produit individuellement (cochee seulement si TOUS le sont).
+function syncAdSelectAll() {
+  const master = document.getElementById('adSelectAll');
+  if (!master) return;
+  const boxes = document.querySelectorAll('.adProductCheck');
+  master.checked = boxes.length > 0 && Array.from(boxes).every(c => c.checked);
 }
 function updateAdCampaignLink() {
   const name = document.getElementById('adCampaign').value.trim();
