@@ -278,8 +278,8 @@
         <input id="annTitleEn" maxlength="120">
         <label class="flabel" for="annMessageEn" id="lblAnnMessageEn"></label>
         <textarea id="annMessageEn" rows="4" maxlength="1000"></textarea>
-        <label class="flabel" for="annCtaLabelEn" id="lblAnnCtaLabelEn"></label>
-        <input id="annCtaLabelEn" maxlength="60">
+        <div id="annCtaLabelEnWrap" style="display:none"><label class="flabel" for="annCtaLabelEn" id="lblAnnCtaLabelEn"></label>
+        <input id="annCtaLabelEn" maxlength="60"></div>
       </details>
       <div style="display:flex;gap:12px;flex-wrap:wrap">
         <div style="flex:1 1 220px"><label class="flabel" for="annCtaTarget" id="lblAnnCta"></label>
@@ -1106,6 +1106,7 @@ function updateAudienceCount() {
 function announceCtaChanged() {
   const target = document.getElementById('annCtaTarget').value;
   document.getElementById('annCtaLabelWrap').style.display = target ? '' : 'none';
+  document.getElementById('annCtaLabelEnWrap').style.display = target ? '' : 'none';
   if (target && ANN_CTA_DEFAULTS[target]) {
     document.getElementById('annCtaLabel').value = ANN_CTA_DEFAULTS[target][0];
     document.getElementById('annCtaLabelEn').value = ANN_CTA_DEFAULTS[target][1];
@@ -1228,7 +1229,7 @@ function annFormBody() {
 function resetAnnouncementForm() {
   ANN_EDIT_ID = null;
   ['annTitle','annMessage','annTitleEn','annMessageEn','annCtaLabel','annCtaLabelEn','annStarts','annDays','annEnds'].forEach(id => { document.getElementById(id).value = ''; });
-  document.getElementById('annCtaTarget').value = ''; document.getElementById('annCtaLabelWrap').style.display = 'none';
+  document.getElementById('annCtaTarget').value = ''; document.getElementById('annCtaLabelWrap').style.display = 'none'; document.getElementById('annCtaLabelEnWrap').style.display = 'none';
   document.getElementById('annLevel').value = 'info'; document.getElementById('annAudience').value = 'all';
   document.getElementById('annEnBox').open = true; document.getElementById('annPreview').innerHTML = '';
   Object.keys(ANN_AUTO).forEach(k => { ANN_AUTO[k] = false; }); annTransStatus('');
