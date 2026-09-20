@@ -1091,6 +1091,7 @@ const I18N = {
     import_result_title: 'Résultat de l\'import',
     skipped_rows_prefix: 'Lignes ignorées :',
     tiktok_link_copied: 'Lien copié — collez-le dans votre bio ou votre vidéo TikTok.',
+    instagram_link_copied: 'Lien copié — collez-le dans le champ « Site web » de votre profil ou dans une story Instagram.',
     order_status_pending: 'En attente',
     order_status_processing: 'Validée',
     order_status_shipped: 'Expédiée',
@@ -1771,6 +1772,7 @@ const I18N = {
     import_result_title: 'Import result',
     skipped_rows_prefix: 'Skipped rows:',
     tiktok_link_copied: 'Link copied — paste it in your bio or TikTok video.',
+    instagram_link_copied: 'Link copied — paste it in the "Website" field of your profile or in an Instagram story.',
     order_status_pending: 'Pending',
     order_status_processing: 'Confirmed',
     order_status_shipped: 'Shipped',
@@ -3967,6 +3969,7 @@ function renderSettings(bt) {
           <button type="button" class="btn btn-ghost btn-sm" onclick="shareStoreOn('facebook')">📘 Facebook</button>
           <button type="button" class="btn btn-ghost btn-sm" onclick="shareStoreOn('telegram')">✈️ Telegram</button>
           <button type="button" class="btn btn-ghost btn-sm" onclick="shareStoreOn('x')">✖️ X (Twitter)</button>
+          <button type="button" class="btn btn-ghost btn-sm" onclick="shareStoreOn('instagram')">📸 Instagram</button>
           <button type="button" class="btn btn-ghost btn-sm" onclick="shareStoreOn('tiktok')">🎵 TikTok</button>
         </div>
         <div class="muted" style="font-size:12px;margin-top:6px">${t('share_note')}</div>
@@ -4388,6 +4391,15 @@ function shareStoreOn(network) {
     navigator.clipboard.writeText(link).catch(() => {});
     showToast(t('tiktok_link_copied'), 'info');
     window.open('https://www.tiktok.com/upload', '_blank');
+    return;
+  }
+  // Instagram n'offre aucune URL de partage pre-remplie pour un site : on
+  // copie le lien et on ouvre la modification du profil (champ "Site web" =
+  // lien de la bio), le lien se colle aussi dans une story.
+  if (network === 'instagram') {
+    navigator.clipboard.writeText(link).catch(() => {});
+    showToast(t('instagram_link_copied'), 'info');
+    window.open('https://www.instagram.com/accounts/edit/', '_blank');
     return;
   }
   if (urls[network]) window.open(urls[network], '_blank');
