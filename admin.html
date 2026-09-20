@@ -851,7 +851,7 @@ function renderPeriodStats() {
   const s = PERIOD_STATS; if (!s) return;
   const tile = (accent, lbl, val) => '<div class="stat" style="--accent:'+accent+'"><div class="lbl">'+lbl+'</div><div class="val">'+val+'</div></div>';
   document.getElementById('periodStatsGrid').innerHTML =
-    tile('#7c3aed', t('stat_volume'), fmtMoney(s.volume_amount)) +
+    tile('#7c3aed', t('stat_volume'), (s.volume_by_currency && s.volume_by_currency.length ? s.volume_by_currency.map(v => fmtMoney(v.amount, v.currency)).join('<br>') : fmtMoney(0, 'XOF'))) +
     tile('#ea580c', t('stat_volume_orders'), s.volume_orders) +
     tile('#0f9d63', t('stat_gains'), fmtMoney(s.gains)) +
     tile('#2563eb', t('stat_approved'), s.approved_count) +
@@ -1010,7 +1010,13 @@ function loadAll() {
     });
   }).catch(() => { document.getElementById('loginMsg').innerHTML = '<div class="msg">'+t('server_unreachable')+'</div>'; });
 }
-function fmtMoney(n) { return Math.round(n||0).toLocaleString(LANG === 'en' ? 'en-US' : 'fr-FR') + ' FCFA'; }
+// currency : devise d'une boutique (Top 10) ; sans argument = montants de la
+// plateforme elle-meme (abonnements), toujours en FCFA.
+function fmtMoney(n, currency) {
+  const zero = ["XOF","XAF","XPF","KMF","DJF","GNF","RWF","UGX","BIF","CLP","JPY","KRW","PYG","VND","VUV","ISK","MGA"];
+  const dec = (!currency || zero.includes(currency)) ? 0 : 2;
+  return Number(n||0).toLocaleString(LANG === 'en' ? 'en-US' : 'fr-FR', {minimumFractionDigits: dec, maximumFractionDigits: dec}) + ' ' + (currency || 'FCFA');
+}
 function fmtDate(d) { return d ? new Date(d).toLocaleDateString(LANG === 'en' ? 'en-US' : 'fr-FR') : '—'; }
 // 'ok'/'warn'/'bad' - reutilise par le pill d'affichage ET par le filtre de statut.
 function clientStatusKey(c) {
@@ -1499,7 +1505,7 @@ function renderTopBoutiquesTable(containerId, rows, sortKey) {
       <td>${escapeAttr(b.city||'—')}</td>
       <td style="${emp('orders_count')}">${b.orders_count}</td>
       <td style="${emp('items_sold')}">${b.items_sold}</td>
-      <td style="${emp('revenue')}">${fmtMoney(b.revenue)}</td>
+      <td style="${emp('revenue')}">${fmtMoney(b.revenue, b.currency)}</td>
     </tr>`).join('')}
     </tbody></table>` : '<p style="color:var(--gray)">'+t('no_top_boutiques')+'</p>';
 }

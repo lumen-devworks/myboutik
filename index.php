@@ -171,6 +171,7 @@ const EN_DICT = [
     'Votre reclamation a ete envoyee au marchand.' => 'Your complaint has been sent to the merchant.',
     'Aucune reclamation ouverte pour cette commande' => 'No open complaint for this order',
     'Ecrivez une reponse' => 'Write a response',
+    'Devise invalide' => 'Invalid currency',
     'Ecrivez un message d\'avertissement' => 'Write a warning message',
     'Avertissement envoye' => 'Warning sent',
     'Reponse envoyee' => 'Response sent',
@@ -449,6 +450,213 @@ function period_clause($period, $col='created_at') {
 // Statuts consideres comme "argent encaisse" (validee ou livree), par
 // opposition a pending (pas encore traitee)/refusee/annulee.
 const ENCAISSE_STATUSES = "('processing','shipped','delivered')";
+
+// Devise habituelle par pays (noms francais, comme COUNTRIES_FR cote
+// frontend) : la devise d'une boutique se choisit automatiquement d'apres son
+// pays. Un pays absent de la table retombe sur XOF (comportement d'origine).
+const COUNTRY_CURRENCY = [
+    'Afghanistan' => 'AFN',
+    'Afrique du Sud' => 'ZAR',
+    'Albanie' => 'ALL',
+    'Algérie' => 'DZD',
+    'Allemagne' => 'EUR',
+    'Andorre' => 'EUR',
+    'Angola' => 'AOA',
+    'Arabie saoudite' => 'SAR',
+    'Argentine' => 'ARS',
+    'Arménie' => 'AMD',
+    'Australie' => 'AUD',
+    'Autriche' => 'EUR',
+    'Azerbaïdjan' => 'AZN',
+    'Bahamas' => 'BSD',
+    'Bahreïn' => 'BHD',
+    'Bangladesh' => 'BDT',
+    'Barbade' => 'BBD',
+    'Belgique' => 'EUR',
+    'Belize' => 'BZD',
+    'Bénin' => 'XOF',
+    'Bhoutan' => 'BTN',
+    'Biélorussie' => 'BYN',
+    'Birmanie' => 'MMK',
+    'Bolivie' => 'BOB',
+    'Bosnie-Herzégovine' => 'BAM',
+    'Botswana' => 'BWP',
+    'Brésil' => 'BRL',
+    'Brunei' => 'BND',
+    'Bulgarie' => 'EUR',
+    'Burkina Faso' => 'XOF',
+    'Burundi' => 'BIF',
+    'Cambodge' => 'KHR',
+    'Cameroun' => 'XAF',
+    'Canada' => 'CAD',
+    'Cap-Vert' => 'CVE',
+    'Chili' => 'CLP',
+    'Chine' => 'CNY',
+    'Chypre' => 'EUR',
+    'Colombie' => 'COP',
+    'Comores' => 'KMF',
+    'Congo-Brazzaville' => 'XAF',
+    'Congo-Kinshasa' => 'CDF',
+    'Corée du Nord' => 'KPW',
+    'Corée du Sud' => 'KRW',
+    'Costa Rica' => 'CRC',
+    'Côte d\'Ivoire' => 'XOF',
+    'Croatie' => 'EUR',
+    'Cuba' => 'CUP',
+    'Danemark' => 'DKK',
+    'Djibouti' => 'DJF',
+    'Dominique' => 'XCD',
+    'Égypte' => 'EGP',
+    'Émirats arabes unis' => 'AED',
+    'Équateur' => 'USD',
+    'Érythrée' => 'ERN',
+    'Espagne' => 'EUR',
+    'Estonie' => 'EUR',
+    'Eswatini' => 'SZL',
+    'États-Unis' => 'USD',
+    'Éthiopie' => 'ETB',
+    'Fidji' => 'FJD',
+    'Finlande' => 'EUR',
+    'France' => 'EUR',
+    'Gabon' => 'XAF',
+    'Gambie' => 'GMD',
+    'Géorgie' => 'GEL',
+    'Ghana' => 'GHS',
+    'Grèce' => 'EUR',
+    'Grenade' => 'XCD',
+    'Guatemala' => 'GTQ',
+    'Guinée' => 'GNF',
+    'Guinée-Bissau' => 'XOF',
+    'Guinée équatoriale' => 'XAF',
+    'Guyana' => 'GYD',
+    'Haïti' => 'HTG',
+    'Honduras' => 'HNL',
+    'Hongrie' => 'HUF',
+    'Inde' => 'INR',
+    'Indonésie' => 'IDR',
+    'Irak' => 'IQD',
+    'Iran' => 'IRR',
+    'Irlande' => 'EUR',
+    'Islande' => 'ISK',
+    'Israël' => 'ILS',
+    'Italie' => 'EUR',
+    'Jamaïque' => 'JMD',
+    'Japon' => 'JPY',
+    'Jordanie' => 'JOD',
+    'Kazakhstan' => 'KZT',
+    'Kenya' => 'KES',
+    'Kirghizistan' => 'KGS',
+    'Kiribati' => 'AUD',
+    'Koweït' => 'KWD',
+    'Laos' => 'LAK',
+    'Lesotho' => 'LSL',
+    'Lettonie' => 'EUR',
+    'Liban' => 'LBP',
+    'Liberia' => 'LRD',
+    'Libye' => 'LYD',
+    'Liechtenstein' => 'CHF',
+    'Lituanie' => 'EUR',
+    'Luxembourg' => 'EUR',
+    'Macédoine du Nord' => 'MKD',
+    'Madagascar' => 'MGA',
+    'Malaisie' => 'MYR',
+    'Malawi' => 'MWK',
+    'Maldives' => 'MVR',
+    'Mali' => 'XOF',
+    'Malte' => 'EUR',
+    'Maroc' => 'MAD',
+    'Marshall' => 'USD',
+    'Maurice' => 'MUR',
+    'Mauritanie' => 'MRU',
+    'Mexique' => 'MXN',
+    'Micronésie' => 'USD',
+    'Moldavie' => 'MDL',
+    'Monaco' => 'EUR',
+    'Mongolie' => 'MNT',
+    'Monténégro' => 'EUR',
+    'Mozambique' => 'MZN',
+    'Namibie' => 'NAD',
+    'Nauru' => 'AUD',
+    'Népal' => 'NPR',
+    'Nicaragua' => 'NIO',
+    'Niger' => 'XOF',
+    'Nigeria' => 'NGN',
+    'Norvège' => 'NOK',
+    'Nouvelle-Zélande' => 'NZD',
+    'Oman' => 'OMR',
+    'Ouganda' => 'UGX',
+    'Ouzbékistan' => 'UZS',
+    'Pakistan' => 'PKR',
+    'Palaos' => 'USD',
+    'Palestine' => 'ILS',
+    'Panama' => 'USD',
+    'Papouasie-Nouvelle-Guinée' => 'PGK',
+    'Paraguay' => 'PYG',
+    'Pays-Bas' => 'EUR',
+    'Pérou' => 'PEN',
+    'Philippines' => 'PHP',
+    'Pologne' => 'PLN',
+    'Portugal' => 'EUR',
+    'Qatar' => 'QAR',
+    'République centrafricaine' => 'XAF',
+    'République dominicaine' => 'DOP',
+    'République tchèque' => 'CZK',
+    'Roumanie' => 'RON',
+    'Royaume-Uni' => 'GBP',
+    'Russie' => 'RUB',
+    'Rwanda' => 'RWF',
+    'Saint-Christophe-et-Niévès' => 'XCD',
+    'Saint-Marin' => 'EUR',
+    'Saint-Vincent-et-les-Grenadines' => 'XCD',
+    'Sainte-Lucie' => 'XCD',
+    'Salomon' => 'SBD',
+    'Salvador' => 'USD',
+    'Samoa' => 'WST',
+    'São Tomé-et-Príncipe' => 'STN',
+    'Sénégal' => 'XOF',
+    'Serbie' => 'RSD',
+    'Seychelles' => 'SCR',
+    'Sierra Leone' => 'SLE',
+    'Singapour' => 'SGD',
+    'Slovaquie' => 'EUR',
+    'Slovénie' => 'EUR',
+    'Somalie' => 'SOS',
+    'Soudan' => 'SDG',
+    'Soudan du Sud' => 'SSP',
+    'Sri Lanka' => 'LKR',
+    'Suède' => 'SEK',
+    'Suisse' => 'CHF',
+    'Suriname' => 'SRD',
+    'Syrie' => 'SYP',
+    'Tadjikistan' => 'TJS',
+    'Tanzanie' => 'TZS',
+    'Tchad' => 'XAF',
+    'Thaïlande' => 'THB',
+    'Timor oriental' => 'USD',
+    'Togo' => 'XOF',
+    'Tonga' => 'TOP',
+    'Trinité-et-Tobago' => 'TTD',
+    'Tunisie' => 'TND',
+    'Turkménistan' => 'TMT',
+    'Turquie' => 'TRY',
+    'Tuvalu' => 'AUD',
+    'Ukraine' => 'UAH',
+    'Uruguay' => 'UYU',
+    'Vanuatu' => 'VUV',
+    'Vatican' => 'EUR',
+    'Venezuela' => 'VES',
+    'Vietnam' => 'VND',
+    'Yémen' => 'YER',
+    'Zambie' => 'ZMW',
+    'Zimbabwe' => 'USD',
+];
+// Devises sans centimes (montants entiers) ; toutes les autres s'affichent
+// avec 2 decimales (la base stocke les montants en DECIMAL(14,2)).
+const ZERO_DECIMAL_CURRENCIES = ['XOF', 'XAF', 'XPF', 'KMF', 'DJF', 'GNF', 'RWF', 'UGX', 'BIF', 'CLP', 'JPY', 'KRW', 'PYG', 'VND', 'VUV', 'ISK', 'MGA'];
+function currency_for_country($country) { return COUNTRY_CURRENCY[$country] ?? 'XOF'; }
+function valid_currency($code) { return in_array($code, COUNTRY_CURRENCY, true); }
+function currency_decimals($code) { return in_array($code ?: 'XOF', ZERO_DECIMAL_CURRENCIES, true) ? 0 : 2; }
+function money_fmt($amount, $code) { return number_format((float)$amount, currency_decimals($code), ',', ' '); }
 
 function require_boutique_owned($boutiqueId, $userId) {
     if (!$boutiqueId) fail('boutique_id manquant', 400);
@@ -1624,7 +1832,8 @@ function boutiques_create($pl) {
     }
     $slug = unique_boutique_slug(slugify($name));
     $id = uid();
-    q("INSERT INTO boutiques (id,owner_user_id,slug,name,city,country) VALUES (?,?,?,?,?,?)", [$id, $pl['sub'], $slug, $name, $city, $country]);
+    // Devise deduite du pays choisi (modifiable ensuite dans Parametres > General).
+    q("INSERT INTO boutiques (id,owner_user_id,slug,name,city,country,currency) VALUES (?,?,?,?,?,?,?)", [$id, $pl['sub'], $slug, $name, $city, $country, currency_for_country($country)]);
     // Compte caisse par defaut, pour que le Livre de Compte ne soit pas vide
     // des la creation (l'utilisateur peut le renommer/en ajouter d'autres).
     q("INSERT INTO accounts (id,boutique_id,name,type) VALUES (?,?,?,?)", [uid(), $id, 'Caisse', 'caisse']);
@@ -1641,6 +1850,7 @@ function boutiques_update($pl) {
     $name = trim($b['name'] ?? $row['name']);
     $codEnabled = isset($b['cod_enabled']) ? (int)!!$b['cod_enabled'] : $row['cod_enabled'];
     $currency = trim($b['currency'] ?? $row['currency']);
+    if ($currency !== $row['currency'] && !valid_currency($currency)) fail('Devise invalide');
     $deliveryFee = isset($b['default_delivery_fee']) && $b['default_delivery_fee'] !== ''
         ? max(0, (float)$b['default_delivery_fee']) : $row['default_delivery_fee'];
     $shippingFee = isset($b['default_shipping_fee']) && $b['default_shipping_fee'] !== ''
@@ -2346,7 +2556,7 @@ function preview_product() {
               WHERE b.slug=? AND p.slug=? AND b.status='active' AND p.status='active'", [$slug, $productSlug])->fetch();
     if (!$row) preview_not_found();
     $title = $row['name'].' — '.$row['boutique_name'];
-    $price = number_format((float)$row['price'], 0, ',', ' ').' '.($row['currency'] ?: 'XOF');
+    $price = money_fmt($row['price'], $row['currency']).' '.($row['currency'] ?: 'XOF');
     $desc = trim($row['description'] ?? '') !== '' ? $row['description'] : ($row['name'].' a '.$price.' chez '.$row['boutique_name'].' sur MYBOUTIK.');
     $image = $row['image_url'] ? preview_self_base().'/image?action=product_photo&slug='.urlencode($slug).'&p='.urlencode($productSlug) : null;
     $redirect = FRONTEND_BASE_URL.'/store/index.html?b='.urlencode($slug).'&p='.urlencode($productSlug);
@@ -2713,7 +2923,7 @@ function notify_customer_order_confirmation($bt, $ref, $email, $customerName, $l
     $currency = $bt['currency'] ?: 'XOF';
     $lines = array_map(function($l) use ($currency) {
         $label = $l['product']['name'].($l['variant'] ? ' - '.$l['variant']['name'] : '');
-        return '- '.$l['qty'].' x '.$label.' ('.number_format($l['unit_price'],0,',',' ').' '.$currency.')';
+        return '- '.$l['qty'].' x '.$label.' ('.money_fmt($l['unit_price'], $currency).' '.$currency.')';
     }, $lineData);
     // Le mot "livraison"/"expedition" (adresse, "vous serez contacte pour...")
     // n'a de sens que si la commande contient au moins un produit physique -
@@ -2739,10 +2949,10 @@ function notify_customer_order_confirmation($bt, $ref, $email, $customerName, $l
         "Merci pour votre commande chez ".$bt['name']." !\n\n".
         "Reference : $ref\n\n".
         implode("\n", $lines)."\n\n".
-        "Sous-total : ".number_format($subtotal,0,',',' ')." $currency\n".
-        ($deliveryFee > 0 ? "Frais de ".$modeWord." : ".number_format($deliveryFee,0,',',' ')." $currency\n" : '').
-        ($discountAmount > 0 ? "Remise : -".number_format($discountAmount,0,',',' ')." $currency\n" : '').
-        "$totalLabel : ".number_format($total,0,',',' ')." $currency\n\n".
+        "Sous-total : ".money_fmt($subtotal, $currency)." $currency\n".
+        ($deliveryFee > 0 ? "Frais de ".$modeWord." : ".money_fmt($deliveryFee, $currency)." $currency\n" : '').
+        ($discountAmount > 0 ? "Remise : -".money_fmt($discountAmount, $currency)." $currency\n" : '').
+        "$totalLabel : ".money_fmt($total, $currency)." $currency\n\n".
         $footer.
         "Pour suivre votre commande, retournez sur la boutique et utilisez \"Suivre ma commande\" avec cette reference et votre telephone.";
     send_email($email, 'Confirmation de votre commande '.$ref.' - '.$bt['name'], $body);
@@ -4586,7 +4796,7 @@ function admin_top_boutiques() {
     [$from, $to] = admin_period_bounds($b);
     $ordParams = []; $ordDate = admin_period_sql('created_at', $from, $to, $ordParams);
     $itemParams = []; $itemDate = admin_period_sql('o.created_at', $from, $to, $itemParams);
-    ok(q("SELECT b.id, b.name, b.slug, b.city, b.country,
+    ok(q("SELECT b.id, b.name, b.slug, b.city, b.country, b.currency,
                  COALESCE(ord.orders_count,0) AS orders_count,
                  COALESCE(ord.revenue,0) AS revenue,
                  COALESCE(items.items_sold,0) AS items_sold
@@ -4628,7 +4838,11 @@ function admin_period_sql($col, $from, $to, &$params) {
 function admin_period_stats() {
     [$from, $to] = admin_period_bounds(body());
     $p = []; $d = admin_period_sql('created_at', $from, $to, $p);
-    $vol = q("SELECT COUNT(*) c, COALESCE(SUM(total),0) s FROM orders WHERE status IN ".ENCAISSE_STATUSES.$d, $p)->fetch();
+    $vol = q("SELECT COUNT(*) c FROM orders WHERE status IN ".ENCAISSE_STATUSES.$d, $p)->fetch();
+    // Une somme melangeant XOF, EUR... n'aurait aucun sens : volume par devise.
+    $pv = []; $dv = admin_period_sql('o.created_at', $from, $to, $pv);
+    $volByCurrency = q("SELECT b.currency, COALESCE(SUM(o.total),0) AS amount FROM orders o JOIN boutiques b ON b.id=o.boutique_id
+                        WHERE o.status IN ".ENCAISSE_STATUSES.$dv." GROUP BY b.currency ORDER BY amount DESC", $pv)->fetchAll();
     $p2 = []; $d2 = admin_period_sql('COALESCE(reviewed_at, created_at)', $from, $to, $p2);
     $subs = q("SELECT plan, billing_cycle FROM subscription_requests WHERE status='approved'".$d2, $p2)->fetchAll();
     $gains = 0; foreach ($subs as $r) $gains += subscription_request_amount($r);
@@ -4639,7 +4853,7 @@ function admin_period_stats() {
     $p4 = []; $d4 = admin_period_sql('dispute_created_at', $from, $to, $p4);
     $disputes = (int)q("SELECT COUNT(*) c FROM orders WHERE dispute_status IS NOT NULL".$d4, $p4)->fetch()['c'];
     ok([
-        'volume_orders' => (int)$vol['c'], 'volume_amount' => (float)$vol['s'],
+        'volume_orders' => (int)$vol['c'], 'volume_by_currency' => $volByCurrency,
         'gains' => $gains, 'approved_count' => count($subs),
         'new_users' => $newUsers, 'new_boutiques' => $newBoutiques,
         'disputes' => $disputes, 'low_reviews' => $lowReviews,
@@ -5080,7 +5294,7 @@ function cron_abandoned_reminders() {
                 AND ac.captured_at >= NOW() - INTERVAL '48 hours'")->fetchAll();
     $sent = 0;
     foreach ($carts as $c) {
-        $total = number_format((float)$c['total'], 0, ',', ' ').' '.($c['currency'] ?: 'XOF');
+        $total = money_fmt($c['total'], $c['currency']).' '.($c['currency'] ?: 'XOF');
         $message = "Bonjour, vous avez laisse des articles dans votre panier chez ".$c['boutique_name']." (".$total."). Revenez finaliser votre commande !";
         if ($c['email']) send_email($c['email'], 'Votre panier vous attend - '.$c['boutique_name'], $message);
         q("UPDATE abandoned_carts SET reminded_at=NOW() WHERE id=?", [$c['id']]);

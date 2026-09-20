@@ -139,7 +139,12 @@ function api(path, opts) {
     .catch(() => ({status:0, data:{success:false, message:t('server_unreachable')}}));
 }
 function post(path, body) { return api(path, {method:'POST', body:JSON.stringify(body||{})}); }
-function fmtMoney(n, currency) { return Math.round(n||0).toLocaleString(LANG === 'en' ? 'en-US' : 'fr-FR') + ' ' + (currency||'FCFA'); }
+const ZERO_DECIMAL_CURRENCIES = ["XOF","XAF","XPF","KMF","DJF","GNF","RWF","UGX","BIF","CLP","JPY","KRW","PYG","VND","VUV","ISK","MGA"];
+function currencyDecimals(code) { return ZERO_DECIMAL_CURRENCIES.includes(code || 'XOF') ? 0 : 2; }
+function fmtMoney(n, currency) {
+  const dec = currencyDecimals(currency);
+  return Number(n||0).toLocaleString(LANG === 'en' ? 'en-US' : 'fr-FR', {minimumFractionDigits: dec, maximumFractionDigits: dec}) + ' ' + (currency||'FCFA');
+}
 function fmtDateTime(iso) { if (!iso) return ''; const d = new Date(iso); const loc = LANG === 'en' ? 'en-US' : 'fr-FR'; return d.toLocaleDateString(loc) + ' ' + d.toLocaleTimeString(loc, {hour:'2-digit', minute:'2-digit'}); }
 function escapeHtml(s){ return (s==null?'':String(s)).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 // Code ISO 3166-1 alpha-2 par nom de pays (meme liste francaise que

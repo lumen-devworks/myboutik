@@ -304,7 +304,28 @@ function forceLogoutExpired() {
   window.location.href = '../index.html?session_expired=1';
 }
 
-function fmtMoney(n, currency) { return Math.round(n||0).toLocaleString('fr-FR') + ' ' + (currency||'FCFA'); }
+// Devise habituelle par pays (meme table que COUNTRY_CURRENCY cote serveur) :
+// choisir un pays dans Parametres > General selectionne automatiquement la
+// devise correspondante.
+const COUNTRY_CURRENCY = {"Afghanistan":"AFN","Afrique du Sud":"ZAR","Albanie":"ALL","Algérie":"DZD","Allemagne":"EUR","Andorre":"EUR","Angola":"AOA","Arabie saoudite":"SAR","Argentine":"ARS","Arménie":"AMD","Australie":"AUD","Autriche":"EUR","Azerbaïdjan":"AZN","Bahamas":"BSD","Bahreïn":"BHD","Bangladesh":"BDT","Barbade":"BBD","Belgique":"EUR","Belize":"BZD","Bénin":"XOF","Bhoutan":"BTN","Biélorussie":"BYN","Birmanie":"MMK","Bolivie":"BOB","Bosnie-Herzégovine":"BAM","Botswana":"BWP","Brésil":"BRL","Brunei":"BND","Bulgarie":"EUR","Burkina Faso":"XOF","Burundi":"BIF","Cambodge":"KHR","Cameroun":"XAF","Canada":"CAD","Cap-Vert":"CVE","Chili":"CLP","Chine":"CNY","Chypre":"EUR","Colombie":"COP","Comores":"KMF","Congo-Brazzaville":"XAF","Congo-Kinshasa":"CDF","Corée du Nord":"KPW","Corée du Sud":"KRW","Costa Rica":"CRC","Côte d'Ivoire":"XOF","Croatie":"EUR","Cuba":"CUP","Danemark":"DKK","Djibouti":"DJF","Dominique":"XCD","Égypte":"EGP","Émirats arabes unis":"AED","Équateur":"USD","Érythrée":"ERN","Espagne":"EUR","Estonie":"EUR","Eswatini":"SZL","États-Unis":"USD","Éthiopie":"ETB","Fidji":"FJD","Finlande":"EUR","France":"EUR","Gabon":"XAF","Gambie":"GMD","Géorgie":"GEL","Ghana":"GHS","Grèce":"EUR","Grenade":"XCD","Guatemala":"GTQ","Guinée":"GNF","Guinée-Bissau":"XOF","Guinée équatoriale":"XAF","Guyana":"GYD","Haïti":"HTG","Honduras":"HNL","Hongrie":"HUF","Inde":"INR","Indonésie":"IDR","Irak":"IQD","Iran":"IRR","Irlande":"EUR","Islande":"ISK","Israël":"ILS","Italie":"EUR","Jamaïque":"JMD","Japon":"JPY","Jordanie":"JOD","Kazakhstan":"KZT","Kenya":"KES","Kirghizistan":"KGS","Kiribati":"AUD","Koweït":"KWD","Laos":"LAK","Lesotho":"LSL","Lettonie":"EUR","Liban":"LBP","Liberia":"LRD","Libye":"LYD","Liechtenstein":"CHF","Lituanie":"EUR","Luxembourg":"EUR","Macédoine du Nord":"MKD","Madagascar":"MGA","Malaisie":"MYR","Malawi":"MWK","Maldives":"MVR","Mali":"XOF","Malte":"EUR","Maroc":"MAD","Marshall":"USD","Maurice":"MUR","Mauritanie":"MRU","Mexique":"MXN","Micronésie":"USD","Moldavie":"MDL","Monaco":"EUR","Mongolie":"MNT","Monténégro":"EUR","Mozambique":"MZN","Namibie":"NAD","Nauru":"AUD","Népal":"NPR","Nicaragua":"NIO","Niger":"XOF","Nigeria":"NGN","Norvège":"NOK","Nouvelle-Zélande":"NZD","Oman":"OMR","Ouganda":"UGX","Ouzbékistan":"UZS","Pakistan":"PKR","Palaos":"USD","Palestine":"ILS","Panama":"USD","Papouasie-Nouvelle-Guinée":"PGK","Paraguay":"PYG","Pays-Bas":"EUR","Pérou":"PEN","Philippines":"PHP","Pologne":"PLN","Portugal":"EUR","Qatar":"QAR","République centrafricaine":"XAF","République dominicaine":"DOP","République tchèque":"CZK","Roumanie":"RON","Royaume-Uni":"GBP","Russie":"RUB","Rwanda":"RWF","Saint-Christophe-et-Niévès":"XCD","Saint-Marin":"EUR","Saint-Vincent-et-les-Grenadines":"XCD","Sainte-Lucie":"XCD","Salomon":"SBD","Salvador":"USD","Samoa":"WST","São Tomé-et-Príncipe":"STN","Sénégal":"XOF","Serbie":"RSD","Seychelles":"SCR","Sierra Leone":"SLE","Singapour":"SGD","Slovaquie":"EUR","Slovénie":"EUR","Somalie":"SOS","Soudan":"SDG","Soudan du Sud":"SSP","Sri Lanka":"LKR","Suède":"SEK","Suisse":"CHF","Suriname":"SRD","Syrie":"SYP","Tadjikistan":"TJS","Tanzanie":"TZS","Tchad":"XAF","Thaïlande":"THB","Timor oriental":"USD","Togo":"XOF","Tonga":"TOP","Trinité-et-Tobago":"TTD","Tunisie":"TND","Turkménistan":"TMT","Turquie":"TRY","Tuvalu":"AUD","Ukraine":"UAH","Uruguay":"UYU","Vanuatu":"VUV","Vatican":"EUR","Venezuela":"VES","Vietnam":"VND","Yémen":"YER","Zambie":"ZMW","Zimbabwe":"USD"};
+const ZERO_DECIMAL_CURRENCIES = ["XOF","XAF","XPF","KMF","DJF","GNF","RWF","UGX","BIF","CLP","JPY","KRW","PYG","VND","VUV","ISK","MGA"];
+function currencyDecimals(code) { return ZERO_DECIMAL_CURRENCIES.includes(code || 'XOF') ? 0 : 2; }
+function currencyForCountry(country) { return COUNTRY_CURRENCY[country] || 'XOF'; }
+// Devises sans centimes : montants entiers ; les autres acceptent 2 decimales.
+function moneyStep() { return currencyDecimals(typeof CURRENT !== 'undefined' && CURRENT ? CURRENT.currency : 'XOF') ? '0.01' : '1'; }
+function moneyMin() { return moneyStep() === '1' ? '1' : '0.01'; }
+function currencyOptionsHtml(current) {
+  const codes = Array.from(new Set(Object.values(COUNTRY_CURRENCY).concat(current ? [current] : [])));
+  let names = null;
+  try { names = new Intl.DisplayNames([LANG === 'en' ? 'en' : 'fr'], {type: 'currency'}); } catch (e) {}
+  const label = c => { let n = ''; try { n = names ? names.of(c) : ''; } catch (e) {} return c + (n && n !== c ? ' — ' + n : ''); };
+  return codes.map(c => ({c, l: label(c)})).sort((a, b) => a.l.localeCompare(b.l, LANG === 'en' ? 'en' : 'fr'))
+    .map(o => '<option value="'+o.c+'" '+(o.c === current ? 'selected' : '')+'>'+escapeHtml(o.l)+'</option>').join('');
+}
+function fmtMoney(n, currency) {
+  const dec = currencyDecimals(currency);
+  return Number(n||0).toLocaleString('fr-FR', {minimumFractionDigits: dec, maximumFractionDigits: dec}) + ' ' + (currency||'FCFA');
+}
 function fmtDate(iso) { if(!iso) return '—'; const d = new Date(iso); return d.toLocaleDateString('fr-FR') + ' ' + d.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}); }
 function escapeHtml(s){ return (s==null?'':String(s)).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
@@ -492,6 +513,10 @@ const I18N = {
     boutique_country_invalid: 'Veuillez choisir un pays dans la liste proposée',
     select_country_placeholder: 'Choisir un pays…',
     no_country_match: 'Aucun pays ne correspond',
+    label_currency: 'Devise',
+    currency_auto_note: 'Se sélectionne automatiquement quand vous choisissez le pays — vous pouvez la modifier. Changer la devise ne convertit pas les montants déjà enregistrés (prix, commandes…) : seule l\'unité affichée change.',
+    currency_auto_hint: 'Devise habituelle pour {country} : {currency}.',
+    confirm_currency_change: 'Changer la devise de {from} à {to} ?\n\nLes montants déjà enregistrés (prix des produits, commandes, finances…) ne sont PAS convertis : seule l\'unité affichée change. Vérifiez vos prix ensuite.',
     btn_cancel: 'Annuler',
     confirm_ok_btn: 'Confirmer',
     btn_create: 'Créer',
@@ -1173,6 +1198,10 @@ const I18N = {
     boutique_country_invalid: 'Please choose a country from the suggested list',
     select_country_placeholder: 'Choose a country…',
     no_country_match: 'No matching country',
+    label_currency: 'Currency',
+    currency_auto_note: 'Selected automatically when you choose the country — you can change it. Changing the currency does not convert amounts already saved (prices, orders…): only the displayed unit changes.',
+    currency_auto_hint: 'Usual currency for {country}: {currency}.',
+    confirm_currency_change: 'Change the currency from {from} to {to}?\n\nAmounts already saved (product prices, orders, finances…) are NOT converted: only the displayed unit changes. Check your prices afterwards.',
     btn_cancel: 'Cancel',
     confirm_ok_btn: 'Confirm',
     btn_create: 'Create',
@@ -2538,7 +2567,7 @@ function openNewOrder() {
       </div>
       <div class="field-row">
         <div class="field"><label>${t('label_qty')}</label><input id="ordQty" type="number" min="1" value="1"></div>
-        <div class="field"><label>${t('label_delivery_fee')}</label><input id="ordDeliveryFee" type="number" min="0" value="${CURRENT.default_delivery_fee||0}"></div>
+        <div class="field"><label>${t('label_delivery_fee')}</label><input id="ordDeliveryFee" type="number" min="0" step="${moneyStep()}" value="${CURRENT.default_delivery_fee||0}"></div>
       </div>
       <div class="modal-actions">
         <button class="btn btn-ghost" onclick="closeModal()">${t('btn_cancel')}</button>
@@ -2837,7 +2866,7 @@ function submitAddAccount() {
 }
 function openAccountMovement(accountId, type) {
   openModal(`<h2>${type==='in'?t('movement_title_in'):t('movement_title_out')}</h2>
-    <div class="field"><label>${t('label_amount')}</label><input id="movAmount" type="number" min="1"></div>
+    <div class="field"><label>${t('label_amount')}</label><input id="movAmount" type="number" min="${moneyMin()}" step="${moneyStep()}"></div>
     <div class="field"><label>${t('label_note')}</label><input id="movNote"></div>
     <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal()">${t('btn_cancel')}</button><button class="btn btn-primary" onclick="submitAccountMovement('${accountId}','${type}')">${t('btn_confirm')}</button></div>`);
 }
@@ -2850,7 +2879,7 @@ function openTransferAccount(rows) {
   openModal(`<h2>${t('modal_transfer_title')}</h2>
     <div class="field"><label>${t('label_from')}</label><select id="trFrom">${rows.map(a=>'<option value="'+a.id+'">'+escapeHtml(a.name)+'</option>').join('')}</select></div>
     <div class="field"><label>${t('label_to')}</label><select id="trTo">${rows.map(a=>'<option value="'+a.id+'">'+escapeHtml(a.name)+'</option>').join('')}</select></div>
-    <div class="field"><label>${t('label_amount')}</label><input id="trAmount" type="number" min="1"></div>
+    <div class="field"><label>${t('label_amount')}</label><input id="trAmount" type="number" min="${moneyMin()}" step="${moneyStep()}"></div>
     <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal()">${t('btn_cancel')}</button><button class="btn btn-primary" onclick="submitTransfer()">${t('btn_transfer')}</button></div>`);
 }
 function submitTransfer() {
@@ -2885,7 +2914,7 @@ function openAddDeliveryFee() {
     const orders = (ordRes.data.data || []).slice(0, 50);
     const persons = dpRes.data.data || [];
     openModal(`<h2>${t('modal_add_delivery_fee')}</h2>
-      <div class="field"><label>${t('label_amount')}</label><input id="dfAmount" type="number" min="1"></div>
+      <div class="field"><label>${t('label_amount')}</label><input id="dfAmount" type="number" min="${moneyMin()}" step="${moneyStep()}"></div>
       <div class="field"><label>${t('label_linked_order_optional')}</label>
         <select id="dfOrder"><option value="">—</option>${orders.map(o=>'<option value="'+o.id+'">'+escapeHtml(o.ref)+' — '+escapeHtml(o.customer_name)+'</option>').join('')}</select>
       </div>
@@ -2980,7 +3009,7 @@ function openAddAdExpense() {
           </label>`).join('') : '<div class="muted">'+t('no_products_in_catalog')+'</div>'}
         </div>
       </div>
-      <div class="field"><label>${t('label_amount')}</label><input id="adAmount" type="number" min="1"></div>
+      <div class="field"><label>${t('label_amount')}</label><input id="adAmount" type="number" min="${moneyMin()}" step="${moneyStep()}"></div>
       <div class="field" id="adLinkField" style="display:none">
         <label>${t('label_link_to_use_in_ad')}</label>
         <div class="field-row"><input id="adLinkInput" readonly><button type="button" class="btn btn-ghost" onclick="copyInput('adLinkInput')">${t('btn_copy')}</button></div>
@@ -3170,14 +3199,14 @@ function renderProductFormModal(p, allProducts, categories) {
     <div class="field"><label>${t('label_name')}</label><input id="prodName" value="${escapeHtml(p.name||'')}"></div>
     <div class="field"><label>${t('label_description')}</label><textarea id="prodDesc" rows="2">${escapeHtml(p.description||'')}</textarea></div>
     <div class="field-row">
-      <div class="field"><label>${t('label_sale_price')}</label><input id="prodPrice" type="number" min="0" value="${p.price||''}"></div>
-      <div class="field"><label>${t('label_compare_price')}</label><input id="prodCompareAt" type="number" min="0" value="${p.compare_at_price??''}"></div>
+      <div class="field"><label>${t('label_sale_price')}</label><input id="prodPrice" type="number" min="0" step="${moneyStep()}" value="${p.price||''}"></div>
+      <div class="field"><label>${t('label_compare_price')}</label><input id="prodCompareAt" type="number" min="0" step="${moneyStep()}" value="${p.compare_at_price??''}"></div>
     </div>
     <div class="field-row">
-      <div class="field"><label>${t('label_cost_price')}</label><input id="prodCost" type="number" min="0" value="${p.cost_price??''}"></div>
-      <div class="field"><label>${t('label_delivery_fee_empty_hint')}</label><input id="prodDeliveryFee" type="number" min="0" value="${p.delivery_fee??''}"></div>
-      <div class="field"><label>${shippingFeeSameCountryLabel()}</label><input id="prodShippingFee" type="number" min="0" value="${p.shipping_fee??''}"></div>
-      <div class="field"><label>${t('label_shipping_fee_other_country_empty_hint')}</label><input id="prodShippingFeeOther" type="number" min="0" value="${p.shipping_fee_other_country??''}"></div>
+      <div class="field"><label>${t('label_cost_price')}</label><input id="prodCost" type="number" min="0" step="${moneyStep()}" value="${p.cost_price??''}"></div>
+      <div class="field"><label>${t('label_delivery_fee_empty_hint')}</label><input id="prodDeliveryFee" type="number" min="0" step="${moneyStep()}" value="${p.delivery_fee??''}"></div>
+      <div class="field"><label>${shippingFeeSameCountryLabel()}</label><input id="prodShippingFee" type="number" min="0" step="${moneyStep()}" value="${p.shipping_fee??''}"></div>
+      <div class="field"><label>${t('label_shipping_fee_other_country_empty_hint')}</label><input id="prodShippingFeeOther" type="number" min="0" step="${moneyStep()}" value="${p.shipping_fee_other_country??''}"></div>
     </div>
     <div class="field-row">
       <div class="field"><label>${t('label_sku')}</label><input id="prodSku" value="${escapeHtml(p.sku||'')}"></div>
@@ -3646,7 +3675,7 @@ function openSupplierOrderForm(suppliers, products, preselectProductId) {
     <div class="field"><label>${t('col_supplier')}</label><select id="soSupplier">${suppliers.map(s=>'<option value="'+s.id+'">'+escapeHtml(s.name)+'</option>').join('')}</select></div>
     <div class="field"><label>${t('label_product')}</label><select id="soProduct"><option value="">—</option>${products.map(p=>'<option value="'+p.id+'" '+(p.id===preselectProductId?'selected':'')+'>'+escapeHtml(p.name)+'</option>').join('')}</select></div>
     <div class="field-row"><div class="field"><label>${t('label_qty')}</label><input id="soQty" type="number" min="1" value="${preselect?suggestedQty:1}"></div>
-      <div class="field"><label>${t('col_unit_cost')}</label><input id="soCost" type="number" min="0" value="${preselect && preselect.cost_price!=null ? preselect.cost_price : ''}"></div></div>
+      <div class="field"><label>${t('col_unit_cost')}</label><input id="soCost" type="number" min="0" step="${moneyStep()}" value="${preselect && preselect.cost_price!=null ? preselect.cost_price : ''}"></div></div>
     <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal()">${t('btn_cancel')}</button><button class="btn btn-primary" onclick="submitSupplierOrderForm()">${t('btn_create')}</button></div>`);
 }
 function submitSupplierOrderForm() {
@@ -3864,7 +3893,7 @@ function openPromoForm(prefillPhone) {
     <div class="field"><label>${t('label_code')}</label><input id="promoCode" placeholder="${t('placeholder_promo_ex')}" style="text-transform:uppercase"></div>
     <div class="field-row">
       <div class="field"><label>${t('label_type_generic')}</label><select id="promoType"><option value="percent">${t('type_percent')}</option><option value="amount">${t('type_fixed_amount')}</option></select></div>
-      <div class="field"><label>${t('label_value')}</label><input id="promoValue" type="number" min="1"></div>
+      <div class="field"><label>${t('label_value')}</label><input id="promoValue" type="number" min="${moneyMin()}" step="${moneyStep()}"></div>
     </div>
     <div class="field-row">
       <div class="field"><label>${t('label_max_uses_optional')}</label><input id="promoMaxUses" type="number" min="1"></div>
@@ -3918,7 +3947,7 @@ function openPromotionForm(pr) {
     <div id="promotionMsg"></div>
     <div class="field-row">
       <div class="field"><label>${t('label_type_generic')}</label><select id="promotionType"><option value="percent" ${pr.type!=='amount'?'selected':''}>${t('type_percent')}</option><option value="amount" ${pr.type==='amount'?'selected':''}>${t('type_fixed_amount')}</option></select></div>
-      <div class="field"><label>${t('label_value')}</label><input id="promotionValue" type="number" min="1" value="${pr.value||''}"></div>
+      <div class="field"><label>${t('label_value')}</label><input id="promotionValue" type="number" min="${moneyMin()}" step="${moneyStep()}" value="${pr.value||''}"></div>
     </div>
     <div class="field-row">
       <div class="field"><label>${t('label_start_optional')}</label><input id="promotionStarts" type="date" value="${pr.starts_at?pr.starts_at.substring(0,10):''}"></div>
@@ -3998,9 +4027,9 @@ function renderSettings(bt) {
         <div class="muted" style="font-size:12px;margin-top:6px">${t('preview_link_note')}</div>
       </div>
       <div class="field-row">
-        <div class="field"><label>${t('label_default_delivery_fee')}</label><input id="setDeliveryFee" type="number" min="0" value="${bt.default_delivery_fee||0}"></div>
-        <div class="field"><label>${shippingFeeSameCountryLabel(true)}</label><input id="setShippingFee" type="number" min="0" value="${bt.default_shipping_fee||0}"></div>
-        <div class="field"><label>${t('label_default_shipping_fee_other_country')}</label><input id="setShippingFeeOther" type="number" min="0" value="${bt.default_shipping_fee_other_country||0}"></div>
+        <div class="field"><label>${t('label_default_delivery_fee')}</label><input id="setDeliveryFee" type="number" min="0" step="${moneyStep()}" value="${bt.default_delivery_fee||0}"></div>
+        <div class="field"><label>${shippingFeeSameCountryLabel(true)}</label><input id="setShippingFee" type="number" min="0" step="${moneyStep()}" value="${bt.default_shipping_fee||0}"></div>
+        <div class="field"><label>${t('label_default_shipping_fee_other_country')}</label><input id="setShippingFeeOther" type="number" min="0" step="${moneyStep()}" value="${bt.default_shipping_fee_other_country||0}"></div>
       </div>
       <label style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><input type="checkbox" id="setCod" ${bt.cod_enabled?'checked':''}> ${t('checkbox_cod_enabled')}</label>
       <div class="muted" style="margin:-2px 0 14px;font-size:12px">${t('cod_enabled_note')}</div>
@@ -4015,6 +4044,11 @@ function renderSettings(bt) {
         </div>
         <div class="field"><label>${t('label_directory_city')}</label><input id="setCity" value="${escapeHtml(bt.city||'')}" placeholder="${t('placeholder_directory_city')}"></div>
         <div class="field"><label>${t('label_boutique_country')}</label>${countryPickerHtml('setCountry', bt.country||'')}</div>
+      </div>
+      <div class="field"><label>${t('label_currency')}</label>
+        <select id="setCurrency">${currencyOptionsHtml(bt.currency || 'XOF')}</select>
+        <div class="muted" style="font-size:12px;margin-top:6px">${t('currency_auto_note')}</div>
+        <div id="setCurrencyHint" class="muted" style="font-size:12px;margin-top:4px;color:var(--blue)"></div>
       </div>
       <button class="btn btn-primary" onclick="saveSettings('settingsMsg')">${t('btn_save')}</button>
     </div>
@@ -4032,6 +4066,20 @@ function renderSettings(bt) {
       <button class="btn btn-ghost" onclick="downloadCsv('/boutiques?action=export_backup&boutique_id='+CURRENT.id,'sauvegarde-'+CURRENT.slug+'.json')">${t('btn_export_backup')}</button>
     </div>
   `;
+  // Choisir un pays selectionne automatiquement sa devise (modifiable ensuite).
+  // On ne reagit qu'a un VRAI changement de pays : re-choisir le meme pays ne
+  // doit pas ecraser une devise que le marchand a reglee lui-meme.
+  const countryEl = document.getElementById('setCountry');
+  countryEl._lastCountry = canonicalCountry(countryEl.value) || '';
+  countryEl.addEventListener('change', () => {
+    const c = canonicalCountry(countryEl.value);
+    if (!c || c === countryEl._lastCountry) return;
+    countryEl._lastCountry = c;
+    const cur = currencyForCountry(c), sel = document.getElementById('setCurrency');
+    if (![...sel.options].some(o => o.value === cur)) return;
+    sel.value = cur;
+    document.getElementById('setCurrencyHint').textContent = tf('currency_auto_hint', {country: c, currency: cur});
+  });
 }
 function handleLogoFile(input) {
   const file = input.files[0];
@@ -4052,6 +4100,11 @@ function saveSettings(targetMsgId) {
   const countryRaw = document.getElementById('setCountry').value.trim();
   const countryInput = countryRaw ? canonicalCountry(countryRaw) : '';
   if (countryRaw && !countryInput) { msgEl.innerHTML = '<div class="msg error">'+t('boutique_country_invalid')+'</div>'; return; }
+  const newCurrency = document.getElementById('setCurrency').value;
+  const askOk = (newCurrency && newCurrency !== (CURRENT.currency || 'XOF'))
+    ? customConfirm(tf('confirm_currency_change', {from: CURRENT.currency || 'XOF', to: newCurrency}), {danger: true})
+    : Promise.resolve(true);
+  askOk.then(ok => { if (!ok) return;
   post('/boutiques?action=update', {
     id:CURRENT.id, name:document.getElementById('setName').value.trim(),
     description:document.getElementById('setDescription').value.trim(),
@@ -4061,6 +4114,7 @@ function saveSettings(targetMsgId) {
     category:document.getElementById('setCategory').value,
     city:document.getElementById('setCity').value.trim(),
     country:countryInput,
+    currency:newCurrency,
     default_delivery_fee:Number(document.getElementById('setDeliveryFee').value||0),
     default_shipping_fee:Number(document.getElementById('setShippingFee').value||0),
     default_shipping_fee_other_country:Number(document.getElementById('setShippingFeeOther').value||0),
@@ -4070,7 +4124,11 @@ function saveSettings(targetMsgId) {
   }).then(({data}) => {
     if (!data.success) { msgEl.innerHTML = '<div class="msg error">'+data.message+'</div>'; return; }
     msgEl.innerHTML = '<div class="msg success">'+t('saved_word')+'</div>';
-    loadBoutiques();
+    // CURRENT est un objet a part, pas relu par loadBoutiques() : on le
+    // rafraichit pour que devise/pays/frais affiches soient ceux qu'on vient
+    // d'enregistrer sans avoir a changer de page.
+    loadBoutiques().then(() => { const fresh = BOUTIQUES.find(b => b.id === CURRENT.id); if (fresh) CURRENT = fresh; });
+  });
   });
 }
 
