@@ -5112,7 +5112,9 @@ function mymemory_translate($seg, $from = 'fr', $to = 'en') {
         if (is_array($j) && (int)($j['responseStatus'] ?? 0) === 200 && is_string($t) && trim($t) !== '' && stripos($t, 'MYMEMORY WARNING') === false) {
             return html_entity_decode($t, ENT_QUOTES | ENT_HTML5, 'UTF-8');
         }
-        $GLOBALS['mm_error'] = !is_array($j) ? ($curlErr !== '' ? $curlErr : 'reponse vide') : (is_string($t) ? $t : 'reponse inattendue');
+        $why = !is_array($j) ? ($curlErr !== '' ? $curlErr : 'reponse vide') : (is_string($t) ? $t : 'reponse inattendue');
+        $GLOBALS['mm_error'] = ($de ? 'avec email : ' : ($email ? 'sans email : ' : 'email non configure : ')).substr($why, 0, 90);
+        $GLOBALS['mm_errors'][] = $GLOBALS['mm_error'];
         error_log('MyMemory: '.$GLOBALS['mm_error']);
     }
     return null;
@@ -5177,7 +5179,7 @@ function admin_announcement_translate() {
     if (isset($b['text'])) {
         $en2fr = ($b['dir'] ?? '') === 'en2fr';
         $r = translate_text((string)$b['text'], $en2fr ? 'en' : 'fr', $en2fr ? 'fr' : 'en');
-        if ($r === null) fail(($en2fr ? 'Traduction automatique indisponible : saisissez la version francaise a la main' : 'Traduction automatique indisponible : saisissez la version anglaise a la main').(!empty($GLOBALS['mm_error']) ? ' ['.$GLOBALS['mm_error'].']' : ''), 503);
+        if ($r === null) fail(($en2fr ? 'Traduction automatique indisponible : saisissez la version francaise a la main' : 'Traduction automatique indisponible : saisissez la version anglaise a la main').(!empty($GLOBALS['mm_errors']) ? ' ['.implode(' | ', $GLOBALS['mm_errors']).']' : ''), 503);
         ok(['text' => $r]);
     }
     $one = function($k) use ($b) { $v = trim((string)($b[$k] ?? '')); return $v === '' ? null : translate_fr_to_en($v); };
