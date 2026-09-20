@@ -45,6 +45,9 @@
   .topbar .sub{font-size:13px;color:var(--gray);font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-top:4px}
   h3{font-size:15px;font-weight:700;margin-bottom:14px;letter-spacing:-.01em}
   .card{background:#fff;border:1px solid var(--border);border-radius:16px;padding:22px;margin-bottom:18px;box-shadow:var(--shadow-sm)}
+  textarea{width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:10px;font-size:14px;margin-bottom:10px;font-family:inherit;color:var(--ink);background:#fff;resize:vertical}
+  textarea:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px var(--blue-light)}
+  .flabel{display:block;font-size:13px;font-weight:700;margin:0 0 6px}
   input,select{width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:10px;font-size:14px;margin-bottom:10px;font-family:inherit;color:var(--ink);transition:border-color .15s,box-shadow .15s;background:#fff}
   input:focus,select:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px var(--blue-light)}
   .password-wrap{position:relative}
@@ -179,6 +182,7 @@
       <button type="button" data-tab="clients" onclick="setAdminTab('clients')"><span id="tabLblClients"></span></button>
       <button type="button" data-tab="revenue" onclick="setAdminTab('revenue')"><span id="tabLblRevenue"></span></button>
       <button type="button" data-tab="feedback" onclick="setAdminTab('feedback')"><span id="tabLblFeedback"></span><span class="tab-badge" id="badgeFeedback" style="display:none"></span></button>
+      <button type="button" data-tab="announcements" onclick="setAdminTab('announcements')"><span id="tabLblAnnouncements"></span></button>
       <button type="button" data-tab="demo" onclick="setAdminTab('demo')"><span id="tabLblDemo"></span></button>
       <button type="button" id="installBtn" onclick="installApp()">📲 <span id="installBtnText"></span></button>
       <button type="button" class="logout" id="logoutBtn" onclick="confirmAdminLogout()">🚪 <span id="logoutBtnText"></span></button>
@@ -243,6 +247,32 @@
       <h3 id="h3ActionsLog">Historique des actions admin</h3>
       <p class="muted" id="actionsLogNote" style="margin-bottom:12px"></p>
       <div class="table-wrap" id="actionsLogBody"></div>
+    </div>
+    <div class="card" data-panel="announcements">
+      <h3 id="h3AnnounceNew">Nouvelle annonce</h3>
+      <p class="muted" id="announceNote" style="margin-bottom:14px"></p>
+      <label class="flabel" for="annTitle" id="lblAnnTitle"></label>
+      <input id="annTitle" maxlength="120">
+      <label class="flabel" for="annMessage" id="lblAnnMessage"></label>
+      <textarea id="annMessage" rows="4" maxlength="1000"></textarea>
+      <div style="display:flex;gap:12px;flex-wrap:wrap">
+        <div style="flex:1 1 180px"><label class="flabel" for="annLevel" id="lblAnnLevel"></label>
+          <select id="annLevel"><option value="info" id="optLvlInfo"></option><option value="warning" id="optLvlWarn"></option><option value="success" id="optLvlOk"></option></select></div>
+        <div style="flex:1 1 220px"><label class="flabel" for="annAudience" id="lblAnnAudience"></label>
+          <select id="annAudience" onchange="announceAudienceChanged()">
+            <option value="all" id="optAudAll"></option><option value="expiring" id="optAudExpiring"></option><option value="expired" id="optAudExpired"></option>
+            <option value="plan" id="optAudPlan"></option><option value="country" id="optAudCountry"></option></select></div>
+        <div style="flex:1 1 180px;display:none" id="annValueWrap"><label class="flabel" for="annValue" id="lblAnnValue"></label>
+          <select id="annValue" onchange="updateAudienceCount()"></select></div>
+        <div style="flex:1 1 160px"><label class="flabel" for="annEnds" id="lblAnnEnds"></label>
+          <input id="annEnds" type="date"></div>
+      </div>
+      <p class="muted" id="annRecipients" style="margin:0 0 12px"></p>
+      <button onclick="submitAnnouncement()" id="btnPublishAnnounce"></button>
+    </div>
+    <div class="card" data-panel="announcements">
+      <h3 id="h3AnnounceList">Annonces publiées</h3>
+      <div class="table-wrap" id="announceListBody"></div>
     </div>
     <div class="card" data-panel="demo">
       <h3 id="h3Demo">Données de démonstration</h3>
@@ -428,6 +458,24 @@ const I18N = {
     actions_log_note: 'Suspensions, réactivations et avertissements envoyés — pour se souvenir de ce qui a déjà été fait sur une boutique.',
     no_actions_log: 'Aucune action admin pour le moment.',
     col_action: 'Action',
+    tab_announcements: 'Annonces',
+    h3_announce_new: 'Nouvelle annonce',
+    announce_note: 'Un bandeau apparaît en haut du tableau de bord des marchands concernés. Chacun peut le fermer ; il disparaît aussi à la date de fin ou si vous le retirez.',
+    label_announce_title: 'Titre (facultatif)', label_announce_message: 'Message', label_announce_level: 'Type', label_announce_audience: 'Qui doit la voir ?',
+    label_announce_end: 'Date de fin (facultatif)', label_announce_plan: 'Plan', label_announce_country: 'Pays',
+    lvl_info: 'ℹ️ Information', lvl_warning: '⚠️ Important', lvl_success: '✅ Bonne nouvelle',
+    aud_all: 'Tous les marchands', aud_expiring: 'Abonnement qui expire dans 5 jours ou moins', aud_expired: 'Abonnement expiré',
+    aud_plan: 'Un plan précis', aud_country: 'Boutiques d\'un pays précis',
+    announce_recipients: 'Visible par {n} marchand(s).',
+    btn_publish_announce: 'Publier l\'annonce',
+    announce_message_required: 'Écrivez le message de l\'annonce',
+    confirm_publish_announce: 'Publier cette annonce ? Elle sera visible par {n} marchand(s) dès maintenant.',
+    h3_announce_list: 'Annonces publiées',
+    col_audience: 'Destinataires', col_seen_by: 'Fermée par', col_ends: 'Fin',
+    status_live: 'En ligne', status_ended: 'Terminée', status_withdrawn: 'Retirée',
+    btn_withdraw: 'Retirer', btn_republish: 'Remettre en ligne', btn_delete_announce: 'Supprimer',
+    confirm_delete_announce: 'Supprimer définitivement cette annonce ?',
+    no_announcements: 'Aucune annonce pour le moment.',
     h3_rates: 'Taux de change (vers FCFA)',
     rates_note: 'Un taux = combien de FCFA vaut 1 unité de la devise ; il sert au total converti (Volume des ventes) et au Top 10 par chiffre d\'affaires. Les taux du jour sont récupérés automatiquement (ExchangeRate-API, actualisés toutes les 12 h) : vous n\'avez rien à saisir. Saisissez un taux seulement pour remplacer celui du jour par le vôtre (il reste alors figé jusqu\'à ce que vous le changiez ou l\'effaciez). L\'euro et le franc CFA d\'Afrique centrale sont à parité fixe officielle.',
     rates_none: 'Toutes les boutiques sont en FCFA : aucun taux à saisir.',
@@ -574,6 +622,24 @@ const I18N = {
     actions_log_note: 'Suspensions, reactivations and warnings sent - to remember what has already been done on a shop.',
     no_actions_log: 'No admin action yet.',
     col_action: 'Action',
+    tab_announcements: 'Announcements',
+    h3_announce_new: 'New announcement',
+    announce_note: 'A banner appears at the top of the dashboard of the merchants concerned. Each can close it; it also disappears on the end date or if you withdraw it.',
+    label_announce_title: 'Title (optional)', label_announce_message: 'Message', label_announce_level: 'Type', label_announce_audience: 'Who should see it?',
+    label_announce_end: 'End date (optional)', label_announce_plan: 'Plan', label_announce_country: 'Country',
+    lvl_info: 'ℹ️ Information', lvl_warning: '⚠️ Important', lvl_success: '✅ Good news',
+    aud_all: 'All merchants', aud_expiring: 'Subscription expiring within 5 days', aud_expired: 'Expired subscription',
+    aud_plan: 'A specific plan', aud_country: 'Shops in a specific country',
+    announce_recipients: 'Visible to {n} merchant(s).',
+    btn_publish_announce: 'Publish the announcement',
+    announce_message_required: 'Write the announcement message',
+    confirm_publish_announce: 'Publish this announcement? It will be visible to {n} merchant(s) right away.',
+    h3_announce_list: 'Published announcements',
+    col_audience: 'Recipients', col_seen_by: 'Closed by', col_ends: 'Ends',
+    status_live: 'Live', status_ended: 'Ended', status_withdrawn: 'Withdrawn',
+    btn_withdraw: 'Withdraw', btn_republish: 'Put back online', btn_delete_announce: 'Delete',
+    confirm_delete_announce: 'Permanently delete this announcement?',
+    no_announcements: 'No announcement yet.',
     h3_rates: 'Exchange rates (to FCFA)',
     rates_note: 'A rate = how many FCFA 1 unit of the currency is worth; it is used for the converted total (Sales volume) and the revenue Top 10. Today\'s rates are fetched automatically (ExchangeRate-API, refreshed every 12 h): you have nothing to enter. Enter a rate only to replace today\'s with your own (it then stays fixed until you change or clear it). The euro and the Central African CFA franc have an official fixed parity.',
     rates_none: 'All shops are in FCFA: no rate to enter.',
@@ -648,14 +714,14 @@ function setLang(lang) {
     renderTopBoutiquesTable('topBoutiquesItemsBody', TOP_BOUTIQUES.items_sold, 'items_sold');
     renderTopBoutiquesTable('topBoutiquesOrdersBody', TOP_BOUTIQUES.orders_count, 'orders_count');
     renderActionsLog(ACTIONS_LOG_ROWS);
-    renderPeriodStats(); renderRates(); updatePeriodBar(); updateTabBadges();
+    renderPeriodStats(); renderRates(); renderAnnouncements(); applyAnnounceLabels(); updatePeriodBar(); updateTabBadges();
     if (CURRENT_REVENUE_YEAR) renderRevenue();
   }
 }
 function applyStaticTranslations() {
   document.documentElement.lang = LANG;
   document.getElementById('subtitleText').textContent = t('subtitle');
-  [['Overview','overview'],['Boutiques','boutiques'],['Quality','quality'],['Subs','subs'],['Clients','clients'],['Revenue','revenue'],['Feedback','feedback'],['Demo','demo']]
+  [['Overview','overview'],['Boutiques','boutiques'],['Quality','quality'],['Subs','subs'],['Clients','clients'],['Revenue','revenue'],['Feedback','feedback'],['Announcements','announcements'],['Demo','demo']]
     .forEach(p => { document.getElementById('tabLbl'+p[0]).textContent = t('tab_'+p[1]); });
   [['Today','today'],['Week','week'],['Month','month'],['Year','year'],['Date','date'],['Range','range'],['All','all']]
     .forEach(p => { document.getElementById('pill'+p[0]).textContent = t('period_'+p[1]); });
@@ -663,6 +729,7 @@ function applyStaticTranslations() {
   document.getElementById('periodLabel').textContent = t('period_label');
   document.getElementById('h3PeriodStats').textContent = t('h3_period_stats');
   document.getElementById('h3Rates').textContent = t('h3_rates');
+  applyAnnounceLabels();
   document.getElementById('ratesNote').textContent = t('rates_note');
   updatePeriodBar();
   document.getElementById('adminPassword').placeholder = t('admin_password_placeholder');
@@ -776,7 +843,7 @@ let RATES_ROWS = [];
 // data-panel sur la carte) - seul l'onglet choisi est affiche. Les onglets
 // qui dependent d'une periode (voir PERIOD_TABS) affichent aussi la barre de
 // periode ; Revenus (a son propre selecteur d'annee) et Demo n'en ont pas.
-const ADMIN_TABS = ['overview','boutiques','quality','subs','clients','revenue','feedback','demo'];
+const ADMIN_TABS = ['overview','boutiques','quality','subs','clients','revenue','feedback','announcements','demo'];
 const PERIOD_TABS = ['overview','boutiques','quality','subs','clients','feedback'];
 let ADMIN_TAB = (function () {
   try { const s = sessionStorage.getItem('myboutik_admin_tab'); return ADMIN_TABS.includes(s) ? s : 'overview'; } catch (e) { return 'overview'; }
@@ -878,6 +945,92 @@ function loadPeriodData() {
 // Taux de change (vers FCFA) : l'admin saisit combien de FCFA vaut 1 unite de
 // chaque devise utilisee par les boutiques ; l'euro et le franc CFA d'Afrique
 // centrale sont a parite fixe (non modifiables).
+// ------------------------------------------------------------
+// ANNONCES : bandeau sur le tableau de bord des marchands
+// ------------------------------------------------------------
+let ANNOUNCEMENTS = [], ANNOUNCE_COUNTRIES = [], ANNOUNCE_COUNT = 0;
+function loadAnnouncements() {
+  call('announcements_list').then(d => {
+    if (!d.success) { document.getElementById('announceListBody').innerHTML = '<p style="color:#b91c1c">'+d.message+'</p>'; return; }
+    ANNOUNCEMENTS = d.data.items || []; ANNOUNCE_COUNTRIES = d.data.countries || [];
+    renderAnnouncements(); announceAudienceChanged();
+  });
+}
+function currentAnnounceAudience() {
+  const aud = document.getElementById('annAudience').value;
+  const val = (aud === 'plan' || aud === 'country') ? document.getElementById('annValue').value : null;
+  return {audience: aud, audience_value: val};
+}
+// Le 2e menu (plan / pays) n'apparait que pour les destinataires qui en ont besoin.
+function announceAudienceChanged() {
+  const aud = document.getElementById('annAudience').value;
+  const wrap = document.getElementById('annValueWrap'), sel = document.getElementById('annValue');
+  wrap.style.display = (aud === 'plan' || aud === 'country') ? '' : 'none';
+  if (aud === 'plan') {
+    document.getElementById('lblAnnValue').textContent = t('label_announce_plan');
+    sel.innerHTML = ['starter','pro','premium'].map(p => '<option value="'+p+'">'+p.charAt(0).toUpperCase()+p.slice(1)+'</option>').join('');
+  } else if (aud === 'country') {
+    document.getElementById('lblAnnValue').textContent = t('label_announce_country');
+    sel.innerHTML = ANNOUNCE_COUNTRIES.map(c => '<option value="'+escapeAttr(c)+'">'+escapeAttr(c)+'</option>').join('');
+  }
+  updateAudienceCount();
+}
+function updateAudienceCount() {
+  call('announcement_audience_count', currentAnnounceAudience()).then(d => {
+    ANNOUNCE_COUNT = d.success ? d.data.count : 0;
+    document.getElementById('annRecipients').textContent = d.success ? tf('announce_recipients', {n: ANNOUNCE_COUNT}) : '';
+  });
+}
+function submitAnnouncement() {
+  const msgEl = document.getElementById('announceMsg');
+  const message = document.getElementById('annMessage').value.trim();
+  if (!message) { showToast(t('announce_message_required'), 'error'); return; }
+  const body = Object.assign({
+    title: document.getElementById('annTitle').value.trim(), message,
+    level: document.getElementById('annLevel').value, ends_on: document.getElementById('annEnds').value,
+  }, currentAnnounceAudience());
+  customConfirm(tf('confirm_publish_announce', {n: ANNOUNCE_COUNT})).then(ok => {
+    if (!ok) return;
+    call('announcement_create', body).then(d => {
+      showToast(d.message || (d.success ? t('toast_done') : t('toast_error')), d.success ? 'success' : 'error');
+      if (d.success) { document.getElementById('annTitle').value = ''; document.getElementById('annMessage').value = ''; document.getElementById('annEnds').value = ''; loadAnnouncements(); }
+    });
+  });
+}
+function announceAudienceLabel(a) {
+  const base = t('aud_' + a.audience);
+  return (a.audience === 'plan' || a.audience === 'country') ? base + ' : ' + (a.audience_value || '') : base;
+}
+function renderAnnouncements() {
+  const el = document.getElementById('announceListBody');
+  const statusPill = a => a.status === 'live' ? '<span class="pill pill-ok">'+t('status_live')+'</span>' : a.status === 'ended' ? '<span class="pill pill-warn">'+t('status_ended')+'</span>' : '<span class="pill pill-bad">'+t('status_withdrawn')+'</span>';
+  el.innerHTML = ANNOUNCEMENTS.length ? '<table><thead><tr><th>'+t('col_date')+'</th><th>'+t('label_announce_message')+'</th><th>'+t('col_audience')+'</th><th>'+t('col_seen_by')+'</th><th>'+t('col_ends')+'</th><th>'+t('col_status')+'</th><th></th></tr></thead><tbody>' +
+    ANNOUNCEMENTS.map(a => '<tr><td>'+fmtDate(a.created_at)+'</td>' +
+      '<td style="max-width:320px;white-space:normal">'+(a.title ? '<strong>'+escapeAttr(a.title)+'</strong><br>' : '')+escapeAttr(a.message)+'</td>' +
+      '<td>'+escapeAttr(announceAudienceLabel(a))+'<br><span class="muted" style="font-size:12px">'+tf('announce_recipients', {n: a.recipients})+'</span></td>' +
+      '<td>'+a.dismissed_count+'</td><td>'+(a.ends_at ? fmtDate(a.ends_at) : '—')+'</td><td>'+statusPill(a)+'</td>' +
+      '<td style="white-space:nowrap"><button class="ghost" onclick="toggleAnnouncement(\''+a.id+'\','+(a.status === 'withdrawn' ? 'true' : 'false')+')">'+(a.status === 'withdrawn' ? t('btn_republish') : t('btn_withdraw'))+'</button> ' +
+      '<button class="ghost" onclick="deleteAnnouncement(\''+a.id+'\')">'+t('btn_delete_announce')+'</button></td></tr>').join('') +
+    '</tbody></table>' : '<p style="color:var(--gray)">'+t('no_announcements')+'</p>';
+}
+function toggleAnnouncement(id, active) {
+  call('announcement_set_active', {id, active}).then(d => { showToast(d.message || t('toast_done'), d.success ? 'success' : 'error'); loadAnnouncements(); });
+}
+function deleteAnnouncement(id) {
+  customConfirm(t('confirm_delete_announce'), {danger: true}).then(ok => {
+    if (!ok) return;
+    call('announcement_delete', {id}).then(d => { showToast(d.message || t('toast_done'), d.success ? 'success' : 'error'); loadAnnouncements(); });
+  });
+}
+function applyAnnounceLabels() {
+  const set = (id, key) => { const el = document.getElementById(id); if (el) el.textContent = t(key); };
+  set('h3AnnounceNew', 'h3_announce_new'); set('announceNote', 'announce_note'); set('lblAnnTitle', 'label_announce_title');
+  set('lblAnnMessage', 'label_announce_message'); set('lblAnnLevel', 'label_announce_level'); set('lblAnnAudience', 'label_announce_audience');
+  set('lblAnnEnds', 'label_announce_end'); set('btnPublishAnnounce', 'btn_publish_announce'); set('h3AnnounceList', 'h3_announce_list');
+  set('optLvlInfo', 'lvl_info'); set('optLvlWarn', 'lvl_warning'); set('optLvlOk', 'lvl_success');
+  set('optAudAll', 'aud_all'); set('optAudExpiring', 'aud_expiring'); set('optAudExpired', 'aud_expired'); set('optAudPlan', 'aud_plan'); set('optAudCountry', 'aud_country');
+  const cur = document.getElementById('annAudience'); if (cur && document.getElementById('annValueWrap').style.display !== 'none') announceAudienceChanged();
+}
 function loadRates() {
   call('rates_list').then(d => { if (!d.success) { document.getElementById('ratesBody').innerHTML = '<p style="color:#b91c1c">'+d.message+'</p>'; return; } RATES_ROWS = d.data || []; renderRates(); });
 }
@@ -1083,6 +1236,7 @@ function loadAll() {
     });
     loadPeriodData();
     loadRates();
+    loadAnnouncements();
     call('actions_log').then(d13 => {
       if (!d13.success) { document.getElementById('actionsLogBody').innerHTML = '<p style="color:#b91c1c">'+d13.message+'</p>'; return; }
       ACTIONS_LOG_ROWS = d13.data || []; renderActionsLog(ACTIONS_LOG_ROWS);

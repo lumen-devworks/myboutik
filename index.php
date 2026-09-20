@@ -175,6 +175,16 @@ const EN_DICT = [
     'Taux de change invalide' => 'Invalid exchange rate',
     'Taux enregistres' => 'Rates saved',
     'Table des taux absente : relancez /install puis reessayez' => 'Rates table missing: run /install again then retry',
+    'Ecrivez le message de l\'annonce' => 'Write the announcement message',
+    'Message trop long (1000 caracteres maximum)' => 'Message too long (1000 characters maximum)',
+    'Destinataires invalides' => 'Invalid recipients',
+    'Date de fin invalide' => 'Invalid end date',
+    'La date de fin doit etre dans le futur' => 'The end date must not be in the past',
+    'Annonce publiee' => 'Announcement published',
+    'Annonce mise a jour' => 'Announcement updated',
+    'Annonce supprimee' => 'Announcement deleted',
+    'Annonce introuvable' => 'Announcement not found',
+    'Table des annonces absente : relancez /install puis reessayez' => 'Announcements table missing: run /install again then retry',
     'Ecrivez un message d\'avertissement' => 'Write a warning message',
     'Avertissement envoye' => 'Warning sent',
     'Reponse envoyee' => 'Response sent',
@@ -912,6 +922,7 @@ try {
         case 'marketing': route_marketing($action); break;
         case 'team':      route_team($action); break;
         case 'billing':   route_billing($action); break;
+        case 'announcements': route_announcements($action); break;
         case 'feedback':  route_feedback($action); break;
         case 'admin':     route_admin($action); break;
         case 'directory': route_directory($action); break;
@@ -1601,6 +1612,27 @@ function route_install() {
         currency VARCHAR(3) PRIMARY KEY,
         per_usd DECIMAL(24,10) NOT NULL,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )",
+    // Annonces de l'admin affichees en bandeau sur le tableau de bord des
+    // marchands (voir route_announcements()) ; une ligne par marchand qui a
+    // ferme une annonce pour ne plus la lui montrer.
+    "CREATE TABLE IF NOT EXISTS announcements (
+        id VARCHAR(36) PRIMARY KEY,
+        title VARCHAR(120),
+        message TEXT NOT NULL,
+        level VARCHAR(10) DEFAULT 'info',
+        audience VARCHAR(20) DEFAULT 'all',
+        audience_value VARCHAR(80),
+        starts_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        ends_at TIMESTAMP,
+        active SMALLINT DEFAULT 1,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )",
+    "CREATE TABLE IF NOT EXISTS announcement_dismissals (
+        announcement_id VARCHAR(36) NOT NULL,
+        user_id VARCHAR(36) NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (announcement_id, user_id)
     )",
     ];
 
@@ -4731,6 +4763,11 @@ function route_admin($action) {
         case 'period_stats':          admin_period_stats(); break;
         case 'rates_list':            admin_rates_list(); break;
         case 'rates_save':            admin_rates_save(); break;
+        case 'announcements_list':    admin_announcements_list(); break;
+        case 'announcement_create':   admin_announcement_create(); break;
+        case 'announcement_audience_count': admin_announcement_audience_count(); break;
+        case 'announcement_set_active': admin_announcement_set_active(); break;
+        case 'announcement_delete':   admin_announcement_delete(); break;
         case 'seed_demo_data':        admin_seed_demo_data(); break;
         case 'seed_demo_currency':    admin_seed_demo_currency(); break;
         case 'delete_demo_data':      admin_delete_demo_data(); break;
@@ -4936,6 +4973,146 @@ function admin_top_boutiques() {
         $rows = array_slice($rows, 0, 10);
     }
     ok($rows);
+}
+// ============================================================
+// ANNONCES (admin -> marchands) : bandeau en haut du tableau de bord.
+// Destinataires = des COMPTES marchands (users), choisis par l'admin :
+// tous, abonnement qui expire dans 5 jours ou moins (meme seuil que le
+// bandeau d'avertissement de la page Abonnement), abonnement expire, un plan
+// precis, ou les proprietaires d'au moins une boutique d'un pays. Le compte
+// de demonstration n'est jamais compte ni cible.
+// ============================================================
+function announcement_audience_where($aud, $val, &$params) {
+    $where = "u.status='active' AND u.email <> ?";
+    $params[] = DEMO_SEED_EMAIL;
+    switch ($aud) {
+        case 'expiring': return $where." AND u.plan_valid_until >= NOW() AND u.plan_valid_until < NOW() + INTERVAL '5 days'";
+        case 'expired':  return $where." AND u.plan_valid_until < NOW()";
+        case 'plan':     $params[] = $val; return $where." AND u.plan=?";
+        case 'country':  $params[] = $val; return $where." AND EXISTS (SELECT 1 FROM boutiques b WHERE b.owner_user_id=u.id AND b.country=?)";
+        default:         return $where;
+    }
+}
+function announcement_recipients($aud, $val) {
+    $params = [];
+    $where = announcement_audience_where($aud, $val, $params);
+    return (int)q("SELECT COUNT(*) c FROM users u WHERE $where", $params)->fetch()['c'];
+}
+function announcement_valid_audience($aud, $val) {
+    if (!in_array($aud, ['all', 'expiring', 'expired', 'plan', 'country'], true)) return false;
+    if ($aud === 'plan') return is_string($val) && isset(PLANS[$val]);
+    if ($aud === 'country') return is_string($val) && $val !== '' && strlen($val) <= 80;
+    return true;
+}
+// Cote marchand : uniquement l'utilisateur connecte (jamais un autre compte).
+function route_announcements($action) {
+    $pl = owner_auth();
+    switch ($action) {
+        case 'active':  announcements_active($pl); break;
+        case 'dismiss': announcements_dismiss($pl); break;
+        default: fail('Action inconnue', 404);
+    }
+}
+// Annonces en ligne (actives, dans leurs dates), destinees a CE marchand et
+// qu'il n'a pas fermees - 3 au maximum, la plus recente en premier. Une base
+// pas encore mise a jour (/install) donne simplement "aucune annonce".
+function announcements_active($pl) {
+    try {
+        $rows = q("SELECT a.id, a.title, a.message, a.level, a.audience, a.audience_value FROM announcements a
+                   WHERE a.active=1 AND a.starts_at <= NOW() AND (a.ends_at IS NULL OR a.ends_at > NOW())
+                     AND NOT EXISTS (SELECT 1 FROM announcement_dismissals d WHERE d.announcement_id=a.id AND d.user_id=?)
+                   ORDER BY a.created_at DESC LIMIT 20", [$pl['sub']])->fetchAll();
+        $out = [];
+        foreach ($rows as $a) {
+            $params = [];
+            $where = announcement_audience_where($a['audience'], $a['audience_value'], $params);
+            if (!q("SELECT 1 FROM users u WHERE u.id=? AND $where", array_merge([$pl['sub']], $params))->fetch()) continue;
+            $out[] = ['id' => $a['id'], 'title' => $a['title'], 'message' => $a['message'], 'level' => $a['level']];
+            if (count($out) >= 3) break;
+        }
+        ok($out);
+    } catch (PDOException $e) {
+        ok([]);
+    }
+}
+function announcements_dismiss($pl) {
+    $b = body();
+    $id = $b['id'] ?? '';
+    try {
+        if (!q("SELECT 1 FROM announcements WHERE id=?", [$id])->fetch()) fail('Annonce introuvable', 404);
+        q("INSERT INTO announcement_dismissals (announcement_id, user_id) VALUES (?,?) ON CONFLICT DO NOTHING", [$id, $pl['sub']]);
+    } catch (PDOException $e) {
+        error_log('[MYBOUTIK] announcements: '.$e->getMessage());
+        fail('Table des annonces absente : relancez /install puis reessayez', 500);
+    }
+    ok(null, 'OK');
+}
+// Cote admin.
+function admin_announcement_audience_count() {
+    $b = body();
+    $aud = $b['audience'] ?? 'all';
+    $val = $b['audience_value'] ?? null;
+    if (!announcement_valid_audience($aud, $val)) ok(['count' => 0]);
+    ok(['count' => announcement_recipients($aud, $val)]);
+}
+function admin_announcement_create() {
+    $b = body();
+    $title = trim((string)($b['title'] ?? ''));
+    $message = trim((string)($b['message'] ?? ''));
+    $len = function_exists('mb_strlen') ? 'mb_strlen' : 'strlen';
+    if ($message === '') fail('Ecrivez le message de l\'annonce');
+    if ($len($message) > 1000 || $len($title) > 120) fail('Message trop long (1000 caracteres maximum)');
+    $level = in_array($b['level'] ?? '', ['info', 'warning', 'success'], true) ? $b['level'] : 'info';
+    $aud = $b['audience'] ?? 'all';
+    $val = $b['audience_value'] ?? null;
+    if (!announcement_valid_audience($aud, $val)) fail('Destinataires invalides');
+    $endsOn = trim((string)($b['ends_on'] ?? ''));
+    $endsAt = null;
+    if ($endsOn !== '') {
+        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $endsOn)) fail('Date de fin invalide');
+        if ($endsOn < date('Y-m-d')) fail('La date de fin doit etre dans le futur');
+        $endsAt = $endsOn.' 23:59:59';
+    }
+    $id = uid();
+    try {
+        q("INSERT INTO announcements (id,title,message,level,audience,audience_value,ends_at) VALUES (?,?,?,?,?,?,?)",
+          [$id, $title !== '' ? $title : null, $message, $level, $aud, in_array($aud, ['plan', 'country'], true) ? $val : null, $endsAt]);
+    } catch (PDOException $e) {
+        error_log('[MYBOUTIK] announcements: '.$e->getMessage());
+        fail('Table des annonces absente : relancez /install puis reessayez', 500);
+    }
+    ok(['id' => $id, 'recipients' => announcement_recipients($aud, $val)], 'Annonce publiee');
+}
+function admin_announcements_list() {
+    try {
+        $rows = q("SELECT a.*, (SELECT COUNT(*) FROM announcement_dismissals d WHERE d.announcement_id=a.id) AS dismissed_count
+                   FROM announcements a ORDER BY a.created_at DESC LIMIT 100")->fetchAll();
+    } catch (PDOException $e) {
+        error_log('[MYBOUTIK] announcements: '.$e->getMessage());
+        fail('Table des annonces absente : relancez /install puis reessayez', 500);
+    }
+    foreach ($rows as &$r) {
+        $r['recipients'] = announcement_recipients($r['audience'], $r['audience_value']);
+        $ended = $r['ends_at'] && strtotime($r['ends_at']) < time();
+        $r['status'] = !(int)$r['active'] ? 'withdrawn' : ($ended ? 'ended' : 'live');
+    }
+    unset($r);
+    $countries = q("SELECT DISTINCT country FROM boutiques WHERE country IS NOT NULL AND country <> '' ORDER BY country")->fetchAll(PDO::FETCH_COLUMN);
+    ok(['items' => $rows, 'countries' => $countries]);
+}
+function admin_announcement_set_active() {
+    $b = body();
+    $id = $b['id'] ?? '';
+    if (!q("SELECT 1 FROM announcements WHERE id=?", [$id])->fetch()) fail('Annonce introuvable', 404);
+    q("UPDATE announcements SET active=? WHERE id=?", [!empty($b['active']) ? 1 : 0, $id]);
+    ok(null, 'Annonce mise a jour');
+}
+function admin_announcement_delete() {
+    $b = body();
+    $id = $b['id'] ?? '';
+    q("DELETE FROM announcement_dismissals WHERE announcement_id=?", [$id]);
+    q("DELETE FROM announcements WHERE id=?", [$id]);
+    ok(null, 'Annonce supprimee');
 }
 // Taux de change : une ligne par devise utilisee par au moins une boutique
 // (hors XOF, qui vaut 1). source : 'fixed' (parite officielle, non
