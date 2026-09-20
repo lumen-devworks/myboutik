@@ -250,6 +250,7 @@
       <div id="demoDataMsg"></div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         <button onclick="seedDemoData()" id="btnSeedDemo">🌱 <span id="btnSeedDemoText"></span></button>
+        <button onclick="seedDemoCurrency()" id="btnSeedDemoCurrency">🌍 <span id="btnSeedDemoCurrencyText"></span></button>
         <button class="ghost" onclick="deleteDemoData()" id="btnDeleteDemo">🗑️ <span id="btnDeleteDemoText"></span></button>
       </div>
     </div>
@@ -452,8 +453,10 @@ const I18N = {
     stat_new_users: 'Nouveaux clients', stat_new_boutiques: 'Nouvelles boutiques',
     stat_disputes_period: 'Réclamations', stat_low_reviews_period: 'Avis ≤2★',
     h3_demo: 'Données de démonstration',
-    demo_data_note: 'Génère 15 boutiques factices avec des produits (visibles dans l\'annuaire public) pour vos captures d\'écran/publicité — toutes regroupées sous un seul compte, à supprimer d\'un clic quand vous avez terminé.',
+    demo_data_note: 'Génère des boutiques factices avec de vrais articles et de vraies photos (visibles dans l\'annuaire public) pour vos tests, captures d\'écran ou publicité — toutes regroupées sous un seul compte, à supprimer d\'un clic quand vous avez terminé. « Générer 15 boutiques de démo » crée des boutiques en FCFA ; « Générer des démos multi-devises » crée 10 boutiques en euro, dirham, cedi, naira, dollar, dollar canadien et FCFA d\'Afrique centrale, avec quelques commandes livrées fictives qui comptent dans vos totaux admin jusqu\'à la suppression. Recliquer ne crée jamais de doublons.',
     btn_seed_demo: 'Générer 15 boutiques de démo',
+    btn_seed_demo_currency: 'Générer des démos multi-devises',
+    confirm_seed_demo_currency: 'Générer 10 boutiques de démonstration en devises étrangères (EUR, MAD, GHS, NGN, USD, CAD, XAF) avec leurs produits et quelques commandes livrées fictives ?\n\nElles seront visibles publiquement dans l\'annuaire et compteront dans vos statistiques admin jusqu\'à leur suppression. Vous pourrez tout supprimer en un clic ensuite.',
     btn_delete_demo: 'Supprimer les données de démo',
     confirm_seed_demo: 'Générer 15 boutiques de démonstration avec leurs produits ?\n\nElles seront visibles publiquement dans l\'annuaire. Vous pourrez tout supprimer en un clic ensuite.',
     confirm_delete_demo: 'Supprimer toutes les boutiques et produits de démonstration ?\n\nCette action est irréversible.',
@@ -596,8 +599,10 @@ const I18N = {
     stat_new_users: 'New customers', stat_new_boutiques: 'New shops',
     stat_disputes_period: 'Complaints', stat_low_reviews_period: 'Reviews ≤2★',
     h3_demo: 'Demo data',
-    demo_data_note: 'Generates 15 fake shops with products (visible in the public directory) for your screenshots/ads - all grouped under one account, removable in one click when you\'re done.',
+    demo_data_note: 'Generates fake shops with real items and photos (visible in the public directory) for your tests, screenshots or ads - all grouped under one account, removable in one click when you\'re done. "Generate 15 demo shops" creates shops in FCFA; "Generate multi-currency demos" creates 10 shops in euro, dirham, cedi, naira, dollar, Canadian dollar and Central African CFA, with a few fake delivered orders that count in your admin totals until deleted. Clicking again never creates duplicates.',
     btn_seed_demo: 'Generate 15 demo shops',
+    btn_seed_demo_currency: 'Generate multi-currency demos',
+    confirm_seed_demo_currency: 'Generate 10 demo shops in foreign currencies (EUR, MAD, GHS, NGN, USD, CAD, XAF) with their products and a few fake delivered orders?\n\nThey will be publicly visible in the directory and count in your admin statistics until deleted. You can delete everything in one click afterwards.',
     btn_delete_demo: 'Delete demo data',
     confirm_seed_demo: 'Generate 15 demo shops with their products?\n\nThey will be publicly visible in the directory. You can delete everything in one click afterward.',
     confirm_delete_demo: 'Delete all demo shops and products?\n\nThis action cannot be undone.',
@@ -707,6 +712,7 @@ function applyStaticTranslations() {
   document.getElementById('h3Demo').textContent = t('h3_demo');
   document.getElementById('demoDataNote').textContent = t('demo_data_note');
   document.getElementById('btnSeedDemoText').textContent = t('btn_seed_demo');
+  document.getElementById('btnSeedDemoCurrencyText').textContent = t('btn_seed_demo_currency');
   document.getElementById('btnDeleteDemoText').textContent = t('btn_delete_demo');
 }
 // L'icone reflete l'etat ACTUEL du champ : 🙈 = actuellement masque
@@ -1611,6 +1617,16 @@ function toggleBoutiqueStatus(id, status) {
 // toutes regroupees cote serveur sous un seul compte dedie, jamais
 // melangees aux vrais comptes (voir admin_seed_demo_data() /
 // admin_delete_demo_data()) : la suppression retire tout d'un coup.
+function seedDemoCurrency() {
+  customConfirm(t('confirm_seed_demo_currency')).then(ok => {
+    if (!ok) return;
+    document.getElementById('demoDataMsg').innerHTML = '<p class="muted">'+t('loading')+'</p>';
+    call('seed_demo_currency').then(data => {
+      document.getElementById('demoDataMsg').innerHTML = '<p style="color:'+(data.success?'var(--green)':'#b91c1c')+'">'+escapeAttr(data.message||'')+'</p>';
+      if (data.success) loadAll();
+    });
+  });
+}
 function seedDemoData() {
   customConfirm(t('confirm_seed_demo')).then(ok => {
     if (!ok) return;

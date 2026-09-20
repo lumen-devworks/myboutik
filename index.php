@@ -4732,6 +4732,7 @@ function route_admin($action) {
         case 'rates_list':            admin_rates_list(); break;
         case 'rates_save':            admin_rates_save(); break;
         case 'seed_demo_data':        admin_seed_demo_data(); break;
+        case 'seed_demo_currency':    admin_seed_demo_currency(); break;
         case 'delete_demo_data':      admin_delete_demo_data(); break;
         default: fail('Action inconnue', 404);
     }
@@ -5137,72 +5138,161 @@ function demo_photo_url($keyword, $seedText) {
     return 'https://loremflickr.com/400/400/'.rawurlencode($keyword).'?lock='.$lock;
 }
 
-function admin_seed_demo_data() {
+// Compte dedie (cree au besoin) qui porte TOUTES les boutiques de demonstration.
+function demo_seed_user() {
     $user = q("SELECT id FROM users WHERE email=?", [DEMO_SEED_EMAIL])->fetch();
     $userId = $user['id'] ?? uid();
     if (!$user) {
         q("INSERT INTO users (id,email,password_hash,full_name,status,plan,plan_status,plan_valid_until) VALUES (?,?,?,?,?,?,?,NOW()+INTERVAL '3650 days')",
           [$userId, DEMO_SEED_EMAIL, password_hash(bin2hex(random_bytes(24)), PASSWORD_DEFAULT), 'Demo Seed', 'active', 'premium', 'active']);
     }
+    return $userId;
+}
+
+// Catalogue "multi-devises" : de vrais articles, dans la monnaie de chaque pays
+// (la devise se deduit du pays, voir currency_for_country()) - avec et sans
+// centimes (EUR/MAD/GHS/NGN/USD/CAD contre XAF) pour tester les deux formats.
+// 'orders' => true : quelques commandes livrees fictives, pour alimenter les
+// totaux convertis du panneau admin. Memes mots-cles de photo verifies que
+// demo_seed_catalog().
+function demo_seed_catalog_currency() {
+    return [
+        ['name'=>'Paris Mode Élégante', 'category'=>'mode', 'city'=>'Paris', 'country'=>'France', 'photo'=>'clothing', 'orders'=>true,
+         'desc'=>'Prêt-à-porter parisien : robes, chemises et manteaux intemporels.', 'products'=>[
+            ['Robe d\'été fleurie',39.90],['Chemise en lin',34.90],['Jean slim brut',59.90],['Trench-coat beige',129.00],['Écharpe en soie',24.50]]],
+        ['name'=>'Maison & Déco Lyon', 'category'=>'maison', 'city'=>'Lyon', 'country'=>'France', 'photo'=>'furniture,home', 'orders'=>true,
+         'desc'=>'Objets de décoration et linge de maison au style scandinave.', 'products'=>[
+            ['Lampe scandinave',34.90],['Coussin en lin',14.90],['Vase en céramique',22.00],['Plaid en laine',39.90],['Cadre photo en bois',12.50]]],
+        ['name'=>'Épicerie Fine Provence', 'category'=>'alimentation', 'city'=>'Marseille', 'country'=>'France', 'photo'=>'meal', 'orders'=>true,
+         'desc'=>'Produits du terroir provençal, sélectionnés chez de petits producteurs.', 'products'=>[
+            ['Huile d\'olive bio 1 L',14.90],['Miel de lavande',8.50],['Herbes de Provence',4.90],['Tapenade noire',6.50],['Savon de Marseille',5.90]]],
+        ['name'=>'Artisanat de Marrakech', 'category'=>'mode', 'city'=>'Marrakech', 'country'=>'Maroc', 'photo'=>'jewelry', 'orders'=>true,
+         'desc'=>'Bijoux berbères et artisanat marocain fait main.', 'products'=>[
+            ['Bracelet berbère en argent',350.00],['Collier touareg',480.00],['Bague en argent ciselée',220.00],['Boucles d\'oreilles',190.00],['Pendentif main de Fatma',150.00]]],
+        ['name'=>'Casablanca Caftan', 'category'=>'mode', 'city'=>'Casablanca', 'country'=>'Maroc', 'photo'=>'clothing', 'orders'=>true,
+         'desc'=>'Caftans, djellabas et tenues traditionnelles pour toutes les occasions.', 'products'=>[
+            ['Caftan brodé',1200.00],['Djellaba femme',650.00],['Babouches en cuir',180.00],['Gandoura homme',420.00],['Foulard en soie',120.00]]],
+        ['name'=>'Accra Tech Hub', 'category'=>'electronique', 'city'=>'Accra', 'country'=>'Ghana', 'photo'=>'electronics,gadget', 'orders'=>true,
+         'desc'=>'Accessoires et gadgets électroniques, livrés partout au Ghana.', 'products'=>[
+            ['Écouteurs Bluetooth',199.00],['Chargeur rapide 30W',65.00],['Powerbank 20000 mAh',210.00],['Enceinte portable',320.00],['Montre connectée',450.00]]],
+        ['name'=>'Lagos Style House', 'category'=>'mode', 'city'=>'Lagos', 'country'=>'Nigeria', 'photo'=>'clothing', 'orders'=>true,
+         'desc'=>'Mode nigériane : Ankara, Agbada et accessoires en cuir.', 'products'=>[
+            ['Robe Ankara',28500],['Chemise Agbada',45000],['Sac en cuir',32000],['Sandales artisanales',15500],['Bonnet Aso Oke',9500]]],
+        ['name'=>'Brooklyn Sneakers', 'category'=>'mode', 'city'=>'New York', 'country'=>'États-Unis', 'photo'=>'shoes', 'orders'=>true,
+         'desc'=>'Sneakers, baskets et chaussures de ville, expédiées dans tout le pays.', 'products'=>[
+            ['Sneakers blanches',79.99],['Baskets running',94.50],['Bottines en cuir',129.00],['Sandales d\'été',34.99],['Pack de 6 paires de chaussettes',15.99]]],
+        ['name'=>'Douala Beauté Naturelle', 'category'=>'beaute', 'city'=>'Douala', 'country'=>'Cameroun', 'photo'=>'makeup', 'orders'=>true,
+         'desc'=>'Soins et cosmétiques naturels camerounais.', 'products'=>[
+            ['Beurre de karité pur',4500],['Huile de coco vierge',3500],['Rouge à lèvres mat',6000],['Sérum visage naturel',12000],['Parfum d\'ambiance',8000]]],
+        ['name'=>'Montréal Sport Plus', 'category'=>'autre', 'city'=>'Montréal', 'country'=>'Canada', 'photo'=>'sport', 'orders'=>true,
+         'desc'=>'Équipement de sport et de fitness pour s\'entraîner à la maison.', 'products'=>[
+            ['Tapis de yoga',34.99],['Haltères 5 kg (la paire)',44.99],['Bouteille isotherme',24.50],['Sac de sport',59.00],['Corde à sauter',14.99]]],
+    ];
+}
+
+// Quelques commandes LIVREES fictives (3 a 5) sur les 3 dernieres semaines
+// pour une boutique de demo - de quoi voir des totaux, des classements et la
+// conversion des devises dans le panneau admin. Supprimees avec la boutique
+// (voir admin_delete_demo_data()).
+function demo_seed_orders($btId, $currency, $items) {
+    $names = demo_review_pool()['names'];
+    $dec = currency_decimals($currency);
+    $made = 0;
+    for ($i = 0, $n = rand(3, 5); $i < $n; $i++) {
+        $picked = (array)array_rand($items, min(rand(1, 2), count($items)));
+        $lines = []; $subtotal = 0;
+        foreach ($picked as $k) {
+            $qty = rand(1, 3);
+            $lines[] = [$items[$k][0], $items[$k][1], $items[$k][2], $qty];
+            $subtotal += $items[$k][2] * $qty;
+        }
+        $subtotal = round($subtotal, $dec);
+        $fee = rand(0, 1) ? round($subtotal * 0.05, $dec) : 0;
+        $total = round($subtotal + $fee, $dec);
+        $orderId = uid(); $daysAgo = rand(0, 20);
+        q("INSERT INTO orders (id,boutique_id,ref,status,payment_method,subtotal,delivery_fee_charged,total,customer_name,customer_phone,customer_address,delivery_method,created_at,delivered_at)
+           VALUES (?,?,?,'delivered','cod',?,?,?,?,?,?,'delivery', NOW() - (?::text || ' days')::interval, NOW() - (?::text || ' days')::interval)",
+          [$orderId, $btId, order_ref(), $subtotal, $fee, $total, $names[array_rand($names)], '06'.rand(10000000, 99999999), 'Adresse de demonstration', $daysAgo, $daysAgo]);
+        foreach ($lines as [$pid, $pname, $price, $qty]) {
+            q("INSERT INTO order_items (id,order_id,product_id,product_name,unit_price,unit_cost,qty) VALUES (?,?,?,?,?,0,?)", [uid(), $orderId, $pid, $pname, $price, $qty]);
+        }
+        $made++;
+    }
+    return $made;
+}
+
+// Cree les boutiques d'un catalogue de demo sous le compte demo. IDEMPOTENT :
+// une boutique du meme nom deja presente sur ce compte est sautee, donc
+// recliquer sur un bouton ne cree jamais de doublons. Devise = celle de
+// l'entree si elle en donne une, sinon celle du pays.
+function demo_seed_shops($catalog, $userId) {
     $reviewPool = demo_review_pool();
-    $boutiquesCreated = 0; $productsCreated = 0; $reviewsCreated = 0;
-    foreach (demo_seed_catalog() as $b) {
+    $res = ['boutiques' => 0, 'products' => 0, 'reviews' => 0, 'orders' => 0, 'skipped' => 0];
+    foreach ($catalog as $b) {
+        if (q("SELECT 1 FROM boutiques WHERE owner_user_id=? AND name=?", [$userId, $b['name']])->fetch()) { $res['skipped']++; continue; }
         $slug = unique_boutique_slug(slugify($b['name']));
         $btId = uid();
+        $currency = $b['currency'] ?? currency_for_country($b['country']);
+        $dec = currency_decimals($currency);
         $logoUrl = demo_photo_url($b['photo'], $b['name'].'-logo');
         q("INSERT INTO boutiques (id,owner_user_id,slug,name,description,logo_url,category,city,country,public_listed,status,currency,cod_enabled)
-           VALUES (?,?,?,?,?,?,?,?,?,1,'active','XOF',1)",
-          [$btId, $userId, $slug, $b['name'], $b['desc'], $logoUrl, $b['category'], $b['city'], $b['country']]);
-        $boutiquesCreated++;
-        $boutiqueProductIds = [];
+           VALUES (?,?,?,?,?,?,?,?,?,1,'active',?,1)",
+          [$btId, $userId, $slug, $b['name'], $b['desc'], $logoUrl, $b['category'], $b['city'], $b['country'], $currency]);
+        $res['boutiques']++;
+        $boutiqueProductIds = []; $orderItems = [];
         foreach ($b['products'] as $index => [$pname, $price]) {
             $pSlug = unique_product_slug($btId, slugify($pname));
             $pId = uid();
             $mainPhoto = demo_photo_url($b['photo'], $pname.'-0');
             // Un produit sur deux affiche un prix barre (compare_at_price)
-            // un peu plus haut - donne une impression de promotions actives
-            // plutot qu'un catalogue au prix fixe partout.
-            $compareAt = ($index % 2 === 0) ? $price + (rand(2,6) * 500) : null;
+            // un peu plus haut - donne une impression de promotions actives.
+            // Monnaie sans centimes : +1000 a +3000 ; avec centimes : +10 a
+            // +30 %, arrondi aux centimes.
+            $compareAt = ($index % 2 === 0) ? ($dec === 0 ? $price + (rand(2,6) * 500) : round($price * (1 + rand(10, 30) / 100), $dec)) : null;
             q("INSERT INTO products (id,boutique_id,name,price,compare_at_price,stock_qty,status,slug,is_physical,track_inventory,image_url)
                VALUES (?,?,?,?,?,?,'active',?,1,1,?)",
               [$pId, $btId, $pname, $price, $compareAt, rand(5,40), $pSlug, $mainPhoto]);
-            // Galerie de plusieurs photos (comme un vrai marchand peut en
-            // ajouter jusqu'a 5) - meme premiere photo que image_url pour
-            // rester coherent, position 0 = principale (is_primary=1),
-            // puis 3 photos supplementaires avec un seed different chacune.
+            // Galerie de 4 photos (position 0 = principale), une par seed.
             q("INSERT INTO product_images (id,product_id,boutique_id,data,position,is_primary) VALUES (?,?,?,?,0,1)",
               [uid(), $pId, $btId, $mainPhoto]);
             for ($i = 1; $i <= 3; $i++) {
                 q("INSERT INTO product_images (id,product_id,boutique_id,data,position,is_primary) VALUES (?,?,?,?,?,0)",
                   [uid(), $pId, $btId, demo_photo_url($b['photo'], $pname.'-'.$i), $i]);
             }
-            $productsCreated++;
+            $res['products']++;
             $boutiqueProductIds[] = $pId;
-            // 1 a 2 avis par produit, majoritairement positifs (une note de
-            // 3 de temps en temps pour rester credible) - deja 'approved',
-            // comme n'importe quel avis client publie instantanement.
-            $reviewCount = rand(1, 2);
-            for ($r = 0; $r < $reviewCount; $r++) {
+            $orderItems[] = [$pId, $pname, $price];
+            // 1 a 2 avis par produit, majoritairement positifs, deja approuves.
+            for ($r = 0, $reviewCount = rand(1, 2); $r < $reviewCount; $r++) {
                 $rating = rand(1, 10) <= 8 ? (rand(0,1) ? 5 : 4) : 3;
                 $name = $reviewPool['names'][array_rand($reviewPool['names'])];
                 $comment = $reviewPool['comments'][$rating][array_rand($reviewPool['comments'][$rating])];
                 q("INSERT INTO product_reviews (id,boutique_id,product_id,customer_name,rating,comment,status) VALUES (?,?,?,?,?,?,'approved')",
                   [uid(), $btId, $pId, $name, $rating, $comment]);
-                $reviewsCreated++;
+                $res['reviews']++;
             }
         }
-        // Produits associes (upsell sur la fiche produit de la vitrine) -
-        // jusqu'a 3 autres produits de la MEME boutique, tires au sort une
-        // fois tous les produits de la boutique crees (il en faut au moins
-        // 2 pour avoir quelque chose a proposer).
+        // Produits associes (upsell) : jusqu'a 3 autres produits de la MEME boutique.
         foreach ($boutiqueProductIds as $pid) {
             $others = array_values(array_diff($boutiqueProductIds, [$pid]));
             shuffle($others);
             q("UPDATE products SET related_product_ids=? WHERE id=?", [json_encode(array_slice($others, 0, 3)), $pid]);
         }
+        if (!empty($b['orders'])) $res['orders'] += demo_seed_orders($btId, $currency, $orderItems);
     }
-    ok(['boutiques_created' => $boutiquesCreated, 'products_created' => $productsCreated, 'reviews_created' => $reviewsCreated],
-       $boutiquesCreated.' boutiques, '.$productsCreated.' produits et '.$reviewsCreated.' avis de demonstration crees.');
+    return $res;
+}
+function demo_seed_message($res) {
+    if ($res['boutiques'] === 0 && $res['skipped'] > 0) return 'Ces boutiques de demonstration existent deja - rien de nouveau a creer.';
+    return $res['boutiques'].' boutiques, '.$res['products'].' produits, '.$res['reviews'].' avis'.($res['orders'] ? ' et '.$res['orders'].' commandes livrees' : '').' de demonstration crees'.($res['skipped'] ? ' ('.$res['skipped'].' deja existantes ignorees)' : '').'.';
+}
+function admin_seed_demo_data() {
+    $res = demo_seed_shops(demo_seed_catalog(), demo_seed_user());
+    ok(['boutiques_created' => $res['boutiques'], 'products_created' => $res['products'], 'reviews_created' => $res['reviews']], demo_seed_message($res));
+}
+function admin_seed_demo_currency() {
+    $res = demo_seed_shops(demo_seed_catalog_currency(), demo_seed_user());
+    ok(['boutiques_created' => $res['boutiques'], 'products_created' => $res['products'], 'reviews_created' => $res['reviews'], 'orders_created' => $res['orders']], demo_seed_message($res));
 }
 
 function admin_delete_demo_data() {
@@ -5210,6 +5300,14 @@ function admin_delete_demo_data() {
     if (!$user) { ok(['boutiques_deleted' => 0], 'Aucune donnee de demonstration trouvee.'); return; }
     $boutiques = q("SELECT id FROM boutiques WHERE owner_user_id=?", [$user['id']])->fetchAll();
     foreach ($boutiques as $bt) {
+        // Commandes de la boutique (fictives OU passees en test sur sa
+        // vitrine) et tout ce qui s'y rattache - sinon elles resteraient en
+        // base sans boutique et fausseraient les compteurs du panneau admin.
+        $orderIds = q("SELECT id FROM orders WHERE boutique_id=?", [$bt['id']])->fetchAll(PDO::FETCH_COLUMN);
+        foreach ($orderIds as $oid) q("DELETE FROM order_items WHERE order_id=?", [$oid]);
+        foreach (['delivery_assignments', 'orders', 'customers', 'visits', 'abandoned_carts', 'activity_log', 'contact_messages', 'newsletter_subscribers'] as $tbl) {
+            q("DELETE FROM $tbl WHERE boutique_id=?", [$bt['id']]);
+        }
         $productIds = q("SELECT id FROM products WHERE boutique_id=?", [$bt['id']])->fetchAll(PDO::FETCH_COLUMN);
         foreach ($productIds as $pid) {
             q("DELETE FROM product_variants WHERE product_id=?", [$pid]);
