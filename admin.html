@@ -130,6 +130,8 @@
   .chart-legend .diamond{display:inline-block;width:8px;height:8px;margin-right:6px;vertical-align:middle;transform:rotate(45deg)}
   .copy-btn{background:none;border:none;padding:2px 4px;cursor:pointer;font-size:12px;color:var(--gray);box-shadow:none;font-weight:600}
   .copy-btn:hover{color:var(--blue);box-shadow:none;transform:none;background:none}
+  .wa-link{display:inline-block;padding:4px 10px;border:1.5px solid var(--border);border-radius:999px;font-size:12px;font-weight:700;color:var(--ink);text-decoration:none;white-space:nowrap;background:#fff}
+  .wa-link:hover{border-color:#16a34a;color:#15803d;background:#ecfdf5}
   .badge-late{background:#fde8ea;color:var(--red);font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;margin-left:8px;white-space:nowrap}
   .filters-row select{width:auto;margin:0}
   .lang-switch{grid-column:3;justify-self:end;display:flex;gap:4px;background:var(--bg);border:1px solid var(--border);border-radius:999px;padding:3px}
@@ -327,6 +329,7 @@
           <option value="bad" id="optStatusBad">Expiré</option>
         </select>
         <div style="display:flex;gap:8px;flex-shrink:0">
+          <button class="ghost" id="btnClientsMail" onclick="emailClientsGroup()">✉️ <span id="btnClientsMailText"></span></button>
           <button class="ghost" id="btnClientsExcel" onclick="exportClientsExcel()">⬇️ Exporter Excel</button>
           <button class="ghost" id="btnClientsPdf" onclick="exportClientsPdf()">⬇️ Exporter PDF</button>
         </div>
@@ -458,6 +461,14 @@ const I18N = {
     actions_log_note: 'Suspensions, réactivations et avertissements envoyés — pour se souvenir de ce qui a déjà été fait sur une boutique.',
     no_actions_log: 'Aucune action admin pour le moment.',
     col_action: 'Action',
+    col_whatsapp: 'WhatsApp',
+    wa_message: 'Bonjour {name}, ici l\'équipe MYBOUTIK. ',
+    wa_no_country_code: 'Numéro saisi sans indicatif pays : WhatsApp ne peut pas s\'ouvrir directement (demandez au marchand de le compléter dans Mon profil, ex : +225 07 00 00 00 00).',
+    btn_mail_group: 'Écrire au groupe ({n})',
+    mail_group_empty: 'Aucun client dans le groupe affiché.',
+    mail_group_subject: 'Message de MYBOUTIK',
+    mail_group_body: 'Bonjour,\n\n\n\nL\'équipe MYBOUTIK',
+    mail_group_copied: '{n} adresses copiées : collez-les dans le champ « Cci » de votre message.',
     tab_announcements: 'Annonces',
     h3_announce_new: 'Nouvelle annonce',
     announce_note: 'Un bandeau apparaît en haut du tableau de bord des marchands concernés. Chacun peut le fermer ; il disparaît aussi à la date de fin ou si vous le retirez.',
@@ -622,6 +633,14 @@ const I18N = {
     actions_log_note: 'Suspensions, reactivations and warnings sent - to remember what has already been done on a shop.',
     no_actions_log: 'No admin action yet.',
     col_action: 'Action',
+    col_whatsapp: 'WhatsApp',
+    wa_message: 'Hello {name}, this is the MYBOUTIK team. ',
+    wa_no_country_code: 'Number entered without a country code: WhatsApp cannot open directly (ask the merchant to complete it in My profile, e.g. +225 07 00 00 00 00).',
+    btn_mail_group: 'Email the group ({n})',
+    mail_group_empty: 'No customer in the displayed group.',
+    mail_group_subject: 'A message from MYBOUTIK',
+    mail_group_body: 'Hello,\n\n\n\nThe MYBOUTIK team',
+    mail_group_copied: '{n} addresses copied: paste them into the "Bcc" field of your message.',
     tab_announcements: 'Announcements',
     h3_announce_new: 'New announcement',
     announce_note: 'A banner appears at the top of the dashboard of the merchants concerned. Each can close it; it also disappears on the end date or if you withdraw it.',
@@ -753,6 +772,7 @@ function applyStaticTranslations() {
   document.getElementById('optStatusBad').textContent = t('status_expired');
   document.getElementById('btnClientsExcel').textContent = t('export_excel');
   document.getElementById('btnClientsPdf').textContent = t('export_pdf');
+  updateClientsMailBtn();
   document.getElementById('h3History').textContent = t('h3_history');
   document.getElementById('historySearch').placeholder = t('search_history_placeholder');
   document.getElementById('btnHistoryExcel').textContent = t('export_excel_short');
@@ -1337,15 +1357,65 @@ function renderClients() {
     return `<th style="cursor:pointer;user-select:none" onclick="sortClients('${key}')">${t(CLIENT_COLUMNS[key][0])}${arrow}</th>`;
   };
   document.getElementById('clientsBody').innerHTML = rows.length ? `<table><thead><tr>
-      ${Object.keys(CLIENT_COLUMNS).map(th).join('')}
+      ${Object.keys(CLIENT_COLUMNS).map(th).join('')}<th>${t('col_whatsapp')}</th>
     </tr></thead><tbody>
     ${rows.map(c => `<tr>
       <td>${c.email} <button class="copy-btn" title="${t('copy_email_title')}" onclick="copyClientEmail('${c.email}')">📋</button></td>
       <td>${c.full_name||'—'}</td><td>${c.plan}</td><td>${clientStatusPill(c)}</td>
       <td>${fmtDate(c.plan_valid_until)}</td><td>${boutiqueCell(c)}</td><td>${c.payments_count}</td>
       <td>${fmtMoney(c.total_paid)}</td><td>${fmtDate(c.created_at)}</td>
+      <td>${clientWhatsappCell(c)}</td>
     </tr>`).join('')}
     </tbody></table>` : '<p style="color:var(--gray)">'+t('no_clients_match')+'</p>';
+  updateClientsMailBtn();
+}
+// ------------------------------------------------------------
+// Contacter les marchands : WhatsApp (un marchand a la fois) et email au
+// groupe affiche (adresses en copie cachee dans votre messagerie).
+// ------------------------------------------------------------
+// wa.me exige un numero international en chiffres. Saisi avec "+" ou "00" :
+// on le prend tel quel ; 10 chiffres commencant par 0 : numero ivoirien
+// (+225, le 0 initial fait partie du numero) ; sinon indicatif inconnu.
+function whatsappDigits(raw) {
+  const s = String(raw || '').replace(/[^\d+]/g, '');
+  if (!s) return null;
+  if (s.startsWith('+')) return s.slice(1) || null;
+  if (s.startsWith('00')) return s.slice(2) || null;
+  if (/^0\d{9}$/.test(s)) return '225' + s;
+  return null;
+}
+function clientWhatsappCell(c) {
+  const raw = String(c.whatsapp_number || '').trim();
+  if (!raw) return '<span class="muted">—</span>';
+  const digits = whatsappDigits(raw);
+  if (!digits) return escapeAttr(raw) + ' <span title="'+escapeAttr(t('wa_no_country_code'))+'" style="cursor:help">⚠️</span>';
+  const name = c.full_name || String(c.email).split('@')[0];
+  return '<a class="wa-link" href="https://wa.me/'+digits+'?text='+encodeURIComponent(tf('wa_message', {name}))+'" target="_blank" rel="noopener">💬 '+escapeAttr(raw)+'</a>';
+}
+// Le groupe = les clients actuellement affiches (recherche, plan, statut et
+// periode appliques) ; le compte de demonstration n'en fait jamais partie.
+function clientsMailGroup() {
+  return filteredClients().map(c => c.email).filter(e => e && !/@myboutik\.internal$/i.test(e));
+}
+function updateClientsMailBtn() {
+  const el = document.getElementById('btnClientsMailText');
+  if (el) el.textContent = tf('btn_mail_group', {n: clientsMailGroup().length});
+}
+function openMailto(url) { window.location.href = url; }
+function emailClientsGroup() {
+  const emails = clientsMailGroup();
+  if (!emails.length) { showToast(t('mail_group_empty'), 'error'); return; }
+  const subject = encodeURIComponent(t('mail_group_subject')), body = encodeURIComponent(t('mail_group_body'));
+  const url = 'mailto:?bcc=' + emails.map(e => encodeURIComponent(e).replace(/%40/g, '@')).join(',') + '&subject=' + subject + '&body=' + body;
+  // Un lien mailto trop long est ignore par beaucoup de messageries : on
+  // copie alors les adresses (a coller dans "Cci") et on ouvre un message vide.
+  if (url.length > 1800) {
+    navigator.clipboard.writeText(emails.join(', '))
+      .then(() => { showToast(tf('mail_group_copied', {n: emails.length}), 'info'); openMailto('mailto:?subject=' + subject + '&body=' + body); })
+      .catch(() => showToast(t('copy_failed'), 'error'));
+    return;
+  }
+  openMailto(url);
 }
 function copyClientEmail(email) {
   navigator.clipboard.writeText(email).then(() => showToast(t('email_copied')+email, 'success')).catch(() => showToast(t('copy_failed'), 'error'));

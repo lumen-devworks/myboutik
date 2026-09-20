@@ -4786,7 +4786,7 @@ function admin_subscription_requests() {
 // peut changer de prix ensuite, mais l'historique reste calcule sur le prix
 // ACTUEL du plan concerne, faute de stocker un prix fige par demande).
 function admin_clients_list() {
-    $users = q("SELECT id, email, full_name, plan, plan_status, plan_valid_until, created_at FROM users ORDER BY created_at DESC")->fetchAll();
+    $users = q("SELECT id, email, full_name, plan, plan_status, plan_valid_until, whatsapp_number, created_at FROM users ORDER BY created_at DESC")->fetchAll();
     foreach ($users as &$u) {
         $owned = q("SELECT name FROM boutiques WHERE owner_user_id=? ORDER BY created_at", [$u['id']])->fetchAll();
         $u['boutique_count'] = count($owned);
