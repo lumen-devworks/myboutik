@@ -59,10 +59,11 @@
   .overlay.open{display:flex}
   @media (min-width:640px){.overlay{align-items:center}}
   .sheet{background:#fff;border-radius:18px 18px 0 0;max-width:520px;width:100%;max-height:92vh;overflow-y:auto;padding:24px;position:relative}
-  .country-list{display:none;max-height:210px;overflow-y:auto;border:1px solid var(--border);border-radius:9px;margin-top:6px;background:#fff;-webkit-overflow-scrolling:touch}
+  .country-list{position:relative;display:none;max-height:210px;overflow-y:auto;border:1px solid var(--border);border-radius:9px;margin-top:6px;background:#fff;-webkit-overflow-scrolling:touch}
   .country-opt{padding:11px 12px;font-size:14px;cursor:pointer;border-bottom:1px solid var(--border)}
   .country-opt:last-child{border-bottom:none}
   .country-opt:hover,.country-opt:active{background:#fff1e6}
+  .country-opt.selected{background:#fff1e6;font-weight:700;color:var(--blue)}
   .country-empty{padding:11px 12px;font-size:13px;color:var(--gray)}
   @media (min-width:640px){.sheet{border-radius:18px}}
   .sheet .close{position:absolute;top:14px;right:16px;border:none;background:none;font-size:20px;cursor:pointer;color:var(--gray)}
@@ -183,16 +184,23 @@ function countryPickerHtml(inputId, value, extraAttrs) {
     + '<div class="country-list" id="'+inputId+'_list"></div></div>';
 }
 let COUNTRY_SILENT = false; // evite de rouvrir la liste quand c'est le code (et non la personne) qui modifie le champ
-function renderCountryList(input) {
+// fromOpen : ouverture du champ (toucher/focus). Si une valeur valide y est
+// deja (ex: "Côte d'Ivoire" dans les Paramètres), on montre TOUTE la liste
+// avec ce pays en évidence - la filtrer sur ce texte n'afficherait que ce
+// pays et empêcherait d'en choisir un autre. En tapant, la liste se filtre.
+function renderCountryList(input, fromOpen) {
   const list = document.getElementById(input.id + '_list');
   if (!list) return;
-  const q = normCountry(input.value);
+  const current = canonicalCountry(input.value);
+  const q = (fromOpen && current) ? '' : normCountry(input.value);
   const matches = COUNTRIES_FR.filter(c => !q || normCountry(c).includes(q));
   matches.sort((a, b) => Number(normCountry(b).startsWith(q)) - Number(normCountry(a).startsWith(q)));
   list.innerHTML = matches.length
-    ? matches.map(c => '<div class="country-opt" data-value="'+escapeHtml(c)+'">'+escapeHtml(c)+'</div>').join('')
+    ? matches.map(c => '<div class="country-opt'+(c === current ? ' selected' : '')+'" data-value="'+escapeHtml(c)+'">'+escapeHtml(c)+'</div>').join('')
     : '<div class="country-empty">'+escapeHtml(t('no_country_match'))+'</div>';
   list.style.display = 'block';
+  const sel = list.querySelector('.country-opt.selected');
+  if (sel) list.scrollTop = Math.max(0, sel.offsetTop - list.clientHeight / 2 + sel.offsetHeight / 2);
   try { list.scrollIntoView({block: 'nearest'}); } catch (e) {}
 }
 function hideCountryLists() {
@@ -207,9 +215,16 @@ function pickCountry(input, value) {
   hideCountryLists();
 }
 const isCountryInput = el => !!(el && el.classList && el.classList.contains('country-input'));
-document.addEventListener('focusin', e => { if (isCountryInput(e.target)) renderCountryList(e.target); });
+document.addEventListener('focusin', e => {
+  if (!isCountryInput(e.target)) return;
+  renderCountryList(e.target, true);
+  // Texte deja present selectionne : taper le remplace au lieu de s'y ajouter
+  // (le mouseup suivant ne doit pas annuler la selection).
+  e.target.select();
+  e.target.addEventListener('mouseup', ev => ev.preventDefault(), {once: true});
+});
 document.addEventListener('click', e => {
-  if (isCountryInput(e.target)) { renderCountryList(e.target); return; }
+  if (isCountryInput(e.target)) { if (e.target.parentNode.querySelector('.country-list').style.display !== 'block') renderCountryList(e.target, true); return; }
   const opt = e.target.closest && e.target.closest('.country-opt');
   if (opt) pickCountry(opt.closest('.country-field').querySelector('.country-input'), opt.dataset.value);
 });
