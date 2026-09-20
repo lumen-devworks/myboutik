@@ -293,9 +293,13 @@
         <div style="flex:1 1 220px"><label class="flabel" for="annAudience" id="lblAnnAudience"></label>
           <select id="annAudience" onchange="announceAudienceChanged()">
             <option value="all" id="optAudAll"></option><option value="expiring" id="optAudExpiring"></option><option value="expired" id="optAudExpired"></option>
-            <option value="plan" id="optAudPlan"></option><option value="country" id="optAudCountry"></option></select></div>
+            <option value="plan" id="optAudPlan"></option><option value="country" id="optAudCountry"></option><option value="users" id="optAudUsers"></option></select></div>
         <div style="flex:1 1 180px;display:none" id="annValueWrap"><label class="flabel" for="annValue" id="lblAnnValue"></label>
           <select id="annValue" onchange="updateAudienceCount()"></select></div>
+      </div>
+      <div id="annEmailsWrap" style="display:none;margin-bottom:12px">
+        <label class="flabel" for="annEmails" id="lblAnnEmails"></label>
+        <textarea id="annEmails" rows="3" placeholder="marchand1@exemple.com, marchand2@exemple.com" oninput="updateAudienceCountDebounced()"></textarea>
       </div>
       <div style="display:flex;gap:12px;flex-wrap:wrap">
         <div style="flex:1 1 160px"><label class="flabel" for="annStarts" id="lblAnnStarts"></label>
@@ -309,6 +313,7 @@
       <label id="annReshowWrap" style="display:none;margin-bottom:12px;font-size:13px;cursor:pointer"><input type="checkbox" id="annReshow" style="width:auto;margin:0 8px 0 0"><span id="lblAnnReshow"></span></label>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         <button class="ghost" onclick="previewAnnouncement()" id="btnPreviewAnnounce"></button>
+        <button class="ghost" onclick="resetAnnouncementForm()" id="btnClearAnnounce"></button>
         <button onclick="submitAnnouncement()" id="btnPublishAnnounce"></button>
         <button class="ghost" onclick="resetAnnouncementForm()" id="btnCancelAnnounceEdit" style="display:none"></button>
       </div>
@@ -535,13 +540,16 @@ const I18N = {
     label_announce_days: 'Durée en jours (facultatif)', label_announce_end: 'Date de fin (facultatif)', label_announce_plan: 'Plan', label_announce_country: 'Pays',
     lvl_info: 'ℹ️ Information', lvl_warning: '⚠️ Important', lvl_success: '✅ Bonne nouvelle',
     aud_all: 'Tous les marchands', aud_expiring: 'Abonnement qui expire dans 5 jours ou moins', aud_expired: 'Abonnement expiré',
+    aud_users: 'Des marchands précis (emails)', label_announce_emails: 'Emails des marchands (séparés par une virgule, un espace ou un retour à la ligne)',
+    announce_unknown_emails: '⚠ Sans compte actif : {list}.', confirm_duplicate_announce: '⚠ Une annonce identique est déjà en ligne ou programmée. Publier quand même ?',
+    btn_clear_form: 'Vider le formulaire', draft_restored: 'Brouillon d\'annonce restauré.', stats_hint: 'Vue par / destinataires · fermée par · clics sur le bouton',
     aud_plan: 'Un plan précis', aud_country: 'Boutiques d\'un pays précis',
     announce_recipients: 'Visible par {n} marchand(s).',
     btn_publish_announce: 'Publier l\'annonce',
     announce_message_required: 'Écrivez le message de l\'annonce',
     confirm_publish_announce: 'Publier cette annonce ? Elle sera visible par {n} marchand(s) dès maintenant.',
     h3_announce_list: 'Annonces publiées',
-    col_audience: 'Destinataires', col_seen_by: 'Fermée par', col_ends: 'Fin',
+    col_audience: 'Destinataires', col_seen_by: 'Vues · fermées · clics', col_ends: 'Fin',
     status_live: 'En ligne', status_ended: 'Terminée', status_withdrawn: 'Retirée',
     btn_withdraw: 'Retirer', btn_republish: 'Remettre en ligne', btn_delete_announce: 'Supprimer',
     confirm_delete_announce: 'Supprimer définitivement cette annonce ?',
@@ -724,13 +732,16 @@ const I18N = {
     label_announce_days: 'Duration in days (optional)', label_announce_end: 'End date (optional)', label_announce_plan: 'Plan', label_announce_country: 'Country',
     lvl_info: 'ℹ️ Information', lvl_warning: '⚠️ Important', lvl_success: '✅ Good news',
     aud_all: 'All merchants', aud_expiring: 'Subscription expiring within 5 days', aud_expired: 'Expired subscription',
+    aud_users: 'Specific merchants (emails)', label_announce_emails: 'Merchants\' emails (separated by a comma, a space or a new line)',
+    announce_unknown_emails: '⚠ No active account: {list}.', confirm_duplicate_announce: '⚠ An identical announcement is already live or scheduled. Publish anyway?',
+    btn_clear_form: 'Clear the form', draft_restored: 'Announcement draft restored.', stats_hint: 'Seen by / recipients · closed by · button clicks',
     aud_plan: 'A specific plan', aud_country: 'Shops in a specific country',
     announce_recipients: 'Visible to {n} merchant(s).',
     btn_publish_announce: 'Publish the announcement',
     announce_message_required: 'Write the announcement message',
     confirm_publish_announce: 'Publish this announcement? It will be visible to {n} merchant(s) right away.',
     h3_announce_list: 'Published announcements',
-    col_audience: 'Recipients', col_seen_by: 'Closed by', col_ends: 'Ends',
+    col_audience: 'Recipients', col_seen_by: 'Seen · closed · clicks', col_ends: 'Ends',
     status_live: 'Live', status_ended: 'Ended', status_withdrawn: 'Withdrawn',
     btn_withdraw: 'Withdraw', btn_republish: 'Put back online', btn_delete_announce: 'Delete',
     confirm_delete_announce: 'Permanently delete this announcement?',
@@ -1074,12 +1085,17 @@ function loadAnnouncements() {
     if (!d.success) { document.getElementById('announceListBody').innerHTML = '<p style="color:#b91c1c">'+d.message+'</p>'; return; }
     ANNOUNCEMENTS = d.data.items || []; ANNOUNCE_COUNTRIES = d.data.countries || [];
     renderAnnouncements();
-    if (!ANN_EDIT_ID) announceAudienceChanged();
+    if (!ANN_EDIT_ID) {
+      announceAudienceChanged();
+      if (!ANN_DRAFT_DONE) { ANN_DRAFT_DONE = true; restoreAnnounceDraft(); }
+    }
   });
 }
 function currentAnnounceAudience() {
   const aud = document.getElementById('annAudience').value;
-  const val = (aud === 'plan' || aud === 'country') ? document.getElementById('annValue').value : null;
+  let val = null;
+  if (aud === 'plan' || aud === 'country') val = document.getElementById('annValue').value;
+  else if (aud === 'users') val = document.getElementById('annEmails').value.trim();
   return {audience: aud, audience_value: val};
 }
 // Le 2e menu (plan / pays) n'apparait que pour les destinataires qui en ont besoin.
@@ -1087,6 +1103,7 @@ function announceAudienceChanged() {
   const aud = document.getElementById('annAudience').value;
   const wrap = document.getElementById('annValueWrap'), sel = document.getElementById('annValue');
   wrap.style.display = (aud === 'plan' || aud === 'country') ? '' : 'none';
+  document.getElementById('annEmailsWrap').style.display = aud === 'users' ? '' : 'none';
   if (aud === 'plan') {
     document.getElementById('lblAnnValue').textContent = t('label_announce_plan');
     sel.innerHTML = ['starter','pro','premium'].map(p => '<option value="'+p+'">'+p.charAt(0).toUpperCase()+p.slice(1)+'</option>').join('');
@@ -1096,10 +1113,15 @@ function announceAudienceChanged() {
   }
   updateAudienceCount();
 }
+let ANN_COUNT_TIMER = null;
+function updateAudienceCountDebounced() { clearTimeout(ANN_COUNT_TIMER); ANN_COUNT_TIMER = setTimeout(updateAudienceCount, 500); }
 function updateAudienceCount() {
   call('announcement_audience_count', currentAnnounceAudience()).then(d => {
     ANNOUNCE_COUNT = d.success ? d.data.count : 0;
-    document.getElementById('annRecipients').textContent = d.success ? tf('announce_recipients', {n: ANNOUNCE_COUNT}) : '';
+    const el = document.getElementById('annRecipients');
+    const unknown = (d.success && d.data.unknown) || [];
+    el.textContent = d.success ? tf('announce_recipients', {n: ANNOUNCE_COUNT}) + (unknown.length ? ' ' + tf('announce_unknown_emails', {list: unknown.join(', ')}) : '') : '';
+    el.style.color = unknown.length ? '#b45309' : '';
   });
 }
 // Bouton d'action : choisir une page pre-remplit son texte (modifiable).
@@ -1152,6 +1174,7 @@ function applyAnnounceTemplate() {
   ['annTitleEn','annMessageEn','annCtaLabelEn'].forEach(id => { ANN_AUTO[id] = true; });
   document.getElementById('annTemplate').value = '';
   document.getElementById('annPreview').innerHTML = '';
+  saveAnnounceDraft();
 }
 // Traduction automatique dans les deux sens : quand on quitte un champ francais
 // (ou anglais), le champ jumeau se remplit tout seul. Un champ ecrit ou corrige a
@@ -1176,7 +1199,7 @@ function annAutoTranslate(srcId) {
     if (seq !== ANN_SEQ[dstId]) return;
     if (!d.success) { annTransStatus(d.message || t('ann_trans_fail'), true); return; }
     if (dst.value.trim() && !ANN_AUTO[dstId]) return; // ecrit a la main pendant ce temps
-    dst.value = d.data.text; ANN_AUTO[dstId] = true;
+    dst.value = d.data.text; ANN_AUTO[dstId] = true; saveAnnounceDraft();
     annTransStatus(t(dir === 'fr2en' ? 'ann_trans_done_en' : 'ann_trans_done_fr'));
   });
 }
@@ -1198,6 +1221,7 @@ function translateAnnouncement() {
       if (d.data[k]) { document.getElementById(id).value = d.data[k]; ANN_AUTO[id] = true; }
     });
     document.getElementById('annEnBox').open = true;
+    saveAnnounceDraft();
     annTransStatus(t('ann_trans_done_en'));
     showToast(t('toast_translated'), 'success');
   });
@@ -1226,9 +1250,42 @@ function annFormBody() {
     cta_target: v('annCtaTarget'), cta_label: v('annCtaLabel'), cta_label_en: v('annCtaLabelEn'),
   }, currentAnnounceAudience());
 }
-function resetAnnouncementForm() {
+// Brouillon : le formulaire de nouvelle annonce est garde dans le navigateur a
+// chaque saisie et restaure au rechargement ; efface a la publication ou avec
+// "Vider le formulaire". Pas enregistre pendant la modification d'une annonce.
+const ANN_DRAFT_KEY = 'myboutik_ann_draft';
+const ANN_DRAFT_IDS = ['annTitle','annMessage','annTitleEn','annMessageEn','annCtaTarget','annCtaLabel','annCtaLabelEn','annLevel','annAudience','annEmails','annStarts','annEnds','annDays'];
+let ANN_DRAFT_DONE = false;
+function saveAnnounceDraft() {
+  if (ANN_EDIT_ID) return;
+  try {
+    const dr = {};
+    ANN_DRAFT_IDS.forEach(id => { dr[id] = document.getElementById(id).value; });
+    dr.annValue = document.getElementById('annValue').value;
+    if (!dr.annTitle.trim() && !dr.annMessage.trim() && !dr.annTitleEn.trim() && !dr.annMessageEn.trim()) localStorage.removeItem(ANN_DRAFT_KEY);
+    else localStorage.setItem(ANN_DRAFT_KEY, JSON.stringify(dr));
+  } catch (e) {}
+}
+function clearAnnounceDraft() { try { localStorage.removeItem(ANN_DRAFT_KEY); } catch (e) {} }
+function restoreAnnounceDraft() {
+  let dr = null;
+  try { dr = JSON.parse(localStorage.getItem(ANN_DRAFT_KEY) || 'null'); } catch (e) {}
+  if (!dr || ANN_EDIT_ID) return;
+  ANN_DRAFT_IDS.forEach(id => { if (dr[id] != null) document.getElementById(id).value = dr[id]; });
+  const hasCta = !!document.getElementById('annCtaTarget').value;
+  document.getElementById('annCtaLabelWrap').style.display = hasCta ? '' : 'none';
+  document.getElementById('annCtaLabelEnWrap').style.display = hasCta ? '' : 'none';
+  announceAudienceChanged();
+  if (dr.annValue) document.getElementById('annValue').value = dr.annValue;
+  updateAudienceCount();
+  showToast(t('draft_restored'), 'info');
+}
+document.getElementById('announceFormCard').addEventListener('input', saveAnnounceDraft);
+document.getElementById('announceFormCard').addEventListener('change', saveAnnounceDraft);
+function resetAnnouncementForm(keepDraft) {
   ANN_EDIT_ID = null;
-  ['annTitle','annMessage','annTitleEn','annMessageEn','annCtaLabel','annCtaLabelEn','annStarts','annDays','annEnds'].forEach(id => { document.getElementById(id).value = ''; });
+  if (keepDraft !== true) clearAnnounceDraft();
+  ['annTitle','annMessage','annTitleEn','annMessageEn','annCtaLabel','annCtaLabelEn','annStarts','annDays','annEnds','annEmails'].forEach(id => { document.getElementById(id).value = ''; });
   document.getElementById('annCtaTarget').value = ''; document.getElementById('annCtaLabelWrap').style.display = 'none'; document.getElementById('annCtaLabelEnWrap').style.display = 'none';
   document.getElementById('annLevel').value = 'info'; document.getElementById('annAudience').value = 'all';
   document.getElementById('annEnBox').open = true; document.getElementById('annPreview').innerHTML = '';
@@ -1243,7 +1300,10 @@ function submitAnnouncement() {
   if (!body.message) { showToast(t('announce_message_required'), 'error'); return; }
   const editing = !!ANN_EDIT_ID;
   if (editing) { body.id = ANN_EDIT_ID; body.reshow = document.getElementById('annReshow').checked; }
-  customConfirm(tf(editing ? 'confirm_update_announce' : 'confirm_publish_announce', {n: ANNOUNCE_COUNT})).then(ok => {
+  // Avertit si une annonce identique est deja en ligne (ou programmee)
+  const norm = s => String(s || '').replace(/\s+/g, ' ').trim().toLowerCase();
+  const dup = !editing && ANNOUNCEMENTS.some(x => (x.status === 'live' || x.status === 'scheduled') && norm(x.message) === norm(body.message));
+  customConfirm(tf(editing ? 'confirm_update_announce' : 'confirm_publish_announce', {n: ANNOUNCE_COUNT}) + (dup ? '\n\n' + t('confirm_duplicate_announce') : '')).then(ok => {
     if (!ok) return;
     showToast(t('ann_saving'), 'info');
     call(editing ? 'announcement_update' : 'announcement_create', body).then(d => {
@@ -1255,13 +1315,14 @@ function submitAnnouncement() {
 function editAnnouncement(id) {
   const x = ANNOUNCEMENTS.find(r => r.id === id);
   if (!x) return;
-  resetAnnouncementForm();
+  resetAnnouncementForm(true);
   ANN_EDIT_ID = id;
   const set = (el, v) => { document.getElementById(el).value = v == null ? '' : v; };
   set('annTitle', x.title); set('annMessage', x.message); set('annTitleEn', x.title_en); set('annMessageEn', x.message_en);
   set('annLevel', x.level); set('annAudience', x.audience);
   announceAudienceChanged();
   if (x.audience === 'plan' || x.audience === 'country') set('annValue', x.audience_value);
+  if (x.audience === 'users') set('annEmails', String(x.audience_value || '').split(',').join('\n'));
   updateAudienceCount();
   set('annCtaTarget', x.cta_target); announceCtaChanged();
   if (x.cta_target) { set('annCtaLabel', x.cta_label); set('annCtaLabelEn', x.cta_label_en); }
@@ -1275,6 +1336,7 @@ function editAnnouncement(id) {
 }
 function announceAudienceLabel(a) {
   const base = t('aud_' + a.audience);
+  if (a.audience === 'users') return base + ' (' + String(a.audience_value || '').split(',').filter(Boolean).length + ')';
   return (a.audience === 'plan' || a.audience === 'country') ? base + ' : ' + (a.audience_value || '') : base;
 }
 function renderAnnouncements() {
@@ -1286,7 +1348,7 @@ function renderAnnouncements() {
     ANNOUNCEMENTS.map(a => '<tr><td>'+fmtDate(a.created_at)+'</td>' +
       '<td style="max-width:320px;white-space:pre-line">'+(a.title ? '<strong>'+escapeAttr(a.title)+'</strong><br>' : '')+escapeAttr(a.message)+(a.message_en ? '<br><span class="pill" style="background:var(--bg);color:var(--gray)">🌐 EN</span>' : '')+'</td>' +
       '<td>'+escapeAttr(announceAudienceLabel(a))+'<br><span class="muted" style="font-size:12px">'+tf('announce_recipients', {n: a.recipients})+'</span></td>' +
-      '<td>'+a.dismissed_count+'</td><td>'+(a.ends_at ? fmtDate(a.ends_at) : '—')+'</td><td>'+statusPill(a)+'</td>' +
+      '<td style="white-space:nowrap;font-size:13px;line-height:1.6" title="'+escapeAttr(t('stats_hint'))+'">👁 '+(a.seen_count || 0)+' / '+a.recipients+'<br>✕ '+a.dismissed_count+'<br>🖱 '+(a.cta_target ? (a.click_count || 0) : '—')+'</td><td>'+(a.ends_at ? fmtDate(a.ends_at) : '—')+'</td><td>'+statusPill(a)+'</td>' +
       '<td style="white-space:nowrap"><button class="ghost" onclick="editAnnouncement(\''+a.id+'\')">'+t('btn_edit_announce')+'</button> ' +
       '<button class="ghost" onclick="toggleAnnouncement(\''+a.id+'\','+(a.status === 'withdrawn' ? 'true' : 'false')+')">'+(a.status === 'withdrawn' ? t('btn_republish') : t('btn_withdraw'))+'</button> ' +
       '<button class="ghost" onclick="deleteAnnouncement(\''+a.id+'\')">'+t('btn_delete_announce')+'</button></td></tr>').join('') +
@@ -1313,7 +1375,8 @@ function applyAnnounceLabels() {
   set('lblAnnCta', 'label_ann_cta'); set('lblAnnCtaLabel', 'label_ann_cta_label'); set('btnPreviewAnnounce', 'btn_preview_ann');
   set('btnCancelAnnounceEdit', 'btn_cancel_edit'); set('lblAnnReshow', 'label_reshow');
   set('optLvlInfo', 'lvl_info'); set('optLvlWarn', 'lvl_warning'); set('optLvlOk', 'lvl_success');
-  set('optAudAll', 'aud_all'); set('optAudExpiring', 'aud_expiring'); set('optAudExpired', 'aud_expired'); set('optAudPlan', 'aud_plan'); set('optAudCountry', 'aud_country');
+  set('optAudAll', 'aud_all'); set('optAudExpiring', 'aud_expiring'); set('optAudExpired', 'aud_expired'); set('optAudPlan', 'aud_plan'); set('optAudCountry', 'aud_country'); set('optAudUsers', 'aud_users');
+  set('lblAnnEmails', 'label_announce_emails'); set('btnClearAnnounce', 'btn_clear_form');
   const tpl = document.getElementById('annTemplate');
   if (tpl) tpl.innerHTML = '<option value="">'+t('tpl_none')+'</option>' + Object.keys(ANN_TEMPLATES).map(k => '<option value="'+k+'">'+t('tpl_'+k)+'</option>').join('');
   const cta = document.getElementById('annCtaTarget');
@@ -1536,10 +1599,19 @@ function loadAll() {
 }
 // currency : devise d'une boutique (Top 10) ; sans argument = montants de la
 // plateforme elle-meme (abonnements), toujours en FCFA.
+// Symbole d'une devise : FCFA pour les francs CFA (avec le code entre parentheses
+// quand on distingue la devise d'une boutique), symbole usuel des autres monnaies.
+function curSymbol(c) {
+  if (!c) return 'FCFA';
+  if (c === 'XOF' || c === 'XAF') return 'FCFA (' + c + ')';
+  if (c === 'GBP') return '£';
+  try { const p = new Intl.NumberFormat(LANG === 'en' ? 'en-US' : 'fr-FR', {style: 'currency', currency: c}).formatToParts(0).find(x => x.type === 'currency'); return p ? p.value : c; }
+  catch (e) { return c; }
+}
 function fmtMoney(n, currency) {
   const zero = ["XOF","XAF","XPF","KMF","DJF","GNF","RWF","UGX","BIF","CLP","JPY","KRW","PYG","VND","VUV","ISK","MGA"];
   const dec = (!currency || zero.includes(currency)) ? 0 : 2;
-  return Number(n||0).toLocaleString(LANG === 'en' ? 'en-US' : 'fr-FR', {minimumFractionDigits: dec, maximumFractionDigits: dec}) + ' ' + (currency || 'FCFA');
+  return Number(n||0).toLocaleString(LANG === 'en' ? 'en-US' : 'fr-FR', {minimumFractionDigits: dec, maximumFractionDigits: dec}) + ' ' + curSymbol(currency);
 }
 function fmtDate(d) { return d ? new Date(d).toLocaleDateString(LANG === 'en' ? 'en-US' : 'fr-FR') : '—'; }
 // 'ok'/'warn'/'bad' - reutilise par le pill d'affichage ET par le filtre de statut.

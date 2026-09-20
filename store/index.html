@@ -186,7 +186,28 @@ function curLabel(c) { return (c === 'XOF' || c === 'XAF') ? 'FCFA' : (c || 'FCF
 // serveur). Affichage seulement : la commande reste facturee et payee dans la
 // devise de la boutique.
 let FX_RATES = {}, BUYER_CURRENCY = '';
-try { BUYER_CURRENCY = localStorage.getItem('myboutik_buyer_currency') || ''; } catch (e) {}
+let BUYER_CHOSEN = false; // vrai des que l'acheteur a fait un choix (meme "devise de la boutique seulement")
+try { const raw = localStorage.getItem('myboutik_buyer_currency'); BUYER_CHOSEN = raw !== null; BUYER_CURRENCY = raw || ''; } catch (e) {}
+// Devise proposee d'office a un acheteur qui n'a encore rien choisi : deduite de
+// la region de la langue de son navigateur (fr-CA -> CAD, en-US -> USD...).
+// Prudence : un acheteur dont le fuseau horaire est africain, sur une boutique
+// en francs CFA, est probablement local (beaucoup de navigateurs y sont en fr-FR) :
+// on ne lui montre pas de prix en euros. Il peut de toute facon changer ou couper.
+const REGION_CURRENCY = {US:'USD',CA:'CAD',GB:'GBP',IE:'EUR',FR:'EUR',DE:'EUR',ES:'EUR',IT:'EUR',PT:'EUR',BE:'EUR',NL:'EUR',LU:'EUR',AT:'EUR',FI:'EUR',GR:'EUR',MC:'EUR',CH:'CHF',MA:'MAD',DZ:'DZD',TN:'TND',NG:'NGN',GH:'GHS',KE:'KES',ZA:'ZAR',EG:'EGP',CM:'XAF',GA:'XAF',CG:'XAF',TD:'XAF',CF:'XAF',GQ:'XAF',CI:'XOF',SN:'XOF',BJ:'XOF',TG:'XOF',ML:'XOF',BF:'XOF',NE:'XOF',GW:'XOF',CN:'CNY',JP:'JPY',IN:'INR',BR:'BRL',MX:'MXN',AU:'AUD',NZ:'NZD',AE:'AED',SA:'SAR',TR:'TRY',RU:'RUB',SE:'SEK',NO:'NOK',DK:'DKK',PL:'PLN'};
+function guessBuyerCurrency() {
+  let region = '';
+  try {
+    const langs = (navigator.languages && navigator.languages.length) ? navigator.languages : [navigator.language];
+    for (const l of langs) { const m = /^[a-z]{2,3}[-_]([A-Za-z]{2})\b/.exec(l || ''); if (m) { region = m[1].toUpperCase(); break; } }
+  } catch (e) {}
+  const cur = REGION_CURRENCY[region];
+  if (!cur || !FX_RATES[cur] || !BOUTIQUE || cur === BOUTIQUE.currency) return '';
+  try {
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
+    if (/^Africa\//.test(tz) && (BOUTIQUE.currency === 'XOF' || BOUTIQUE.currency === 'XAF')) return '';
+  } catch (e) {}
+  return cur;
+}
 function approxMoney(n) {
   if (!BUYER_CURRENCY || !BOUTIQUE || BUYER_CURRENCY === BOUTIQUE.currency || !FX_RATES[BUYER_CURRENCY]) return '';
   return fmtMoney(Number(n||0) * FX_RATES[BUYER_CURRENCY], BUYER_CURRENCY);
@@ -620,6 +641,7 @@ if (!SLUG) {
     CATEGORIES = (cats.data.success && cats.data.data) || [];
     FX_RATES = (fx && fx.data && fx.data.success && fx.data.data && fx.data.data.rates) || {};
     if (BUYER_CURRENCY && (!FX_RATES[BUYER_CURRENCY] || BUYER_CURRENCY === BOUTIQUE.currency)) BUYER_CURRENCY = '';
+    if (!BUYER_CHOSEN && !BUYER_CURRENCY) BUYER_CURRENCY = guessBuyerCurrency();
     document.title = BOUTIQUE.name;
     renderShop();
     post('/shop?action=track_visit', {slug:SLUG, session_id:sessionId(), path:window.location.pathname, referrer:document.referrer});

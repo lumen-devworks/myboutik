@@ -682,6 +682,12 @@ function currency_for_country($country) { return COUNTRY_CURRENCY[$country] ?? '
 function valid_currency($code) { return in_array($code, COUNTRY_CURRENCY, true); }
 function currency_decimals($code) { return in_array($code ?: 'XOF', ZERO_DECIMAL_CURRENCIES, true) ? 0 : 2; }
 function money_fmt($amount, $code) { return number_format((float)$amount, currency_decimals($code), ',', ' '); }
+// Symbole affiche a cote d'un montant dans les messages : FCFA pour les deux
+// francs CFA, symbole usuel des principales monnaies, sinon le code ISO.
+function money_label($code) {
+    static $map = ['XOF' => 'FCFA', 'XAF' => 'FCFA', 'EUR' => '€', 'GBP' => '£', 'USD' => '$US', 'CAD' => '$CA', 'AUD' => '$AU'];
+    return $map[$code] ?? ($code ?: 'FCFA');
+}
 // Taux vers le FCFA (1 unite de devise = X FCFA). Les parites FIXES (franc CFA
 // d'Afrique centrale, euro a 655,957 par accord officiel, franc comorien
 // rattache a l'euro) sont connues d'avance et non modifiables ; les autres
@@ -1648,6 +1654,23 @@ function route_install() {
     )",
     // Version anglaise facultative et bouton d'action (page du tableau de bord
     // ou guide) d'une annonce - ajoutes apres coup, sans danger a rejouer.
+    // Statistiques de lecture (un marchand = une ligne : vu, puis clic eventuel)
+    "CREATE TABLE IF NOT EXISTS announcement_stats (
+        announcement_id VARCHAR(36) NOT NULL,
+        user_id VARCHAR(36) NOT NULL,
+        seen_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        clicked_at TIMESTAMP,
+        PRIMARY KEY (announcement_id, user_id)
+    )",
+    // Memoire des traductions deja faites (evite de consommer le quota gratuit)
+    "CREATE TABLE IF NOT EXISTS translation_cache (
+        cache_key VARCHAR(40) PRIMARY KEY,
+        source TEXT,
+        result TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )",
+    // Audience "marchands precis" : liste d'emails, plus longue que 80 caracteres
+    "ALTER TABLE announcements ALTER COLUMN audience_value TYPE TEXT",
     "ALTER TABLE announcements ADD COLUMN IF NOT EXISTS title_en VARCHAR(120)",
     "ALTER TABLE announcements ADD COLUMN IF NOT EXISTS message_en TEXT",
     "ALTER TABLE announcements ADD COLUMN IF NOT EXISTS cta_target VARCHAR(20)",
@@ -2695,7 +2718,7 @@ function preview_product() {
               WHERE b.slug=? AND p.slug=? AND b.status='active' AND p.status='active'", [$slug, $productSlug])->fetch();
     if (!$row) preview_not_found();
     $title = $row['name'].' — '.$row['boutique_name'];
-    $price = money_fmt($row['price'], $row['currency']).' '.($row['currency'] ?: 'XOF');
+    $price = money_fmt($row['price'], $row['currency']).' '.money_label($row['currency'] ?: 'XOF');
     $desc = trim($row['description'] ?? '') !== '' ? $row['description'] : ($row['name'].' a '.$price.' chez '.$row['boutique_name'].' sur MYBOUTIK.');
     $image = $row['image_url'] ? preview_self_base().'/image?action=product_photo&slug='.urlencode($slug).'&p='.urlencode($productSlug) : null;
     $redirect = FRONTEND_BASE_URL.'/store/index.html?b='.urlencode($slug).'&p='.urlencode($productSlug);
@@ -3080,7 +3103,7 @@ function notify_customer_order_confirmation($bt, $ref, $email, $customerName, $l
     $currency = $bt['currency'] ?: 'XOF';
     $lines = array_map(function($l) use ($currency) {
         $label = $l['product']['name'].($l['variant'] ? ' - '.$l['variant']['name'] : '');
-        return '- '.$l['qty'].' x '.$label.' ('.money_fmt($l['unit_price'], $currency).' '.$currency.')';
+        return '- '.$l['qty'].' x '.$label.' ('.money_fmt($l['unit_price'], $currency).' '.money_label($currency).')';
     }, $lineData);
     // Le mot "livraison"/"expedition" (adresse, "vous serez contacte pour...")
     // n'a de sens que si la commande contient au moins un produit physique -
@@ -3106,10 +3129,10 @@ function notify_customer_order_confirmation($bt, $ref, $email, $customerName, $l
         "Merci pour votre commande chez ".$bt['name']." !\n\n".
         "Reference : $ref\n\n".
         implode("\n", $lines)."\n\n".
-        "Sous-total : ".money_fmt($subtotal, $currency)." $currency\n".
-        ($deliveryFee > 0 ? "Frais de ".$modeWord." : ".money_fmt($deliveryFee, $currency)." $currency\n" : '').
-        ($discountAmount > 0 ? "Remise : -".money_fmt($discountAmount, $currency)." $currency\n" : '').
-        "$totalLabel : ".money_fmt($total, $currency)." $currency\n\n".
+        "Sous-total : ".money_fmt($subtotal, $currency).' '.money_label($currency)."\n".
+        ($deliveryFee > 0 ? "Frais de ".$modeWord." : ".money_fmt($deliveryFee, $currency).' '.money_label($currency)."\n" : '').
+        ($discountAmount > 0 ? "Remise : -".money_fmt($discountAmount, $currency).' '.money_label($currency)."\n" : '').
+        "$totalLabel : ".money_fmt($total, $currency).' '.money_label($currency)."\n\n".
         $footer.
         "Pour suivre votre commande, retournez sur la boutique et utilisez \"Suivre ma commande\" avec cette reference et votre telephone.";
     send_email($email, 'Confirmation de votre commande '.$ref.' - '.$bt['name'], $body);
@@ -5003,6 +5026,15 @@ function admin_top_boutiques() {
 // precis, ou les proprietaires d'au moins une boutique d'un pays. Le compte
 // de demonstration n'est jamais compte ni cible.
 // ============================================================
+// Liste d'emails saisie par l'admin (separes par espace, virgule, point-virgule
+// ou retour a la ligne) : valides, en minuscules, sans doublon, 50 au maximum.
+function announcement_parse_emails($val) {
+    $out = [];
+    foreach (preg_split('/[\s,;]+/', strtolower(trim((string)$val))) as $e) {
+        if ($e !== '' && filter_var($e, FILTER_VALIDATE_EMAIL)) $out[$e] = true;
+    }
+    return array_slice(array_keys($out), 0, 50);
+}
 function announcement_audience_where($aud, $val, &$params) {
     $where = "u.status='active' AND u.email <> ?";
     $params[] = DEMO_SEED_EMAIL;
@@ -5011,6 +5043,11 @@ function announcement_audience_where($aud, $val, &$params) {
         case 'expired':  return $where." AND u.plan_valid_until < NOW()";
         case 'plan':     $params[] = $val; return $where." AND u.plan=?";
         case 'country':  $params[] = $val; return $where." AND EXISTS (SELECT 1 FROM boutiques b WHERE b.owner_user_id=u.id AND b.country=?)";
+        case 'users':
+            $emails = announcement_parse_emails($val);
+            if (!$emails) return $where." AND 1=0";
+            $params = array_merge($params, $emails);
+            return $where." AND LOWER(u.email) IN (".implode(',', array_fill(0, count($emails), '?')).")";
         default:         return $where;
     }
 }
@@ -5020,7 +5057,8 @@ function announcement_recipients($aud, $val) {
     return (int)q("SELECT COUNT(*) c FROM users u WHERE $where", $params)->fetch()['c'];
 }
 function announcement_valid_audience($aud, $val) {
-    if (!in_array($aud, ['all', 'expiring', 'expired', 'plan', 'country'], true)) return false;
+    if (!in_array($aud, ['all', 'expiring', 'expired', 'plan', 'country', 'users'], true)) return false;
+    if ($aud === 'users') return is_string($val) && strlen($val) <= 3000 && count(announcement_parse_emails($val)) > 0;
     if ($aud === 'plan') return is_string($val) && isset(PLANS[$val]);
     if ($aud === 'country') return is_string($val) && $val !== '' && strlen($val) <= 80;
     return true;
@@ -5031,6 +5069,8 @@ function route_announcements($action) {
     switch ($action) {
         case 'active':  announcements_active($pl); break;
         case 'dismiss': announcements_dismiss($pl); break;
+        case 'seen':
+        case 'click':   announcements_track($pl, $action); break;
         default: fail('Action inconnue', 404);
     }
 }
@@ -5068,6 +5108,25 @@ function announcements_active($pl) {
         ok([]);
     }
 }
+// "Vue" (bandeau affiche) et "clic" (bouton d'action) : une ligne par marchand
+// et par annonce, pour les statistiques de l'admin. Sans danger si la table
+// n'existe pas encore (/install pas relance) : on ignore silencieusement.
+function announcements_track($pl, $kind) {
+    $id = (string)(body()['id'] ?? '');
+    try {
+        if (q("SELECT 1 FROM announcements WHERE id=?", [$id])->fetch()) {
+            if ($kind === 'click') {
+                q("INSERT INTO announcement_stats (announcement_id, user_id, seen_at, clicked_at) VALUES (?,?,NOW(),NOW())
+                   ON CONFLICT (announcement_id, user_id) DO UPDATE SET clicked_at = COALESCE(announcement_stats.clicked_at, NOW())", [$id, $pl['sub']]);
+            } else {
+                q("INSERT INTO announcement_stats (announcement_id, user_id) VALUES (?,?) ON CONFLICT DO NOTHING", [$id, $pl['sub']]);
+            }
+        }
+    } catch (PDOException $e) {
+        error_log('[MYBOUTIK] announcement_stats: '.$e->getMessage());
+    }
+    ok(null, 'OK');
+}
 function announcements_dismiss($pl) {
     $b = body();
     $id = $b['id'] ?? '';
@@ -5085,8 +5144,15 @@ function admin_announcement_audience_count() {
     $b = body();
     $aud = $b['audience'] ?? 'all';
     $val = $b['audience_value'] ?? null;
-    if (!announcement_valid_audience($aud, $val)) ok(['count' => 0]);
-    ok(['count' => announcement_recipients($aud, $val)]);
+    if (!announcement_valid_audience($aud, $val)) ok(['count' => 0, 'unknown' => []]);
+    $res = ['count' => announcement_recipients($aud, $val), 'unknown' => []];
+    if ($aud === 'users') {
+        // adresses saisies qui ne correspondent a aucun compte marchand actif
+        $emails = announcement_parse_emails($val);
+        $found = q("SELECT LOWER(email) FROM users WHERE LOWER(email) IN (".implode(',', array_fill(0, count($emails), '?')).")", $emails)->fetchAll(PDO::FETCH_COLUMN);
+        $res['unknown'] = array_values(array_diff($emails, $found));
+    }
+    ok($res);
 }
 // Traduction automatique FR -> EN d'un texte d'annonce (MyMemory : gratuit,
 // sans cle ; l'adresse ADMIN_NOTIFY_EMAIL, si configuree, releve sa limite
@@ -5167,6 +5233,22 @@ function translate_fr_to_en($text) { return translate_text($text, 'fr', 'en'); }
 function translate_text($text, $from, $to) {
     $text = trim((string)$text);
     if ($text === '') return null;
+    // Memoire : un texte deja traduit ne consomme plus de quota (table
+    // translation_cache ; sans elle, on traduit simplement a chaque fois).
+    $key = sha1($from.'|'.$to.'|'.$text);
+    try {
+        $hit = q("SELECT result FROM translation_cache WHERE cache_key=?", [$key])->fetchColumn();
+        if (is_string($hit) && $hit !== '') return $hit;
+    } catch (PDOException $e) {}
+    $r = translate_text_live($text, $from, $to);
+    if ($r !== null) {
+        try { q("INSERT INTO translation_cache (cache_key, source, result) VALUES (?,?,?) ON CONFLICT DO NOTHING", [$key, $text, $r]); } catch (PDOException $e) {}
+    }
+    return $r;
+}
+function translate_text_live($text, $from, $to) {
+    $text = trim((string)$text);
+    if ($text === '') return null;
     // DeepL d'abord (texte entier en un appel, retours a la ligne conserves)
     if (DEEPL_API_KEY) {
         $r = deepl_translate($text, $from, $to);
@@ -5242,6 +5324,7 @@ function announcement_parse_input($b, $current = null) {
     $aud = $b['audience'] ?? 'all';
     $val = $b['audience_value'] ?? null;
     if (!announcement_valid_audience($aud, $val)) fail('Destinataires invalides');
+    if ($aud === 'users') $val = implode(',', announcement_parse_emails($val));
     $ctaTarget = trim((string)($b['cta_target'] ?? ''));
     if ($ctaTarget !== '' && !in_array($ctaTarget, announcement_targets(), true)) fail('Lien du bouton invalide');
     $ctaLabel = trim((string)($b['cta_label'] ?? ''));
@@ -5324,8 +5407,14 @@ function admin_announcement_update() {
 }
 function admin_announcements_list() {
     try {
-        $rows = q("SELECT a.*, (SELECT COUNT(*) FROM announcement_dismissals d WHERE d.announcement_id=a.id) AS dismissed_count
-                   FROM announcements a ORDER BY a.created_at DESC LIMIT 100")->fetchAll();
+        $sql = "SELECT a.*, (SELECT COUNT(*) FROM announcement_dismissals d WHERE d.announcement_id=a.id) AS dismissed_count%s
+                FROM announcements a ORDER BY a.created_at DESC LIMIT 100";
+        try {
+            $rows = q(sprintf($sql, ", (SELECT COUNT(*) FROM announcement_stats s WHERE s.announcement_id=a.id) AS seen_count,
+                (SELECT COUNT(*) FROM announcement_stats s WHERE s.announcement_id=a.id AND s.clicked_at IS NOT NULL) AS click_count"))->fetchAll();
+        } catch (PDOException $e) {
+            $rows = q(sprintf($sql, ", 0 AS seen_count, 0 AS click_count"))->fetchAll(); // avant /install
+        }
     } catch (PDOException $e) {
         error_log('[MYBOUTIK] announcements: '.$e->getMessage());
         fail('Table des annonces absente : relancez /install puis reessayez', 500);
@@ -5351,6 +5440,7 @@ function admin_announcement_delete() {
     $b = body();
     $id = $b['id'] ?? '';
     q("DELETE FROM announcement_dismissals WHERE announcement_id=?", [$id]);
+    try { q("DELETE FROM announcement_stats WHERE announcement_id=?", [$id]); } catch (PDOException $e) {}
     q("DELETE FROM announcements WHERE id=?", [$id]);
     ok(null, 'Annonce supprimee');
 }
@@ -5975,7 +6065,7 @@ function cron_abandoned_reminders() {
                 AND ac.captured_at >= NOW() - INTERVAL '48 hours'")->fetchAll();
     $sent = 0;
     foreach ($carts as $c) {
-        $total = money_fmt($c['total'], $c['currency']).' '.($c['currency'] ?: 'XOF');
+        $total = money_fmt($c['total'], $c['currency']).' '.money_label($c['currency'] ?: 'XOF');
         $message = "Bonjour, vous avez laisse des articles dans votre panier chez ".$c['boutique_name']." (".$total."). Revenez finaliser votre commande !";
         if ($c['email']) send_email($c['email'], 'Votre panier vous attend - '.$c['boutique_name'], $message);
         q("UPDATE abandoned_carts SET reminded_at=NOW() WHERE id=?", [$c['id']]);

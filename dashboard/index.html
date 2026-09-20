@@ -4602,6 +4602,11 @@ function annText(a) {
     cta: (LANG === 'en' && a.cta_label_en) ? a.cta_label_en : (a.cta_label || t('ann_open')),
   };
 }
+// Statistiques de l'admin : "vue" une fois par annonce et par chargement de page,
+// "clic" quand le marchand utilise le bouton d'action.
+const ANN_SEEN = {};
+function trackAnnouncementSeen(id) { if (ANN_SEEN[id]) return; ANN_SEEN[id] = true; post('/announcements?action=seen', {id}); }
+function announcementClick(id, target) { post('/announcements?action=click', {id}); announcementGo(target); }
 function announcementGo(target) {
   if (target === 'guide') { window.open('../guide.html', '_blank'); return; }
   const slug = (CURRENT && CURRENT.slug) || (BOUTIQUES && BOUTIQUES[0] && BOUTIQUES[0].slug);
@@ -4617,11 +4622,12 @@ function renderAnnouncementBar() {
     + '<div class="announce-body"><div class="announce-text'+(ANN_EXPANDED ? ' open' : '')+'" id="annText">'
     +   (tx.title ? '<strong>'+escapeHtml(tx.title)+'</strong>\n' : '')+escapeHtml(tx.message)+'</div>'
     + '<div class="announce-actions"><button type="button" class="announce-more" id="annMore" style="display:none" onclick="toggleAnnouncementText()">'+t(ANN_EXPANDED ? 'ann_read_less' : 'ann_read_more')+'</button>'
-    +   (a.cta_target ? '<button type="button" class="announce-cta" onclick="announcementGo(\''+escapeHtml(a.cta_target)+'\')">'+escapeHtml(tx.cta)+'</button>' : '')+'</div></div>'
+    +   (a.cta_target ? '<button type="button" class="announce-cta" onclick="announcementClick(\''+id+'\',\''+escapeHtml(a.cta_target)+'\')">'+escapeHtml(tx.cta)+'</button>' : '')+'</div></div>'
     + (n > 1 ? '<div class="announce-nav"><button type="button" class="announce-arrow" onclick="stepAnnouncement(-1)" aria-label="'+t('ann_prev')+'">‹</button>'
         + '<span>'+(ANN_INDEX + 1)+'/'+n+'</span><button type="button" class="announce-arrow" onclick="stepAnnouncement(1)" aria-label="'+t('ann_next')+'">›</button></div>' : '')
     + '<button type="button" class="announce-close" title="'+t('ann_close')+'" aria-label="'+t('ann_close')+'" onclick="dismissAnnouncement(\''+id+'\')">✕</button></div>';
   // "Lire la suite" seulement si le texte est reellement coupe (ou deja deplie)
+  trackAnnouncementSeen(a.id);
   const el = document.getElementById('annText'), more = document.getElementById('annMore');
   if (el && more && (ANN_EXPANDED || el.scrollHeight > el.clientHeight + 1)) more.style.display = '';
 }
