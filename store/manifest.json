@@ -3,7 +3,7 @@
   "short_name": "Boutique",
   "description": "Consultez le catalogue et commandez en paiement à la livraison.",
   "start_url": "./index.html",
-  "scope": "./",
+  "scope": "../",
   "display": "standalone",
   "orientation": "portrait",
   "background_color": "#ffffff",

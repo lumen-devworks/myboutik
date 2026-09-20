@@ -3,7 +3,7 @@
   "short_name": "MYBOUTIK Pro",
   "description": "Gérez vos boutiques, produits, commandes, livraisons et finances.",
   "start_url": "./index.html",
-  "scope": "./",
+  "scope": "../",
   "display": "standalone",
   "orientation": "portrait",
   "background_color": "#f8fafc",
