@@ -266,8 +266,10 @@
             <option value="plan" id="optAudPlan"></option><option value="country" id="optAudCountry"></option></select></div>
         <div style="flex:1 1 180px;display:none" id="annValueWrap"><label class="flabel" for="annValue" id="lblAnnValue"></label>
           <select id="annValue" onchange="updateAudienceCount()"></select></div>
+        <div style="flex:1 1 120px"><label class="flabel" for="annDays" id="lblAnnDays"></label>
+          <input id="annDays" type="number" min="1" max="365" inputmode="numeric" placeholder="ex : 14" oninput="announceDaysChanged()"></div>
         <div style="flex:1 1 160px"><label class="flabel" for="annEnds" id="lblAnnEnds"></label>
-          <input id="annEnds" type="date"></div>
+          <input id="annEnds" type="date" onchange="announceEndsChanged()"></div>
       </div>
       <p class="muted" id="annRecipients" style="margin:0 0 12px"></p>
       <button onclick="submitAnnouncement()" id="btnPublishAnnounce"></button>
@@ -473,7 +475,7 @@ const I18N = {
     h3_announce_new: 'Nouvelle annonce',
     announce_note: 'Un bandeau apparaît en haut du tableau de bord des marchands concernés. Chacun peut le fermer ; il disparaît aussi à la date de fin ou si vous le retirez.',
     label_announce_title: 'Titre (facultatif)', label_announce_message: 'Message', label_announce_level: 'Type', label_announce_audience: 'Qui doit la voir ?',
-    label_announce_end: 'Date de fin (facultatif)', label_announce_plan: 'Plan', label_announce_country: 'Pays',
+    label_announce_days: 'Durée en jours (facultatif)', label_announce_end: 'Date de fin (facultatif)', label_announce_plan: 'Plan', label_announce_country: 'Pays',
     lvl_info: 'ℹ️ Information', lvl_warning: '⚠️ Important', lvl_success: '✅ Bonne nouvelle',
     aud_all: 'Tous les marchands', aud_expiring: 'Abonnement qui expire dans 5 jours ou moins', aud_expired: 'Abonnement expiré',
     aud_plan: 'Un plan précis', aud_country: 'Boutiques d\'un pays précis',
@@ -645,7 +647,7 @@ const I18N = {
     h3_announce_new: 'New announcement',
     announce_note: 'A banner appears at the top of the dashboard of the merchants concerned. Each can close it; it also disappears on the end date or if you withdraw it.',
     label_announce_title: 'Title (optional)', label_announce_message: 'Message', label_announce_level: 'Type', label_announce_audience: 'Who should see it?',
-    label_announce_end: 'End date (optional)', label_announce_plan: 'Plan', label_announce_country: 'Country',
+    label_announce_days: 'Duration in days (optional)', label_announce_end: 'End date (optional)', label_announce_plan: 'Plan', label_announce_country: 'Country',
     lvl_info: 'ℹ️ Information', lvl_warning: '⚠️ Important', lvl_success: '✅ Good news',
     aud_all: 'All merchants', aud_expiring: 'Subscription expiring within 5 days', aud_expired: 'Expired subscription',
     aud_plan: 'A specific plan', aud_country: 'Shops in a specific country',
@@ -1013,9 +1015,28 @@ function submitAnnouncement() {
     if (!ok) return;
     call('announcement_create', body).then(d => {
       showToast(d.message || (d.success ? t('toast_done') : t('toast_error')), d.success ? 'success' : 'error');
-      if (d.success) { document.getElementById('annTitle').value = ''; document.getElementById('annMessage').value = ''; document.getElementById('annEnds').value = ''; loadAnnouncements(); }
+      if (d.success) { document.getElementById('annTitle').value = ''; document.getElementById('annMessage').value = ''; document.getElementById('annEnds').value = ''; document.getElementById('annDays').value = ''; loadAnnouncements(); }
     });
   });
+}
+// Duree en jours et date de fin restent synchronisees : saisir un nombre de
+// jours calcule la date (aujourd'hui + N), choisir une date recalcule le
+// nombre de jours restants.
+function announceDaysChanged() {
+  const daysEl = document.getElementById('annDays'), endsEl = document.getElementById('annEnds');
+  let n = parseInt(daysEl.value, 10);
+  if (!n || n < 1) { endsEl.value = ''; return; }
+  if (n > 365) { n = 365; daysEl.value = 365; }
+  const d = new Date(); d.setDate(d.getDate() + n);
+  endsEl.value = ymd(d);
+}
+function announceEndsChanged() {
+  const v = document.getElementById('annEnds').value, daysEl = document.getElementById('annDays');
+  if (!v) { daysEl.value = ''; return; }
+  const p = v.split('-').map(Number);
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const diff = Math.round((new Date(p[0], p[1] - 1, p[2]) - today) / 86400000);
+  daysEl.value = diff >= 1 ? diff : '';
 }
 function announceAudienceLabel(a) {
   const base = t('aud_' + a.audience);
@@ -1046,7 +1067,8 @@ function applyAnnounceLabels() {
   const set = (id, key) => { const el = document.getElementById(id); if (el) el.textContent = t(key); };
   set('h3AnnounceNew', 'h3_announce_new'); set('announceNote', 'announce_note'); set('lblAnnTitle', 'label_announce_title');
   set('lblAnnMessage', 'label_announce_message'); set('lblAnnLevel', 'label_announce_level'); set('lblAnnAudience', 'label_announce_audience');
-  set('lblAnnEnds', 'label_announce_end'); set('btnPublishAnnounce', 'btn_publish_announce'); set('h3AnnounceList', 'h3_announce_list');
+  set('lblAnnEnds', 'label_announce_end'); set('lblAnnDays', 'label_announce_days');
+  const endsInput = document.getElementById('annEnds'); if (endsInput) endsInput.min = ymd(new Date()); set('btnPublishAnnounce', 'btn_publish_announce'); set('h3AnnounceList', 'h3_announce_list');
   set('optLvlInfo', 'lvl_info'); set('optLvlWarn', 'lvl_warning'); set('optLvlOk', 'lvl_success');
   set('optAudAll', 'aud_all'); set('optAudExpiring', 'aud_expiring'); set('optAudExpired', 'aud_expired'); set('optAudPlan', 'aud_plan'); set('optAudCountry', 'aud_country');
   const cur = document.getElementById('annAudience'); if (cur && document.getElementById('annValueWrap').style.display !== 'none') announceAudienceChanged();
