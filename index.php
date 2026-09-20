@@ -61,6 +61,8 @@ define('ADMIN_PASSWORD', getenv('ADMIN_PASSWORD') ?: null);
 define('ADMIN_NOTIFY_EMAIL', getenv('ADMIN_NOTIFY_EMAIL') ?: null);
 // Adresse declaree a MyMemory (traduction des annonces) pour passer de 5 000 a 50 000 caracteres/jour. Distincte de ADMIN_NOTIFY_EMAIL pour ne pas declencher les alertes qualite.
 define('MYMEMORY_EMAIL', getenv('MYMEMORY_EMAIL') ?: null);
+// Cle DeepL (offre gratuite : 500 000 caracteres/mois, cle finissant par ":fx") : service principal de traduction des annonces ; MyMemory ne sert plus que de secours.
+define('DEEPL_API_KEY', getenv('DEEPL_API_KEY') ?: null);
 
 // Envoi d'email transactionnel (Brevo, https://app.brevo.com/settings/keys/api)
 // - optionnel : en son absence, send_email() se contente de journaliser
@@ -5119,6 +5121,28 @@ function mymemory_translate($seg, $from = 'fr', $to = 'en') {
     }
     return null;
 }
+// Traduction DeepL (cle gratuite ":fx" -> api-free.deepl.com). Renvoie null en
+// cas d'erreur, le motif etant garde dans $GLOBALS['mm_errors'] (affiche a l'admin).
+function deepl_translate($text, $from, $to) {
+    $host = substr(DEEPL_API_KEY, -3) === ':fx' ? 'api-free.deepl.com' : 'api.deepl.com';
+    $ch = curl_init('https://'.$host.'/v2/translate');
+    curl_setopt_array($ch, [
+        CURLOPT_POST => true, CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 12, CURLOPT_CONNECTTIMEOUT => 4,
+        CURLOPT_HTTPHEADER => ['Authorization: DeepL-Auth-Key '.DEEPL_API_KEY, 'Content-Type: application/json'],
+        CURLOPT_POSTFIELDS => json_encode(['text' => [$text], 'source_lang' => strtoupper($from), 'target_lang' => $to === 'en' ? 'EN-US' : 'FR', 'preserve_formatting' => true]),
+    ]);
+    $body = curl_exec($ch);
+    $code = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $curlErr = curl_error($ch);
+    curl_close($ch);
+    $j = $body ? json_decode($body, true) : null;
+    $t = is_array($j) ? ($j['translations'][0]['text'] ?? null) : null;
+    if ($code === 200 && is_string($t) && trim($t) !== '') return $t;
+    $why = $code === 403 ? 'cle refusee' : ($code === 456 ? 'quota mensuel atteint' : ($code ? 'HTTP '.$code : ($curlErr !== '' ? $curlErr : 'reponse vide')));
+    $GLOBALS['mm_errors'][] = 'DeepL : '.$why;
+    error_log('DeepL: '.$why);
+    return null;
+}
 // Coupe une ligne trop longue aux fins de phrase, en paquets <= 450 caracteres.
 function translation_segments($line) {
     if (strlen($line) <= 450) return [$line];
@@ -5143,6 +5167,11 @@ function translate_fr_to_en($text) { return translate_text($text, 'fr', 'en'); }
 function translate_text($text, $from, $to) {
     $text = trim((string)$text);
     if ($text === '') return null;
+    // DeepL d'abord (texte entier en un appel, retours a la ligne conserves)
+    if (DEEPL_API_KEY) {
+        $r = deepl_translate($text, $from, $to);
+        if ($r !== null) return $to === 'en' ? translation_glossary($r) : $r;
+    }
     $out = []; $calls = 0;
     foreach (preg_split('/\R/u', $text) as $line) {
         $line = trim($line);
