@@ -187,6 +187,7 @@ const EN_DICT = [
     'Table des annonces absente : relancez /install puis reessayez' => 'Announcements table missing: run /install again then retry',
     'Lien du bouton invalide' => 'Invalid button link',
     'Traduction automatique indisponible : saisissez la version anglaise a la main' => 'Automatic translation unavailable: enter the English version by hand',
+    'Traduction automatique indisponible : saisissez la version francaise a la main' => 'Automatic translation unavailable: enter the French version by hand',
     'Libelle du bouton trop long (60 caracteres maximum)' => 'Button label too long (60 characters maximum)',
     'Date de debut invalide' => 'Invalid start date',
     'La date de debut doit etre dans le futur' => 'The start date must not be in the past',
@@ -5089,8 +5090,8 @@ function admin_announcement_audience_count() {
 // segments de 450 caracteres maximum (limite de l'API). Toute erreur (quota,
 // reseau) sur UN segment annule la traduction entiere : mieux vaut un texte
 // francais complet qu'un melange francais/anglais. Renvoie null si impossible.
-function mymemory_translate($seg) {
-    $url = 'https://api.mymemory.translated.net/get?q='.rawurlencode($seg).'&langpair=fr%7Cen'
+function mymemory_translate($seg, $from = 'fr', $to = 'en') {
+    $url = 'https://api.mymemory.translated.net/get?q='.rawurlencode($seg).'&langpair='.$from.'%7C'.$to
          .(ADMIN_NOTIFY_EMAIL ? '&de='.rawurlencode(ADMIN_NOTIFY_EMAIL) : '');
     $ch = curl_init($url);
     curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 6, CURLOPT_CONNECTTIMEOUT => 3, CURLOPT_FOLLOWLOCATION => true]);
@@ -5119,7 +5120,10 @@ function translation_glossary($en) {
         return $shop.$m[2];
     }, $en);
 }
-function translate_fr_to_en($text) {
+function translate_fr_to_en($text) { return translate_text($text, 'fr', 'en'); }
+// Meme traduction dans les deux sens (fr->en ou en->fr) ; le glossaire
+// "shop" ne s'applique qu'a l'anglais.
+function translate_text($text, $from, $to) {
     $text = trim((string)$text);
     if ($text === '') return null;
     $out = []; $calls = 0;
@@ -5129,13 +5133,14 @@ function translate_fr_to_en($text) {
         $parts = [];
         foreach (translation_segments($line) as $seg) {
             if (++$calls > 12) return null;
-            $t = mymemory_translate($seg);
+            $t = mymemory_translate($seg, $from, $to);
             if ($t === null) return null;
             $parts[] = $t;
         }
         $out[] = implode(' ', $parts);
     }
-    return translation_glossary(implode("\n", $out));
+    $res = implode("\n", $out);
+    return $to === 'en' ? translation_glossary($res) : $res;
 }
 // Complete la version anglaise absente d'une annonce (a la publication ou a la
 // modification). Le libelle du bouton retombe sur le libelle anglais par
@@ -5152,6 +5157,14 @@ function announcement_autotranslate(&$f) {
 // (une valeur null = traduction indisponible pour ce champ).
 function admin_announcement_translate() {
     $b = body();
+    // Mode "un champ" : le formulaire traduit le champ que l'on vient de quitter,
+    // dans le sens demande (fr2en ou en2fr).
+    if (isset($b['text'])) {
+        $en2fr = ($b['dir'] ?? '') === 'en2fr';
+        $r = translate_text((string)$b['text'], $en2fr ? 'en' : 'fr', $en2fr ? 'fr' : 'en');
+        if ($r === null) fail($en2fr ? 'Traduction automatique indisponible : saisissez la version francaise a la main' : 'Traduction automatique indisponible : saisissez la version anglaise a la main', 503);
+        ok(['text' => $r]);
+    }
     $one = function($k) use ($b) { $v = trim((string)($b[$k] ?? '')); return $v === '' ? null : translate_fr_to_en($v); };
     $res = ['title_en' => $one('title'), 'message_en' => $one('message'), 'cta_label_en' => $one('cta_label')];
     if ($res['message_en'] === null && trim((string)($b['message'] ?? '')) !== '') fail('Traduction automatique indisponible : saisissez la version anglaise a la main', 503);

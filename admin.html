@@ -269,7 +269,8 @@
       <input id="annTitle" maxlength="120">
       <label class="flabel" for="annMessage" id="lblAnnMessage"></label>
       <textarea id="annMessage" rows="4" maxlength="1000"></textarea>
-      <details id="annEnBox" style="margin-bottom:12px;border:1px solid var(--border);border-radius:10px;padding:10px 12px">
+      <p class="muted" id="annTransStatus" style="margin:-6px 0 12px;font-size:12px;min-height:16px"></p>
+      <details id="annEnBox" open style="margin-bottom:12px;border:1px solid var(--border);border-radius:10px;padding:10px 12px">
         <summary id="sumAnnEn" style="cursor:pointer;font-weight:700;font-size:13px"></summary>
         <p class="muted" id="annEnNote" style="margin:8px 0 10px"></p>
         <button type="button" class="ghost" id="btnTranslateAnn" onclick="translateAnnouncement()" style="margin-bottom:12px"></button>
@@ -513,12 +514,15 @@ const I18N = {
     tab_announcements: 'Annonces',
     lbl_ann_template: 'Modèle (facultatif)', tpl_none: '— Écrire mon propre texte —', tpl_news: 'Nouveautés MYBOUTIK', tpl_feedback: 'Votre avis compte',
     tpl_grow: 'Faire connaître sa boutique', tpl_maintenance: 'Maintenance prévue',
-    sum_ann_en: '🌐 Version anglaise (traduite automatiquement si vous la laissez vide)',
-    ann_en_note: 'Les marchands qui utilisent MYBOUTIK en anglais verront cette version. Si vous ne la remplissez pas, elle est traduite automatiquement à la publication ; le bouton ci-dessous la génère tout de suite pour que vous puissiez la relire et la corriger.',
-    btn_translate_ann: '🌐 Traduire automatiquement', label_ann_title_en: 'Titre (anglais)', label_ann_message_en: 'Message (anglais)', label_ann_cta_label_en: 'Texte du bouton (anglais)',
+    sum_ann_en: '🌐 Version anglaise (remplie automatiquement)',
+    ann_en_note: 'Les marchands qui utilisent MYBOUTIK en anglais verront cette version. Elle se remplit toute seule quand vous quittez un champ français (et inversement : écrire en anglais remplit le français). Un texte que vous avez écrit ou corrigé à la main n\'est jamais écrasé.',
+    btn_translate_ann: '🌐 Retraduire depuis le français (remplace l\'anglais)', label_ann_title_en: 'Titre (anglais)', label_ann_message_en: 'Message (anglais)', label_ann_cta_label_en: 'Texte du bouton (anglais)',
     label_ann_cta: 'Bouton vers une page (facultatif)', label_ann_cta_label: 'Texte du bouton',
     cta_none: 'Aucun bouton', cta_profile: 'Mon profil', cta_billing: 'Abonnement', cta_settings: 'Paramètres généraux', cta_orders: 'Commandes', cta_marketing: 'Marketing', cta_guide: 'Guide d\'utilisation',
     label_announce_start: 'Début (facultatif, pour programmer)',
+    ann_trans_busy: '⏳ Traduction en cours…', ann_trans_done_en: '✅ Version anglaise remplie automatiquement : vous pouvez la corriger.', ann_trans_done_fr: '✅ Version française remplie automatiquement : vous pouvez la corriger.',
+    ann_trans_kept_en: 'La version anglaise n\'a pas été modifiée (écrite à la main). Utilisez « Retraduire » pour la mettre à jour.', ann_trans_kept_fr: 'La version française n\'a pas été modifiée (écrite à la main).',
+    ann_trans_fail: 'Traduction automatique indisponible : écrivez l\'autre version à la main.',
     btn_preview_ann: '👁 Aperçu', ann_preview_title: 'Aperçu tel que le marchand le verra', ann_preview_en_auto: 'Version anglaise : traduite automatiquement à la publication.',
     h3_announce_edit: 'Modifier l\'annonce', btn_save_announce: 'Enregistrer les modifications', btn_cancel_edit: 'Annuler la modification',
     label_reshow: 'Réafficher aux marchands qui l\'ont déjà fermée', btn_edit_announce: 'Modifier',
@@ -699,12 +703,15 @@ const I18N = {
     tab_announcements: 'Announcements',
     lbl_ann_template: 'Template (optional)', tpl_none: '— Write my own text —', tpl_news: 'What\'s new on MYBOUTIK', tpl_feedback: 'Your feedback matters',
     tpl_grow: 'Get your shop noticed', tpl_maintenance: 'Scheduled maintenance',
-    sum_ann_en: '🌐 English version (automatically translated if you leave it empty)',
-    ann_en_note: 'Merchants who use MYBOUTIK in English will see this version. If you leave it empty, it is translated automatically when you publish; the button below generates it right away so you can review and fix it.',
-    btn_translate_ann: '🌐 Translate automatically', label_ann_title_en: 'Title (English)', label_ann_message_en: 'Message (English)', label_ann_cta_label_en: 'Button text (English)',
+    sum_ann_en: '🌐 English version (filled in automatically)',
+    ann_en_note: 'Merchants who use MYBOUTIK in English will see this version. It fills in by itself when you leave a French field (and the other way round: writing in English fills in the French). Text you wrote or fixed by hand is never overwritten.',
+    btn_translate_ann: '🌐 Translate again from French (replaces the English)', label_ann_title_en: 'Title (English)', label_ann_message_en: 'Message (English)', label_ann_cta_label_en: 'Button text (English)',
     label_ann_cta: 'Button to a page (optional)', label_ann_cta_label: 'Button text',
     cta_none: 'No button', cta_profile: 'My profile', cta_billing: 'Subscription', cta_settings: 'General settings', cta_orders: 'Orders', cta_marketing: 'Marketing', cta_guide: 'User guide',
     label_announce_start: 'Start (optional, to schedule)',
+    ann_trans_busy: '⏳ Translating…', ann_trans_done_en: '✅ English version filled in automatically: you can fix it.', ann_trans_done_fr: '✅ French version filled in automatically: you can fix it.',
+    ann_trans_kept_en: 'The English version was left as is (written by hand). Use "Translate again" to update it.', ann_trans_kept_fr: 'The French version was left as is (written by hand).',
+    ann_trans_fail: 'Automatic translation unavailable: write the other version by hand.',
     btn_preview_ann: '👁 Preview', ann_preview_title: 'Preview as the merchant will see it', ann_preview_en_auto: 'English version: automatically translated when published.',
     h3_announce_edit: 'Edit the announcement', btn_save_announce: 'Save changes', btn_cancel_edit: 'Cancel editing',
     label_reshow: 'Show again to merchants who already closed it', btn_edit_announce: 'Edit',
@@ -1140,20 +1147,57 @@ function applyAnnounceTemplate() {
   document.getElementById('annLevel').value = tpl.level;
   document.getElementById('annCtaTarget').value = tpl.cta; announceCtaChanged();
   document.getElementById('annEnBox').open = true;
+  ['annTitle','annMessage','annCtaLabel'].forEach(id => { ANN_AUTO[id] = false; });
+  ['annTitleEn','annMessageEn','annCtaLabelEn'].forEach(id => { ANN_AUTO[id] = true; });
   document.getElementById('annTemplate').value = '';
   document.getElementById('annPreview').innerHTML = '';
 }
-// Traduit le texte francais pour relecture (le meme service tourne
-// automatiquement a la publication si la version anglaise est laissee vide).
+// Traduction automatique dans les deux sens : quand on quitte un champ francais
+// (ou anglais), le champ jumeau se remplit tout seul. Un champ ecrit ou corrige a
+// la main n'est jamais ecrase (ANN_AUTO = le champ contient une traduction
+// automatique non retouchee) ; le bouton "Retraduire" force le remplacement.
+const ANN_PAIRS = [['annTitle', 'annTitleEn'], ['annMessage', 'annMessageEn'], ['annCtaLabel', 'annCtaLabelEn']];
+const ANN_AUTO = {}, ANN_SEQ = {};
+function annTransStatus(msg, bad) {
+  const el = document.getElementById('annTransStatus');
+  el.textContent = msg || ''; el.style.color = bad ? '#b91c1c' : '';
+}
+function annAutoTranslate(srcId) {
+  const pair = ANN_PAIRS.find(p => p.indexOf(srcId) >= 0), idx = pair.indexOf(srcId);
+  const dstId = pair[1 - idx], dir = idx === 0 ? 'fr2en' : 'en2fr';
+  const src = document.getElementById(srcId), dst = document.getElementById(dstId);
+  const text = src.value.trim();
+  if (!text) return;
+  if (dst.value.trim() && !ANN_AUTO[dstId]) { annTransStatus(t(dir === 'fr2en' ? 'ann_trans_kept_en' : 'ann_trans_kept_fr')); return; }
+  const seq = ANN_SEQ[dstId] = (ANN_SEQ[dstId] || 0) + 1;
+  annTransStatus(t('ann_trans_busy'));
+  call('announcement_translate', {dir, text}).then(d => {
+    if (seq !== ANN_SEQ[dstId]) return;
+    if (!d.success) { annTransStatus(d.message || t('ann_trans_fail'), true); return; }
+    if (dst.value.trim() && !ANN_AUTO[dstId]) return; // ecrit a la main pendant ce temps
+    dst.value = d.data.text; ANN_AUTO[dstId] = true;
+    annTransStatus(t(dir === 'fr2en' ? 'ann_trans_done_en' : 'ann_trans_done_fr'));
+  });
+}
+function initAnnounceAutoTranslate() {
+  ANN_PAIRS.forEach(p => p.forEach(id => {
+    const el = document.getElementById(id);
+    el.addEventListener('input', () => { ANN_AUTO[id] = false; });
+    el.addEventListener('change', () => annAutoTranslate(id));
+  }));
+}
+initAnnounceAutoTranslate();
+// Bouton "Retraduire" : refait toute la version anglaise depuis le francais.
 function translateAnnouncement() {
   const message = document.getElementById('annMessage').value.trim();
   if (!message) { showToast(t('announce_message_required'), 'error'); return; }
   call('announcement_translate', {title: document.getElementById('annTitle').value.trim(), message, cta_label: document.getElementById('annCtaLabel').value.trim()}).then(d => {
     if (!d.success) { showToast(d.message || t('toast_error'), 'error'); return; }
-    if (d.data.title_en) document.getElementById('annTitleEn').value = d.data.title_en;
-    if (d.data.message_en) document.getElementById('annMessageEn').value = d.data.message_en;
-    if (d.data.cta_label_en) document.getElementById('annCtaLabelEn').value = d.data.cta_label_en;
+    [['title_en', 'annTitleEn'], ['message_en', 'annMessageEn'], ['cta_label_en', 'annCtaLabelEn']].forEach(([k, id]) => {
+      if (d.data[k]) { document.getElementById(id).value = d.data[k]; ANN_AUTO[id] = true; }
+    });
     document.getElementById('annEnBox').open = true;
+    annTransStatus(t('ann_trans_done_en'));
     showToast(t('toast_translated'), 'success');
   });
 }
@@ -1186,7 +1230,8 @@ function resetAnnouncementForm() {
   ['annTitle','annMessage','annTitleEn','annMessageEn','annCtaLabel','annCtaLabelEn','annStarts','annDays','annEnds'].forEach(id => { document.getElementById(id).value = ''; });
   document.getElementById('annCtaTarget').value = ''; document.getElementById('annCtaLabelWrap').style.display = 'none';
   document.getElementById('annLevel').value = 'info'; document.getElementById('annAudience').value = 'all';
-  document.getElementById('annEnBox').open = false; document.getElementById('annPreview').innerHTML = '';
+  document.getElementById('annEnBox').open = true; document.getElementById('annPreview').innerHTML = '';
+  Object.keys(ANN_AUTO).forEach(k => { ANN_AUTO[k] = false; }); annTransStatus('');
   document.getElementById('annReshow').checked = false; document.getElementById('annReshowWrap').style.display = 'none';
   document.getElementById('btnCancelAnnounceEdit').style.display = 'none';
   document.getElementById('annEnds').min = ymd(new Date());
@@ -1219,9 +1264,9 @@ function editAnnouncement(id) {
   updateAudienceCount();
   set('annCtaTarget', x.cta_target); announceCtaChanged();
   if (x.cta_target) { set('annCtaLabel', x.cta_label); set('annCtaLabelEn', x.cta_label_en); }
+  Object.keys(ANN_AUTO).forEach(k => { ANN_AUTO[k] = false; });
   if (x.status === 'scheduled') set('annStarts', String(x.starts_at).slice(0, 10));
   if (x.ends_at) { set('annEnds', String(x.ends_at).slice(0, 10)); announceEndsChanged(); }
-  if (x.message_en) document.getElementById('annEnBox').open = true;
   document.getElementById('annReshowWrap').style.display = '';
   document.getElementById('btnCancelAnnounceEdit').style.display = '';
   applyAnnounceLabels();
