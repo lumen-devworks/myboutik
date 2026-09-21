@@ -575,6 +575,7 @@ const I18N = {
     rates_note: 'Un taux = combien de FCFA vaut 1 unité de la devise ; il sert au total converti (Volume des ventes) et au Top 10 par chiffre d\'affaires. Les taux du jour sont récupérés automatiquement (ExchangeRate-API, actualisés toutes les 12 h) : vous n\'avez rien à saisir. Saisissez un taux seulement pour remplacer celui du jour par le vôtre (il reste alors figé jusqu\'à ce que vous le changiez ou l\'effaciez). L\'euro et le franc CFA d\'Afrique centrale sont à parité fixe officielle.',
     rates_none: 'Toutes les boutiques sont en FCFA : aucun taux à saisir.',
     col_currency: 'Devise', col_rate: 'Valeur en FCFA',
+    rate_custom: 'saisi à la main (figé)', btn_rate_reset: 'Revenir au taux du jour', confirm_rate_reset: 'Revenir au taux du jour pour {code} ? Votre taux saisi sera supprimé et la devise suivra de nouveau le marché.',
     rate_live: 'taux du jour (auto)', rate_fixed: 'parité fixe', rate_missing: 'à renseigner', rate_missing_short: 'taux manquant',
     btn_save_rates: 'Enregistrer les taux',
     rates_missing_warning: 'Sans taux (exclues du total) : {list}',
@@ -769,6 +770,7 @@ const I18N = {
     rates_note: 'A rate = how many FCFA 1 unit of the currency is worth; it is used for the converted total (Sales volume) and the revenue Top 10. Today\'s rates are fetched automatically (ExchangeRate-API, refreshed every 12 h): you have nothing to enter. Enter a rate only to replace today\'s with your own (it then stays fixed until you change or clear it). The euro and the Central African CFA franc have an official fixed parity.',
     rates_none: 'All shops are in FCFA: no rate to enter.',
     col_currency: 'Currency', col_rate: 'Value in FCFA',
+    rate_custom: 'entered by hand (frozen)', btn_rate_reset: 'Back to today\'s rate', confirm_rate_reset: 'Go back to today\'s rate for {code}? Your entered rate will be deleted and the currency will follow the market again.',
     rate_live: 'today\'s rate (auto)', rate_fixed: 'fixed parity', rate_missing: 'to fill in', rate_missing_short: 'rate missing',
     btn_save_rates: 'Save rates',
     rates_missing_warning: 'No rate (left out of the total): {list}',
@@ -1447,11 +1449,22 @@ function renderRates() {
   if (!RATES_ROWS.length) { el.innerHTML = '<p style="color:var(--gray)">'+t('rates_none')+'</p>'; return; }
   const pill = r => r.source === 'fixed' ? '<span class="pill pill-ok">'+t('rate_fixed')+'</span>'
     : r.source === 'missing' ? '<span class="pill pill-bad">'+t('rate_missing')+'</span>'
-    : r.source === 'live' ? '<span class="pill" style="background:var(--bg);color:var(--gray)">'+t('rate_live')+'</span>' : '';
+    : r.source === 'live' ? '<span class="pill" style="background:var(--bg);color:var(--gray)">'+t('rate_live')+'</span>'
+    : r.source === 'custom' ? '<span class="pill pill-warn">'+t('rate_custom')+'</span> <button type="button" class="ghost" style="padding:4px 10px;font-size:12px" onclick="resetRate(\''+escapeAttr(r.currency)+'\')">'+t('btn_rate_reset')+'</button>' : '';
   el.innerHTML = '<table><thead><tr><th>'+t('col_currency')+'</th><th>'+t('col_rate')+'</th><th></th></tr></thead><tbody>' +
     RATES_ROWS.map(r => '<tr><td><strong>1 '+escapeAttr(r.currency)+'</strong> =</td><td style="white-space:nowrap">'+
       '<input type="number" step="any" min="0" id="rate_'+escapeAttr(r.currency)+'" value="'+(r.rate == null ? '' : r.rate)+'" '+(r.source === 'fixed' ? 'disabled' : '')+' style="width:150px;margin:0"> FCFA</td><td>'+pill(r)+'</td></tr>').join('') +
     '</tbody></table><div style="margin-top:12px"><button onclick="saveRates()">'+t('btn_save_rates')+'</button></div>';
+}
+// Supprime le taux saisi a la main : la devise suit de nouveau le taux du jour.
+function resetRate(code) {
+  customConfirm(tf('confirm_rate_reset', {code})).then(ok => {
+    if (!ok) return;
+    call('rates_save', {rates: {[code]: ''}}).then(d => {
+      showToast(d.message || (d.success ? t('toast_done') : t('toast_error')), d.success ? 'success' : 'error');
+      if (d.success) { loadRates(); loadPeriodData(); }
+    });
+  });
 }
 function saveRates() {
   const rates = {};
