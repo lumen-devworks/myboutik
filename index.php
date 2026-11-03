@@ -89,6 +89,8 @@ define('DEMO_SEED_EMAIL', 'demo-seed@myboutik.internal');
 $ALLOWED_ORIGINS = [
     'https://lumen-devworks.github.io',
     'https://myboutik-ci.netlify.app',
+    'https://myboutik.online',
+    'https://www.myboutik.online',
 ];
 $requestOrigin = $_SERVER['HTTP_ORIGIN'] ?? '';
 if (in_array($requestOrigin, $ALLOWED_ORIGINS, true)) {
