@@ -9,6 +9,13 @@
 // codee en dur pour les secrets).
 // ============================================================
 
+// Jamais d'erreur PHP dans une reponse en production : elles reveleraient les
+// chemins du serveur et casseraient le JSON attendu par le frontend. Elles
+// restent disponibles dans les journaux de l'hebergeur.
+ini_set('display_errors', getenv('APP_ENV') === 'development' ? '1' : '0');
+ini_set('log_errors', '1');
+header_remove('X-Powered-By');
+
 define('DB_HOST',     getenv('DB_HOST')     ?: 'localhost');
 define('DB_NAME',     getenv('DB_NAME')     ?: 'myboutik_db');
 define('DB_USER',     getenv('DB_USER')     ?: 'postgres');
@@ -74,7 +81,7 @@ define('BREVO_SENDER_NAME', getenv('BREVO_SENDER_NAME') ?: 'MYBOUTIK');
 // liens de redirection dans les pages d'apercu (voir route_preview()) et
 // pour le CTA de l'annuaire. Configurable par env var pour ne pas casser au
 // prochain demenagement d'hebergement (deja arrive une fois cette session).
-define('FRONTEND_BASE_URL', rtrim(getenv('FRONTEND_BASE_URL') ?: 'https://lumen-devworks.github.io/myboutik', '/'));
+define('FRONTEND_BASE_URL', rtrim(getenv('FRONTEND_BASE_URL') ?: 'https://myboutik.online', '/'));
 // Numero unique reutilise partout (instructions de paiement, bouton
 // WhatsApp "J'ai paye", copie en un clic cote tableau de bord) - un seul
 // endroit a modifier si ce numero change un jour.
@@ -320,6 +327,9 @@ const EN_DICT = [
     'Votre telephone est requis' => 'Your phone number is required',
     'Votre role n\'a pas acces a cette section' => 'Your role does not have access to this section',
     'boutique_id manquant' => 'boutique_id missing',
+    'Requete incoherente : plusieurs boutiques indiquees' => 'Inconsistent request: several shops specified',
+    'Mot de passe actuel incorrect' => 'Current password is incorrect',
+    'Le lien doit etre une feuille Google Sheets publiee (https://docs.google.com/...)' => 'The link must be a published Google Sheet (https://docs.google.com/...)',
     'OK' => 'OK',
 ];
 
@@ -395,6 +405,49 @@ function phone_key($phone) {
     $digits = preg_replace('/\D/', '', (string)$phone);
     return substr($digits, -8);
 }
+// phone_key() ne sert qu'a preselectionner en SQL : 8 chiffres confondraient
+// "07 78 79 83 19" et "05 78 79 83 19", deux personnes differentes. Ici le
+// numero le plus court (sans ses zeros de tete) doit etre la fin exacte du
+// plus long, ce qui accepte l'indicatif "+225" ou "00225" sans ces confusions.
+function phones_match($a, $b) {
+    $x = ltrim(preg_replace('/\D/', '', (string)$a), '0');
+    $y = ltrim(preg_replace('/\D/', '', (string)$b), '0');
+    if ($x === '' || $y === '') return false;
+    if ($x === $y) return true;
+    if (strlen($x) > strlen($y)) { [$x, $y] = [$y, $x]; }
+    return strlen($x) >= 8 && str_ends_with($y, $x);
+}
+// Lien envoye par email (verification, reinitialisation, invitation) : l'adresse
+// fournie par le navigateur n'est gardee que si elle appartient a nos propres
+// sites. Sinon n'importe qui pourrait faire envoyer par MYBOUTIK un vrai email
+// contenant un jeton valide et pointant vers un site pirate.
+function trusted_frontend_base($pageUrl) {
+    global $ALLOWED_ORIGINS;
+    $p = parse_url(trim((string)$pageUrl));
+    if (is_array($p) && !empty($p['host']) && !isset($p['user']) && !isset($p['pass'])) {
+        $origin = strtolower($p['scheme'] ?? '').'://'.strtolower($p['host']).(isset($p['port']) ? ':'.$p['port'] : '');
+        $path = $p['path'] ?? '';
+        $isHttp = in_array(strtolower($p['scheme'] ?? ''), ['http', 'https'], true);
+        if ($isHttp && (APP_ENV === 'development' || in_array($origin, $ALLOWED_ORIGINS, true)) && preg_match('#^[A-Za-z0-9/._-]*$#', $path)) {
+            return rtrim($origin.$path, '/');
+        }
+    }
+    return FRONTEND_BASE_URL;
+}
+// Vraie adresse du visiteur. Sur Render, REMOTE_ADDR est celle du proxy,
+// commune a tout le monde : les limites anti-abus s'appliqueraient alors a
+// l'ensemble des visiteurs. Les en-tetes du proxy ne sont crus que si la
+// connexion vient bien d'une adresse privee, sinon ils seraient falsifiables.
+function client_ip() {
+    $remote = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
+    if (filter_var($remote, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE)) return $remote;
+    $forwarded = explode(',', $_SERVER['HTTP_X_FORWARDED_FOR'] ?? '');
+    foreach ([$_SERVER['HTTP_CF_CONNECTING_IP'] ?? '', $_SERVER['HTTP_TRUE_CLIENT_IP'] ?? '', $forwarded[0]] as $candidate) {
+        $candidate = trim($candidate);
+        if (filter_var($candidate, FILTER_VALIDATE_IP)) return $candidate;
+    }
+    return $remote;
+}
 
 function slugify($text) {
     $text = trim((string)$text);
@@ -440,7 +493,7 @@ function q($sql, $params=[]) {
 
 function rate_limit_check($bucket, $maxRequests, $windowSeconds) {
     try {
-        $ip = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
+        $ip = client_ip();
         if (mt_rand(1, 100) === 1) {
             q("DELETE FROM rate_limit_hits WHERE created_at < NOW() - INTERVAL '1 hour'");
         }
@@ -858,7 +911,9 @@ const TEAM_ROLES = ['admin','manager','livreur','closeuse','comptable'];
 // ou une inscription ne doit jamais echouer a cause d'un email qui n'est
 // pas parti.
 function send_email($to, $subject, $body) {
-    error_log('[MYBOUTIK] Email a envoyer -> '.$to.' | Sujet: '.$subject."\n".$body);
+    // Le corps peut contenir un lien de connexion ou un code vendu : jamais
+    // dans les journaux en production, seulement en developpement local.
+    error_log('[MYBOUTIK] Email a envoyer -> '.$to.' | Sujet: '.$subject.(APP_ENV === 'development' ? "\n".$body : ''));
     if (!BREVO_API_KEY || !BREVO_SENDER_EMAIL || !$to) return;
     try {
         $ch = curl_init('https://api.brevo.com/v3/smtp/email');
@@ -925,6 +980,16 @@ $uri    = trim(parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH), '/');
 $parts  = explode('/', $uri);
 $module = $parts[1] ?? ($parts[0] ?? '');
 $action = $_GET['action'] ?? '';
+
+// Les controles de role lisent boutique_id dans le corps en priorite, mais
+// certaines actions le lisent dans l'URL : deux valeurs differentes
+// permettraient de passer le controle sur une boutique et d'agir sur une autre.
+$bodyBoutiqueId = body()['boutique_id'] ?? null;
+$urlBoutiqueId = $_GET['boutique_id'] ?? null;
+if ($bodyBoutiqueId !== null && $urlBoutiqueId !== null
+    && (!is_scalar($bodyBoutiqueId) || !is_scalar($urlBoutiqueId) || (string)$bodyBoutiqueId !== (string)$urlBoutiqueId)) {
+    fail('Requete incoherente : plusieurs boutiques indiquees', 400);
+}
 
 try {
     switch ($module) {
@@ -1224,7 +1289,6 @@ function route_install() {
     // migration DROP COLUMN) mais plus utilisee - les deux sources ci-dessus
     // se cumulent desormais au lieu d'etre un choix exclusif.
     "ALTER TABLE products ADD COLUMN IF NOT EXISTS digital_delivery_mode VARCHAR(20) DEFAULT 'link'",
-    "ALTER TABLE orders ADD COLUMN IF NOT EXISTS digital_delivery_sent_at TIMESTAMP",
     "CREATE TABLE IF NOT EXISTS product_digital_codes (
         id VARCHAR(36) PRIMARY KEY,
         product_id VARCHAR(36) NOT NULL,
@@ -1342,6 +1406,7 @@ function route_install() {
     // Code promo applique a la commande (reduction deja deduite dans total -
     // subtotal/delivery_fee_charged restent les montants bruts, discount_amount
     // est ce qui a ete retire).
+    "ALTER TABLE orders ADD COLUMN IF NOT EXISTS digital_delivery_sent_at TIMESTAMP",
     "ALTER TABLE orders ADD COLUMN IF NOT EXISTS promo_code VARCHAR(40)",
     "ALTER TABLE orders ADD COLUMN IF NOT EXISTS discount_amount DECIMAL(14,2) DEFAULT 0",
     // 'delivery' ou 'shipping' - mode choisi par le client au panier quand la
@@ -1771,17 +1836,11 @@ function auth_verify_link($token, $pageUrl = '') {
     // l'en-tete Origin seul (repli si $pageUrl est absent/invalide) ne
     // contient jamais ce sous-dossier, ce qui produirait un lien casse des
     // que le site n'est pas a la racine du domaine.
-    $pageUrl = trim($pageUrl);
-    if ($pageUrl !== '' && preg_match('#^https?://#i', $pageUrl)) {
-        $base = rtrim(strtok($pageUrl, '?#'), '/');
-    } else {
-        $base = rtrim($_SERVER['HTTP_ORIGIN'] ?? '', '/');
-    }
-    // Pas de "/" ajoute ici : $base contient deja le chemin complet envoye
+    // Pas de "/" ajoute ici : la base contient deja le chemin complet envoye
     // par le frontend, fichier inclus (ex: ".../myboutik/index.html"). En
     // ajouter un produisait "index.html/?verify=..." -> 404 sur GitHub Pages
     // (qui ne reecrit pas les URLs comme un serveur PHP classique).
-    return $base.'?verify='.$token;
+    return trusted_frontend_base($pageUrl).'?verify='.$token;
 }
 
 function auth_verify() {
@@ -1826,13 +1885,7 @@ function auth_login() {
 // Meme construction que auth_verify_link() (voir ce commentaire pour le
 // detail du sous-dossier GitHub Pages), juste un parametre different.
 function auth_reset_link($token, $pageUrl = '') {
-    $pageUrl = trim($pageUrl);
-    if ($pageUrl !== '' && preg_match('#^https?://#i', $pageUrl)) {
-        $base = rtrim(strtok($pageUrl, '?#'), '/');
-    } else {
-        $base = rtrim($_SERVER['HTTP_ORIGIN'] ?? '', '/');
-    }
-    return $base.'?reset_token='.$token;
+    return trusted_frontend_base($pageUrl).'?reset_token='.$token;
 }
 
 function auth_forgot_password() {
@@ -1892,14 +1945,22 @@ function auth_profile_update() {
     $pl = owner_auth();
     $b = body();
     $user = q("SELECT * FROM users WHERE id=?", [$pl['sub']])->fetch();
-    $fullName = trim($b['full_name'] ?? $user['full_name']);
-    $whatsapp = trim($b['whatsapp_number'] ?? $user['whatsapp_number']);
-    q("UPDATE users SET full_name=?, whatsapp_number=? WHERE id=?", [$fullName, $whatsapp, $user['id']]);
-    if (!empty($b['new_password'])) {
-        if (strlen($b['new_password']) < 6) fail('Le nouveau mot de passe doit contenir au moins 6 caracteres');
-        q("UPDATE users SET password_hash=? WHERE id=?", [password_hash($b['new_password'], PASSWORD_DEFAULT), $user['id']]);
+    // Mot de passe verifie AVANT toute ecriture : un telephone deverrouille ne
+    // doit pas suffire a voler le compte, et une erreur ne doit rien modifier.
+    $newPassword = (string)($b['new_password'] ?? '');
+    if ($newPassword !== '') {
+        if (strlen($newPassword) < 6) fail('Le nouveau mot de passe doit contenir au moins 6 caracteres');
+        if (!password_verify((string)($b['current_password'] ?? ''), $user['password_hash'])) fail('Mot de passe actuel incorrect', 403);
     }
-    ok(null, 'Profil mis a jour');
+    $fullName = trim($b['full_name'] ?? (string)$user['full_name']);
+    $whatsapp = trim($b['whatsapp_number'] ?? (string)$user['whatsapp_number']);
+    q("UPDATE users SET full_name=?, whatsapp_number=? WHERE id=?", [$fullName, $whatsapp, $user['id']]);
+    if ($newPassword === '') ok(null, 'Profil mis a jour');
+    // Comme une reinitialisation : les autres sessions sont coupees, et cet
+    // appareil recoit un nouveau jeton pour rester connecte.
+    q("UPDATE users SET password_hash=?, token_version=token_version+1 WHERE id=?", [password_hash($newPassword, PASSWORD_DEFAULT), $user['id']]);
+    $newTv = (int)q("SELECT token_version FROM users WHERE id=?", [$user['id']])->fetchColumn();
+    ok(['token' => jwt_make(['sub'=>$user['id'], 'typ'=>'owner', 'tv'=>$newTv])], 'Profil mis a jour');
 }
 
 // ============================================================
@@ -2867,7 +2928,12 @@ function find_active_promo($boutiqueId, $code, $phone = null) {
     if ($targetCount > 0) {
         $phone = trim($phone ?? '');
         if ($phone === '') return null;
-        if (!q("SELECT 1 FROM promo_code_customers WHERE promo_code_id=? AND phone=?", [$promo['id'], $phone])->fetch()) return null;
+        // Meme comparaison souple que shop_promo_for_phone() : sinon le code
+        // serait propose au client puis refuse selon la facon d'ecrire son numero.
+        $targets = q("SELECT phone FROM promo_code_customers WHERE promo_code_id=?", [$promo['id']])->fetchAll(PDO::FETCH_COLUMN);
+        $allowed = false;
+        foreach ($targets as $target) { if (phones_match($target, $phone)) { $allowed = true; break; } }
+        if (!$allowed) return null;
     }
     return $promo;
 }
@@ -2910,12 +2976,17 @@ function shop_promo_for_phone() {
     $bt = public_boutique_by_slug($b['slug'] ?? '');
     $phone = trim($b['phone'] ?? '');
     if ($phone === '') ok([]);
-    ok(q("SELECT pc.code, pc.type, pc.value FROM promo_codes pc
+    $rows = q("SELECT pc.code, pc.type, pc.value, pcc.phone FROM promo_codes pc
           JOIN promo_code_customers pcc ON pcc.promo_code_id = pc.id
           WHERE pc.boutique_id=? AND RIGHT(regexp_replace(pcc.phone,'\D','','g'),8)=? AND pc.active=1
           AND (pc.expires_at IS NULL OR pc.expires_at > NOW())
           AND (pc.max_uses IS NULL OR pc.used_count < pc.max_uses)
-          ORDER BY pc.created_at DESC", [$bt['id'], phone_key($phone)])->fetchAll());
+          ORDER BY pc.created_at DESC", [$bt['id'], phone_key($phone)])->fetchAll();
+    $out = [];
+    foreach ($rows as $r) {
+        if (phones_match($r['phone'], $phone)) { unset($r['phone']); $out[] = $r; }
+    }
+    ok($out);
 }
 
 // Commande a la livraison : cree/retrouve le client par telephone, cree la
@@ -3076,8 +3147,12 @@ function shop_checkout() {
             notify_customer_order_confirmation($bt, $ref, $customerEmail, $name, $lineData, $subtotal, $deliveryFee, $discountAmount, $total, $address, $deliveryMethod, $customerCountry);
         }
         ok(['ref'=>$ref, 'order_id'=>$orderId, 'total'=>$total], 'Commande enregistree', 201);
+    } catch (PDOException $e) {
+        // Le texte d'une erreur SQL ne doit jamais etre montre a un client.
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        log_and_fail($e, 'Erreur base de donnees');
     } catch (Exception $e) {
-        $pdo->rollBack();
+        if ($pdo->inTransaction()) $pdo->rollBack();
         fail($e->getMessage(), 400);
     }
 }
@@ -3203,11 +3278,12 @@ function shop_track_order() {
     $ref = trim($b['ref'] ?? '');
     $phone = trim($b['phone'] ?? '');
     if ($ref === '' || $phone === '') fail('Numero de commande et telephone requis');
-    $o = q("SELECT id,ref,status,total,subtotal,delivery_fee_charged,delivery_method,discount_amount,customer_name,created_at,delivered_at,
+    $o = q("SELECT id,ref,status,total,subtotal,delivery_fee_charged,delivery_method,discount_amount,customer_name,customer_phone,created_at,delivered_at,
                    dispute_status,dispute_message,dispute_response,dispute_created_at,dispute_resolved_at
             FROM orders WHERE boutique_id=? AND ref=? AND RIGHT(regexp_replace(customer_phone,'\D','','g'),8)=?",
            [$bt['id'], $ref, phone_key($phone)])->fetch();
-    if (!$o) fail('Aucune commande trouvee avec ces informations', 404);
+    if (!$o || !phones_match($o['customer_phone'], $phone)) fail('Aucune commande trouvee avec ces informations', 404);
+    unset($o['customer_phone']);
     $o['items'] = q("SELECT product_name,qty,unit_price FROM order_items WHERE order_id=?", [$o['id']])->fetchAll();
     $delivery = q("SELECT da.status AS delivery_status, dp.name AS delivery_person_name, dp.phone AS delivery_person_phone
                    FROM delivery_assignments da LEFT JOIN delivery_persons dp ON dp.id = da.delivery_person_id
@@ -3232,10 +3308,10 @@ function shop_submit_dispute() {
     $message = trim($b['message'] ?? '');
     if ($ref === '' || $phone === '') fail('Numero de commande et telephone requis');
     if ($message === '') fail('Decrivez le probleme rencontre');
-    $o = q("SELECT id, status, dispute_status, customer_name FROM orders
+    $o = q("SELECT id, status, dispute_status, customer_name, customer_phone FROM orders
             WHERE boutique_id=? AND ref=? AND RIGHT(regexp_replace(customer_phone,'\D','','g'),8)=?",
            [$bt['id'], $ref, phone_key($phone)])->fetch();
-    if (!$o) fail('Aucune commande trouvee avec ces informations', 404);
+    if (!$o || !phones_match($o['customer_phone'], $phone)) fail('Aucune commande trouvee avec ces informations', 404);
     if ($o['status'] !== 'delivered') fail('La reclamation n\'est disponible que pour une commande deja livree', 400);
     if ($o['dispute_status'] === 'open') fail('Une reclamation est deja en cours de traitement pour cette commande');
     q("UPDATE orders SET dispute_status='open', dispute_message=?, dispute_created_at=NOW(), dispute_response=NULL, dispute_resolved_at=NULL WHERE id=?",
@@ -3282,9 +3358,14 @@ function shop_orders_for_phone() {
     $bt = public_boutique_by_slug($b['slug'] ?? '');
     $phone = trim($b['phone'] ?? '');
     if ($phone === '') ok([]);
-    ok(q("SELECT ref, status, total, created_at FROM orders
+    $rows = q("SELECT ref, status, total, created_at, customer_phone FROM orders
           WHERE boutique_id=? AND RIGHT(regexp_replace(customer_phone,'\D','','g'),8)=?
-          ORDER BY created_at DESC LIMIT 20", [$bt['id'], phone_key($phone)])->fetchAll());
+          ORDER BY created_at DESC LIMIT 20", [$bt['id'], phone_key($phone)])->fetchAll();
+    $out = [];
+    foreach ($rows as $r) {
+        if (phones_match($r['customer_phone'], $phone)) { unset($r['customer_phone']); $out[] = $r; }
+    }
+    ok($out);
 }
 
 function shop_reviews() {
@@ -3424,6 +3505,7 @@ function orders_update_status($pl) {
     $status = $b['status'] ?? '';
     $allowed = ['pending','processing','shipped','delivered','refused','cancelled'];
     if (!in_array($status, $allowed, true)) fail('Statut invalide');
+    sync_order_stock($o, $status);
     if ($status === 'delivered') {
         q("UPDATE orders SET status=?, delivered_at=NOW() WHERE id=?", [$status, $o['id']]);
         maybe_send_digital_delivery($bt, $o);
@@ -3432,6 +3514,30 @@ function orders_update_status($pl) {
     }
     log_activity($bt['id'], 'Commande '.$o['ref'].' -> '.$status, $pl['sub']);
     ok(q("SELECT * FROM orders WHERE id=?", [$o['id']])->fetch(), 'Statut mis a jour');
+}
+
+// Une commande annulee ou refusee rend ses articles au stock ; si elle redevient
+// active ensuite, ils sont decomptes a nouveau. A appeler AVANT de changer le
+// statut, avec la commande telle qu'elle etait : seul le passage d'un groupe a
+// l'autre bouge le stock, donc repeter un meme statut ne compte jamais deux fois.
+function sync_order_stock($order, $newStatus) {
+    $released = ['cancelled', 'refused'];
+    $wasReleased = in_array($order['status'], $released, true);
+    $isReleased = in_array($newStatus, $released, true);
+    if ($wasReleased === $isReleased) return;
+    $sign = $isReleased ? 1 : -1;
+    $items = q("SELECT oi.product_id, oi.variant_id, oi.qty, p.track_inventory
+                FROM order_items oi JOIN products p ON p.id = oi.product_id
+                WHERE oi.order_id=?", [$order['id']])->fetchAll();
+    foreach ($items as $it) {
+        if (!$it['track_inventory']) continue;
+        $delta = $sign * (int)$it['qty'];
+        if ($it['variant_id']) {
+            q("UPDATE product_variants SET stock_qty = stock_qty + ? WHERE id=?", [$delta, $it['variant_id']]);
+        } else {
+            q("UPDATE products SET stock_qty = stock_qty + ? WHERE id=?", [$delta, $it['product_id']]);
+        }
+    }
 }
 
 // Envoie automatiquement, par email, le contenu numerique (lien, code,
@@ -3693,9 +3799,12 @@ function delivery_update_status($pl) {
     $status = $b['status'] ?? '';
     $allowed = ['to_assign','assigned','in_delivery','delivered','refused'];
     if (!in_array($status, $allowed, true)) fail('Statut invalide');
+    $newOrderStatus = ['delivered' => 'delivered', 'refused' => 'refused', 'in_delivery' => 'shipped'][$status] ?? null;
+    if ($newOrderStatus) sync_order_stock($o, $newOrderStatus);
     if ($status === 'delivered') {
         q("UPDATE delivery_assignments SET status=?, delivered_at=NOW() WHERE order_id=?", [$status, $o['id']]);
         q("UPDATE orders SET status='delivered', delivered_at=NOW() WHERE id=?", [$o['id']]);
+        maybe_send_digital_delivery($bt, $o);
     } else {
         q("UPDATE delivery_assignments SET status=? WHERE order_id=?", [$status, $o['id']]);
         if ($status === 'refused') q("UPDATE orders SET status='refused' WHERE id=?", [$o['id']]);
@@ -4529,13 +4638,7 @@ function route_team($action) {
 }
 
 function team_invite_link($token, $pageUrl) {
-    $pageUrl = trim($pageUrl);
-    if ($pageUrl !== '' && preg_match('#^https?://#i', $pageUrl)) {
-        $base = rtrim(strtok($pageUrl, '?#'), '/');
-    } else {
-        $base = rtrim($_SERVER['HTTP_ORIGIN'] ?? '', '/');
-    }
-    return $base.'?team_invite='.$token; // voir le commentaire dans auth_verify_link()
+    return trusted_frontend_base($pageUrl).'?team_invite='.$token; // voir le commentaire dans auth_verify_link()
 }
 
 function team_list($pl) {
@@ -5930,9 +6033,44 @@ function integrations_sheet_get($pl) {
 function integrations_sheet_save($pl) {
     $b = body();
     $bt = require_boutique_admin($b['boutique_id'] ?? '', $pl['sub']);
+    $sheetUrl = trim($b['sheet_url'] ?? '');
+    if ($sheetUrl !== '' && !sheet_url_allowed($sheetUrl)) fail('Le lien doit etre une feuille Google Sheets publiee (https://docs.google.com/...)');
     q("UPDATE boutiques SET sheet_url=?, sheet_sync_enabled=? WHERE id=?",
-      [trim($b['sheet_url'] ?? ''), (int)!!($b['sheet_sync_enabled'] ?? 0), $bt['id']]);
+      [$sheetUrl, (int)!!($b['sheet_sync_enabled'] ?? 0), $bt['id']]);
     ok(null, 'Parametres enregistres');
+}
+
+// Le serveur n'ouvre que des feuilles Google, en https : un lien libre lui ferait
+// lire ses propres fichiers (dont ses cles secretes) ou des services internes.
+function sheet_url_allowed($url) {
+    $p = parse_url((string)$url);
+    if (!is_array($p) || strtolower($p['scheme'] ?? '') !== 'https') return false;
+    if (isset($p['user']) || isset($p['pass']) || isset($p['port'])) return false;
+    $host = strtolower($p['host'] ?? '');
+    return $host === 'docs.google.com' || $host === 'drive.google.com' || str_ends_with($host, '.googleusercontent.com');
+}
+// Google redirige les feuilles publiees vers googleusercontent.com : chaque
+// etape est verifiee, pour qu'une redirection ne puisse pas sortir de cette liste.
+function sheet_fetch_csv($url) {
+    for ($hop = 0; $hop < 4; $hop++) {
+        if (!sheet_url_allowed($url)) return false;
+        $ch = curl_init($url);
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_FOLLOWLOCATION => false,
+            CURLOPT_PROTOCOLS => CURLPROTO_HTTPS,
+            CURLOPT_CONNECTTIMEOUT => 5,
+            CURLOPT_TIMEOUT => 15,
+            CURLOPT_MAXFILESIZE => 5 * 1024 * 1024,
+        ]);
+        $body = curl_exec($ch);
+        $code = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $redirect = curl_getinfo($ch, CURLINFO_REDIRECT_URL);
+        curl_close($ch);
+        if ($code >= 300 && $code < 400 && $redirect) { $url = $redirect; continue; }
+        return ($code === 200 && is_string($body)) ? $body : false;
+    }
+    return false;
 }
 
 // Lit une valeur de ligne CSV en essayant plusieurs noms de colonne possibles
@@ -5962,8 +6100,7 @@ function sheet_import_run($bt, $actorUserId = null) {
     // en erreur pour l'une ne doit pas interrompre les autres.
     $url = trim($bt['sheet_url'] ?? '');
     if ($url === '') return ['imported' => 0, 'skipped' => [], 'error' => 'Aucun lien de feuille configure'];
-    $context = stream_context_create(['http' => ['timeout' => 15], 'https' => ['timeout' => 15]]);
-    $csvRaw = @file_get_contents($url, false, $context);
+    $csvRaw = sheet_fetch_csv($url);
     if ($csvRaw === false || trim($csvRaw) === '') {
         return ['imported' => 0, 'skipped' => [], 'error' => 'Impossible de recuperer la feuille (verifiez que le lien est bien publie en CSV et accessible publiquement)'];
     }

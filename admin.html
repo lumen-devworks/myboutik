@@ -1720,7 +1720,11 @@ function boutiqueCell(c) {
   }
   return '0';
 }
-function escapeAttr(s) { return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;'); }
+function escapeAttr(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+// Valeur transmise a une fonction depuis un onclick="..." : encodee en chaine
+// JavaScript PUIS en attribut HTML (un apostrophe est valide dans un email, et
+// le seul escapeAttr ne suffirait pas : le navigateur le decode avant d'executer).
+function jsArg(s) { return escapeAttr(JSON.stringify(String(s == null ? '' : s))); }
 // Nom de boutique dans un tableau : 2 lignes maximum (le reste est coupe
 // avec "...", le nom complet reste lisible au survol via title) - sans ca,
 // dans un tableau large la colonne se retrecit et un nom court comme
@@ -1776,8 +1780,8 @@ function renderClients() {
       ${Object.keys(CLIENT_COLUMNS).map(th).join('')}<th>${t('col_whatsapp')}</th>
     </tr></thead><tbody>
     ${rows.map(c => `<tr>
-      <td>${c.email} <button class="copy-btn" title="${t('copy_email_title')}" onclick="copyClientEmail('${c.email}')">📋</button></td>
-      <td>${c.full_name||'—'}</td><td>${c.plan}</td><td>${clientStatusPill(c)}</td>
+      <td>${escapeAttr(c.email)} <button class="copy-btn" title="${t('copy_email_title')}" onclick="copyClientEmail(${jsArg(c.email)})">📋</button></td>
+      <td>${escapeAttr(c.full_name||'—')}</td><td>${escapeAttr(c.plan)}</td><td>${clientStatusPill(c)}</td>
       <td>${fmtDate(c.plan_valid_until)}</td><td>${boutiqueCell(c)}</td><td>${c.payments_count}</td>
       <td>${fmtMoney(c.total_paid)}</td><td>${fmtDate(c.created_at)}</td>
       <td>${clientWhatsappCell(c)}</td>
@@ -1863,7 +1867,7 @@ function exportExcel(title, filename, headers, rows) {
   let html = '<table border="1" cellspacing="0" cellpadding="6" style="border-collapse:collapse;font-family:Arial,sans-serif;font-size:12px">';
   html += '<tr><td colspan="'+headers.length+'" style="background:#c2410c;color:#ffffff;font-size:15px;font-weight:bold;padding:10px">'+title+'</td></tr>';
   html += '<tr>'+headers.map(h => '<th style="background:#fff1e6;font-weight:bold;text-align:left;padding:6px;border:1px solid #cbd5e1">'+h+'</th>').join('')+'</tr>';
-  rows.forEach(r => { html += '<tr>'+r.map(v => '<td style="padding:6px;border:1px solid #cbd5e1">'+v+'</td>').join('')+'</tr>'; });
+  rows.forEach(r => { html += '<tr>'+r.map(v => '<td style="padding:6px;border:1px solid #cbd5e1">'+escapeAttr(v)+'</td>').join('')+'</tr>'; });
   html += '</table>';
   const blob = new Blob(['﻿<html><head><meta charset="UTF-8"></head><body>'+html+'</body></html>'], {type:'application/vnd.ms-excel;charset=utf-8'});
   const url = URL.createObjectURL(blob);
@@ -1887,7 +1891,7 @@ function exportPdf(title, headers, rows) {
     </style></head><body>
     <h1>${title} — ${new Date().toLocaleDateString(LANG === 'en' ? 'en-US' : 'fr-FR')}</h1>
     <table><thead><tr>${headers.map(h=>'<th>'+h+'</th>').join('')}</tr></thead><tbody>
-      ${rows.map(r => '<tr>'+r.map(v=>'<td>'+v+'</td>').join('')+'</tr>').join('')}
+      ${rows.map(r => '<tr>'+r.map(v=>'<td>'+escapeAttr(v)+'</td>').join('')+'</tr>').join('')}
     </tbody></table>
     <script>window.onload = () => window.print();<\/script>
     </body></html>`);
@@ -1927,7 +1931,7 @@ function renderHistoryFiltered() {
   const statusPill = s => s==='approved' ? '<span class="pill pill-ok">'+t('pill_approved')+'</span>' : s==='rejected' ? '<span class="pill pill-bad">'+t('pill_rejected')+'</span>' : '<span class="pill pill-warn">'+t('pill_pending')+'</span>';
   const locale = LANG === 'en' ? 'en-US' : 'fr-FR';
   document.getElementById('historyBody').innerHTML = rows.length ? `<table><thead><tr><th>${t('col_email')}</th><th>${t('col_plan')}</th><th>${t('col_status')}</th><th>${t('col_requested')}</th><th>${t('col_processed')}</th></tr></thead><tbody>
-    ${rows.map(r => `<tr><td>${r.email}</td><td>${r.plan}</td><td>${statusPill(r.status)}</td><td>${new Date(r.created_at).toLocaleString(locale)}</td><td>${r.reviewed_at?new Date(r.reviewed_at).toLocaleString(locale):'—'}</td></tr>`).join('')}
+    ${rows.map(r => `<tr><td>${escapeAttr(r.email)}</td><td>${escapeAttr(r.plan)}</td><td>${statusPill(r.status)}</td><td>${new Date(r.created_at).toLocaleString(locale)}</td><td>${r.reviewed_at?new Date(r.reviewed_at).toLocaleString(locale):'—'}</td></tr>`).join('')}
     </tbody></table>` : '<p style="color:var(--gray)">'+t('no_history_match')+'</p>';
 }
 function renderSubs(rows) {
@@ -1935,16 +1939,16 @@ function renderSubs(rows) {
   const hoursSince = r => (Date.now() - new Date(r.created_at).getTime()) / 3600000;
   const locale = LANG === 'en' ? 'en-US' : 'fr-FR';
   document.getElementById('subsBody').innerHTML = rows.length ? `<table><thead><tr><th>${t('col_email')}</th><th>${t('col_plan')}</th><th>${t('col_cycle')}</th><th>${t('col_date')}</th><th></th></tr></thead><tbody>
-    ${rows.map(r => `<tr><td>${r.email}</td><td>${r.plan}</td><td>${r.billing_cycle==='annual' ? '<span class="pill pill-warn">'+t('cycle_annual')+'</span>' : '<span class="pill" style="background:var(--bg);color:var(--ink)">'+t('cycle_monthly')+'</span>'}</td><td>${new Date(r.created_at).toLocaleString(locale)}${hoursSince(r) > 24 ? '<span class="badge-late">'+tf('waiting_since', {n: Math.floor(hoursSince(r)/24)})+'</span>' : ''}</td>
-      <td><button onclick="review('${r.id}','subscription_approve','${r.email}','${r.plan}',true,${r.billing_cycle==='annual'})">${t('btn_approve')}</button>
-          <button class="ghost" onclick="review('${r.id}','subscription_reject','${r.email}','${r.plan}',false,false)">${t('btn_reject')}</button></td></tr>`).join('')}
+    ${rows.map(r => `<tr><td>${escapeAttr(r.email)}</td><td>${escapeAttr(r.plan)}</td><td>${r.billing_cycle==='annual' ? '<span class="pill pill-warn">'+t('cycle_annual')+'</span>' : '<span class="pill" style="background:var(--bg);color:var(--ink)">'+t('cycle_monthly')+'</span>'}</td><td>${new Date(r.created_at).toLocaleString(locale)}${hoursSince(r) > 24 ? '<span class="badge-late">'+tf('waiting_since', {n: Math.floor(hoursSince(r)/24)})+'</span>' : ''}</td>
+      <td><button onclick="review(${jsArg(r.id)},'subscription_approve',${jsArg(r.email)},${jsArg(r.plan)},true,${r.billing_cycle==='annual'})">${t('btn_approve')}</button>
+          <button class="ghost" onclick="review(${jsArg(r.id)},'subscription_reject',${jsArg(r.email)},${jsArg(r.plan)},false,false)">${t('btn_reject')}</button></td></tr>`).join('')}
     </tbody></table>` : '<p style="color:var(--gray)">'+t('no_pending_requests')+'</p>';
 }
 function renderPayouts(rows) {
   PAYOUTS_ROWS = rows;
   document.getElementById('payoutsBody').innerHTML = rows.length ? `<table><thead><tr><th>${t('col_email')}</th><th>${t('col_amount')}</th><th>${t('col_method')}</th><th>${t('col_number')}</th><th></th></tr></thead><tbody>
-    ${rows.map(r => `<tr><td>${r.email}</td><td>${Math.round(r.amount).toLocaleString(LANG === 'en' ? 'en-US' : 'fr-FR').replace(/\u202f/g, '\u00a0')} FCFA</td><td>${r.method||'—'}</td><td>${r.phone||'—'}</td>
-      <td><button onclick="markPayoutPaid('${r.id}','${r.email}',${Math.round(r.amount)})">${t('btn_mark_paid')}</button></td></tr>`).join('')}
+    ${rows.map(r => `<tr><td>${escapeAttr(r.email)}</td><td>${Math.round(r.amount).toLocaleString(LANG === 'en' ? 'en-US' : 'fr-FR').replace(/\u202f/g, '\u00a0')} FCFA</td><td>${escapeAttr(r.method||'—')}</td><td>${escapeAttr(r.phone||'—')}</td>
+      <td><button onclick="markPayoutPaid(${jsArg(r.id)},${jsArg(r.email)},${Math.round(r.amount)})">${t('btn_mark_paid')}</button></td></tr>`).join('')}
     </tbody></table>` : '<p style="color:var(--gray)">'+t('no_pending_payouts')+'</p>';
 }
 function review(id, action, email, plan, isApprove, isAnnual) {

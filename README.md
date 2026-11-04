@@ -63,7 +63,8 @@ base).
    - `BREVO_API_KEY`, `BREVO_SENDER_EMAIL`, `BREVO_SENDER_NAME` — optionnels,
      activent l'envoi réel des emails (vérification de compte, invitations
      d'équipe, notifications de commande) via [Brevo](https://app.brevo.com).
-     Sans eux, les emails restent journalisés (`error_log`) sans être envoyés.
+     Sans eux, les emails ne sont pas envoyés et seuls leur destinataire et leur
+     sujet sont journalisés (le texte complet uniquement avec `APP_ENV=development`).
    - `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_WHATSAPP_FROM` —
      optionnels, activent l'envoi réel des notifications WhatsApp via
      [Twilio](https://console.twilio.com). `TWILIO_WHATSAPP_FROM` est le

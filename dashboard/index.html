@@ -1079,6 +1079,7 @@ const I18N = {
     placeholder_whatsapp_number: 'Ex: +225 07 00 00 00 00',
     whatsapp_number_hint: 'Utilisé pour pré-remplir votre numéro dans le message envoyé à MYBOUTIK quand vous confirmez un paiement.',
     label_new_password: 'Nouveau mot de passe (laisser vide pour ne pas changer)',
+    label_current_password: 'Mot de passe actuel (requis pour le changer)',
     placeholder_min_6_chars: '6 caractères minimum',
     profile_updated: 'Profil mis à jour',
     security_title: 'Sécurité',
@@ -1766,6 +1767,7 @@ const I18N = {
     placeholder_whatsapp_number: 'E.g.: +225 07 00 00 00 00',
     whatsapp_number_hint: 'Used to pre-fill your number in the message sent to MYBOUTIK when you confirm a payment.',
     label_new_password: 'New password (leave empty to keep it unchanged)',
+    label_current_password: 'Current password (required to change it)',
     placeholder_min_6_chars: 'Minimum 6 characters',
     profile_updated: 'Profile updated',
     security_title: 'Security',
@@ -4260,6 +4262,10 @@ function renderProfile() {
           <div class="password-wrap"><input id="profPassword" type="password" placeholder="${t('placeholder_min_6_chars')}">
             <button type="button" class="pw-toggle" onclick="togglePasswordVisibility('profPassword', this)">🙈</button></div>
         </div>
+        <div class="field"><label>${t('label_current_password')}</label>
+          <div class="password-wrap"><input id="profCurrentPassword" type="password" autocomplete="current-password">
+            <button type="button" class="pw-toggle" onclick="togglePasswordVisibility('profCurrentPassword', this)">🙈</button></div>
+        </div>
         <button class="btn btn-primary" onclick="saveProfile()">${t('btn_save')}</button>
       </div>
       <div class="card">
@@ -4294,11 +4300,15 @@ function submitFeedback() {
 function saveProfile() {
   const payload = {full_name: document.getElementById('profName').value.trim(), whatsapp_number: document.getElementById('profWhatsapp').value.trim()};
   const pwd = document.getElementById('profPassword').value;
-  if (pwd) payload.new_password = pwd;
+  if (pwd) { payload.new_password = pwd; payload.current_password = document.getElementById('profCurrentPassword').value; }
   post('/auth?action=profile_update', payload).then(({data}) => {
     if (!data.success) { document.getElementById('profileMsg').innerHTML = '<div class="msg error">'+data.message+'</div>'; return; }
     document.getElementById('profileMsg').innerHTML = '<div class="msg success">'+t('profile_updated')+'</div>';
     document.getElementById('profPassword').value = '';
+    document.getElementById('profCurrentPassword').value = '';
+    // Changer de mot de passe coupe les autres sessions : le serveur renvoie
+    // un nouveau jeton pour garder celle-ci active (voir logoutOtherDevices()).
+    if (data.data && data.data.token) { TOKEN = data.data.token; localStorage.setItem('myboutik_token', TOKEN); }
     USER.full_name = payload.full_name;
     localStorage.setItem('myboutik_user', JSON.stringify(USER));
   });
