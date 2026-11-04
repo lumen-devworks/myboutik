@@ -474,9 +474,10 @@ const I18N = {
     dispute_submit_btn: 'Envoyer la réclamation',
     dispute_message_required: 'Décrivez le problème rencontré',
     track_phone_label: 'Téléphone utilisé à la commande',
-    track_ref_label: 'Numéro de commande (si vous le connaissez)',
+    track_ref_label: 'Numéro de commande',
     search_btn: 'Rechercher',
-    found_orders_hint: 'Vos commandes trouvées avec ce numéro (cliquez-en une) :',
+    forgot_ref_link: 'Numéro de commande oublié ? Le recevoir par e-mail',
+    forgot_ref_phone_first: 'Saisissez d\'abord votre téléphone.',
     delivery_label: 'Livraison : ',
     delivery_person_label: 'Livreur : ',
     order_total_label: 'Total : ',
@@ -582,9 +583,10 @@ const I18N = {
     dispute_submit_btn: 'Send complaint',
     dispute_message_required: 'Describe the problem you encountered',
     track_phone_label: 'Phone used for the order',
-    track_ref_label: 'Order number (if you know it)',
+    track_ref_label: 'Order number',
     search_btn: 'Search',
-    found_orders_hint: 'Your orders found with this number (click one):',
+    forgot_ref_link: 'Forgot your order number? Get it by email',
+    forgot_ref_phone_first: 'Please enter your phone number first.',
     delivery_label: 'Delivery: ',
     delivery_person_label: 'Delivery person: ',
     order_total_label: 'Total: ',
@@ -1246,10 +1248,10 @@ function openTrackOrder() {
     <button class="close" onclick="closeOverlay('trackOverlay')">✕</button>
     <h2>${t('track_order_title')}</h2>
     <div id="trackMsg"></div>
-    <div class="field"><label>${t('track_phone_label')}</label><input id="trkPhone" oninput="onTrackPhoneInput()"></div>
-    <div id="trkOrdersHint"></div>
+    <div class="field"><label>${t('track_phone_label')}</label><input id="trkPhone"></div>
     <div class="field"><label>${t('track_ref_label')}</label><input id="trkRef" placeholder="CMD-..."></div>
     <button class="btn btn-primary" onclick="submitTrackOrder()">${t('search_btn')}</button>
+    <div style="margin-top:10px"><a href="#" onclick="sendOrderRefs();return false" style="font-size:13px;color:var(--blue)">${t('forgot_ref_link')}</a></div>
     <div id="trackResult"></div>
     <div style="margin-top:18px;border-top:1px solid var(--border);padding-top:14px">
       <a href="#" onclick="togglePlatformFeedbackForm();return false" style="font-size:13px;font-weight:700;color:var(--blue)">${t('platform_feedback_link')}</a>
@@ -1258,33 +1260,15 @@ function openTrackOrder() {
   `;
   document.getElementById('trackOverlay').classList.add('open');
 }
-// Si le client ne se souvient plus de sa reference, on la lui propose
-// directement : des qu'il tape son telephone, ses commandes passees avec ce
-// numero s'affichent en liste cliquable (voir shop_orders_for_phone()).
-let trackPhoneTimer = null;
-function onTrackPhoneInput() {
-  clearTimeout(trackPhoneTimer);
-  const hint = document.getElementById('trkOrdersHint');
-  if (hint) hint.innerHTML = '';
-  trackPhoneTimer = setTimeout(loadOrdersForTrackPhone, 500);
-}
-function loadOrdersForTrackPhone() {
+// Reference oubliee : le serveur l'envoie a l'email enregistre, jamais a l'ecran
+// (voir shop_send_order_refs()), car un numero de telephone ne prouve pas l'identite.
+function sendOrderRefs() {
   const phone = document.getElementById('trkPhone').value.trim();
-  const hint = document.getElementById('trkOrdersHint');
-  if (!hint) return;
-  if (!phone) { hint.innerHTML = ''; return; }
-  post('/shop?action=orders_for_phone', {slug:SLUG, phone}).then(({data}) => {
-    const rows = (data.success && data.data) || [];
-    if (!rows.length) { hint.innerHTML = ''; return; }
-    hint.innerHTML = '<div class="muted" style="font-size:12px;margin:6px 0 4px">'+t('found_orders_hint')+'</div>' +
-      rows.map(o => `<div onclick="selectTrackOrder('${o.ref}')" style="border:1px solid var(--border);border-radius:9px;padding:8px 10px;margin-bottom:6px;cursor:pointer;font-size:13px;display:flex;justify-content:space-between;gap:8px">
-        <span>${escapeHtml(o.ref)}</span><span style="color:var(--gray)">${fmtMoney(o.total, BOUTIQUE.currency)} — ${trackStatusLabels()[o.status]||o.status}</span>
-      </div>`).join('');
+  const msg = document.getElementById('trackMsg');
+  if (!phone) { msg.innerHTML = '<div class="msg error">'+t('forgot_ref_phone_first')+'</div>'; return; }
+  post('/shop?action=send_order_refs', {slug:SLUG, phone}).then(({data}) => {
+    msg.innerHTML = '<div class="msg '+(data.success?'success':'error')+'">'+escapeHtml(data.message||'')+'</div>';
   });
-}
-function selectTrackOrder(ref) {
-  document.getElementById('trkRef').value = ref;
-  submitTrackOrder();
 }
 function submitTrackOrder() {
   const ref = document.getElementById('trkRef').value.trim();

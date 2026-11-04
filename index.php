@@ -145,6 +145,8 @@ const EN_DICT = [
     'Ajoutez au moins un produit' => 'Add at least one product',
     'Aucun lien de feuille configure' => 'No sheet link configured',
     'Aucune commande trouvee avec ces informations' => 'No order found with this information',
+    'Operation impossible, rien n\'a ete enregistre. Reessayez.' => 'Operation failed, nothing was saved. Please try again.',
+    'Si des commandes correspondent a ce numero et qu\'un email y est associe, leurs references viennent d\'etre envoyees par email.' => 'If orders match this number and an email is linked to it, their references have just been sent by email.',
     'Aucune information a capturer' => 'No information to capture',
     'Avis introuvable' => 'Review not found',
     'Avis mis a jour' => 'Review updated',
@@ -396,7 +398,8 @@ function owner_auth() {
     return $pl;
 }
 function uid() { return bin2hex(random_bytes(8)); }
-function order_ref() { return 'CMD-'.strtoupper(date('ymd')).'-'.strtoupper(substr(uniqid(),-6)); }
+// Partie aleatoire : uniqid() suit l'horloge, donc une reference serait devinable.
+function order_ref() { return 'CMD-'.strtoupper(date('ymd')).'-'.strtoupper(bin2hex(random_bytes(3))); }
 // Normalise un numero de telephone pour comparaison : ne garde que les
 // chiffres et se limite aux 8 derniers, pour que "07 78 79 83 19",
 // "0778798319" et "+225 07 78 79 83 19" soient reconnus comme le meme
@@ -489,6 +492,21 @@ function q($sql, $params=[]) {
     $s = db()->prepare($sql);
     $s->execute($params);
     return $s;
+}
+
+// Tout ou rien : une coupure ou une erreur au milieu n'enregistre aucune des
+// ecritures, pour qu'un solde et son historique ne puissent pas se contredire.
+function db_transaction(callable $work) {
+    $pdo = db();
+    $pdo->beginTransaction();
+    try {
+        $work();
+        $pdo->commit();
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        error_log('[MYBOUTIK] transaction: '.$e->getMessage());
+        fail('Operation impossible, rien n\'a ete enregistre. Reessayez.', 500);
+    }
 }
 
 function rate_limit_check($bucket, $maxRequests, $windowSeconds) {
@@ -1111,6 +1129,7 @@ function route_install() {
         paid_at TIMESTAMP
     )",
     "CREATE INDEX IF NOT EXISTS idx_refpayouts_user ON referral_payouts(user_id)",
+    "ALTER TABLE referral_commissions ADD COLUMN IF NOT EXISTS payout_id VARCHAR(36)",
     "CREATE TABLE IF NOT EXISTS subscription_requests (
         id VARCHAR(36) PRIMARY KEY,
         user_id VARCHAR(36) NOT NULL,
@@ -2592,7 +2611,7 @@ function route_shop($action) {
         case 'promo_for_phone':  shop_promo_for_phone(); break;
         case 'track_order':      shop_track_order(); break;
         case 'submit_dispute':   shop_submit_dispute(); break;
-        case 'orders_for_phone': shop_orders_for_phone(); break;
+        case 'send_order_refs':  shop_send_order_refs(); break;
         case 'reviews':          shop_reviews(); break;
         case 'review_add':       shop_review_add(); break;
         default: fail('Action inconnue', 404);
@@ -3350,25 +3369,45 @@ function notify_admin_new_dispute($bt, $ref, $message) {
     send_email(ADMIN_NOTIFY_EMAIL, $subject, $body);
 }
 
-// Liste des commandes d'un numero (sans reference) - permet au client qui a
-// oublie/perdu sa reference de la retrouver lui-meme plutot que de devoir
-// vous contacter. Le telephone seul suffit ici (comme pour
-// shop_promo_for_phone()) : c'est sa propre historique, pas celle de
-// quelqu'un d'autre - il ne peut deviner que son propre numero.
-function shop_orders_for_phone() {
-    rate_limit_check('shop_orders_for_phone', 20, 300);
+// Reference oubliee : elle part uniquement vers l'email enregistre pour ce
+// client, jamais a l'ecran, car n'importe qui peut taper le numero d'un autre.
+// La reponse est toujours la meme, pour ne pas reveler si ce numero a commande.
+function shop_send_order_refs() {
+    rate_limit_check('shop_send_order_refs', 5, 900);
+    $done = 'Si des commandes correspondent a ce numero et qu\'un email y est associe, leurs references viennent d\'etre envoyees par email.';
     $b = body();
     $bt = public_boutique_by_slug($b['slug'] ?? '');
     $phone = trim($b['phone'] ?? '');
-    if ($phone === '') ok([]);
-    $rows = q("SELECT ref, status, total, created_at, customer_phone FROM orders
-          WHERE boutique_id=? AND RIGHT(regexp_replace(customer_phone,'\D','','g'),8)=?
-          ORDER BY created_at DESC LIMIT 20", [$bt['id'], phone_key($phone)])->fetchAll();
-    $out = [];
-    foreach ($rows as $r) {
-        if (phones_match($r['customer_phone'], $phone)) { unset($r['customer_phone']); $out[] = $r; }
+    $key = phone_key($phone);
+    if ($key === '') ok(null, $done);
+
+    // Limite par numero aussi : changer d'adresse IP ne doit pas permettre
+    // d'inonder la boite mail d'un client (fenetre d'une heure maximum).
+    $phoneHash = md5($bt['id'].'|'.$key);
+    $recent = (int)q("SELECT COUNT(*) c FROM rate_limit_hits WHERE bucket='order_refs_phone' AND ip_address=? AND created_at > NOW() - INTERVAL '1 hour'", [$phoneHash])->fetch()['c'];
+    if ($recent >= 3) ok(null, $done);
+    q("INSERT INTO rate_limit_hits (bucket, ip_address) VALUES ('order_refs_phone', ?)", [$phoneHash]);
+
+    $emails = [];
+    foreach (q("SELECT phone, email FROM customers WHERE boutique_id=? AND email IS NOT NULL AND email<>'' AND RIGHT(regexp_replace(phone,'\D','','g'),8)=?", [$bt['id'], $key])->fetchAll() as $c) {
+        if (phones_match($c['phone'], $phone) && filter_var($c['email'], FILTER_VALIDATE_EMAIL)) $emails[strtolower($c['email'])] = true;
     }
-    ok($out);
+    if (!$emails) ok(null, $done);
+
+    $lines = [];
+    foreach (q("SELECT ref, total, created_at, customer_phone FROM orders WHERE boutique_id=? AND RIGHT(regexp_replace(customer_phone,'\D','','g'),8)=? ORDER BY created_at DESC LIMIT 20", [$bt['id'], $key])->fetchAll() as $o) {
+        if (phones_match($o['customer_phone'], $phone)) {
+            $lines[] = '- '.$o['ref'].' ('.date('d/m/Y', strtotime($o['created_at'])).', '.money_fmt($o['total'], $bt['currency']).' '.money_label($bt['currency'] ?: 'XOF').')';
+        }
+    }
+    if (!$lines) ok(null, $done);
+    foreach (array_keys($emails) as $to) {
+        send_email($to, 'Vos references de commande - '.$bt['name'],
+            "Bonjour,\n\nVoici vos commandes chez ".$bt['name']." :\n".implode("\n", $lines).
+            "\n\nPour les suivre : ".FRONTEND_BASE_URL."/store/index.html?b=".urlencode($bt['slug']).
+            "\n\nSi vous n'avez rien demande, ignorez simplement cet email.");
+    }
+    ok(null, $done);
 }
 
 function shop_reviews() {
@@ -4090,9 +4129,11 @@ function finance_account_transaction($pl) {
     $amount = (float)($b['amount'] ?? 0);
     if ($amount <= 0) fail('Montant invalide');
     $delta = $type === 'in' ? $amount : -$amount;
-    q("UPDATE accounts SET balance = balance + ? WHERE id=?", [$delta, $acc['id']]);
-    q("INSERT INTO account_transactions (id,account_id,boutique_id,type,amount,note) VALUES (?,?,?,?,?,?)",
-      [uid(), $acc['id'], $bt['id'], $type, $amount, trim($b['note'] ?? '')]);
+    db_transaction(function() use ($delta, $acc, $bt, $type, $amount, $b) {
+        q("UPDATE accounts SET balance = balance + ? WHERE id=?", [$delta, $acc['id']]);
+        q("INSERT INTO account_transactions (id,account_id,boutique_id,type,amount,note) VALUES (?,?,?,?,?,?)",
+          [uid(), $acc['id'], $bt['id'], $type, $amount, trim($b['note'] ?? '')]);
+    });
     ok(q("SELECT * FROM accounts WHERE id=?", [$acc['id']])->fetch(), 'Mouvement enregistre');
 }
 function finance_account_transfer($pl) {
@@ -4143,15 +4184,17 @@ function finance_delivery_fee_create($pl) {
     }
     if (!empty($b['account_id'])) account_owned($b['account_id'], $bt['id']);
     $id = uid();
-    q("INSERT INTO delivery_fees_paid (id,boutique_id,order_id,delivery_person_id,amount,note,account_id,paid_at)
-       VALUES (?,?,?,?,?,?,?,COALESCE(?,CURRENT_DATE))",
-      [$id, $bt['id'], $b['order_id'] ?? null, $b['delivery_person_id'] ?? null, $amount,
-       trim($b['note'] ?? ''), $b['account_id'] ?? null, $b['paid_at'] ?? null]);
-    if (!empty($b['account_id'])) {
-        q("UPDATE accounts SET balance = balance - ? WHERE id=?", [$amount, $b['account_id']]);
-        q("INSERT INTO account_transactions (id,account_id,boutique_id,type,amount,note) VALUES (?,?,?,?,?,?)",
-          [uid(), $b['account_id'], $bt['id'], 'out', $amount, 'Frais de livraison']);
-    }
+    db_transaction(function() use ($id, $bt, $b, $amount) {
+        q("INSERT INTO delivery_fees_paid (id,boutique_id,order_id,delivery_person_id,amount,note,account_id,paid_at)
+           VALUES (?,?,?,?,?,?,?,COALESCE(?,CURRENT_DATE))",
+          [$id, $bt['id'], $b['order_id'] ?? null, $b['delivery_person_id'] ?? null, $amount,
+           trim($b['note'] ?? ''), $b['account_id'] ?? null, $b['paid_at'] ?? null]);
+        if (!empty($b['account_id'])) {
+            q("UPDATE accounts SET balance = balance - ? WHERE id=?", [$amount, $b['account_id']]);
+            q("INSERT INTO account_transactions (id,account_id,boutique_id,type,amount,note) VALUES (?,?,?,?,?,?)",
+              [uid(), $b['account_id'], $bt['id'], 'out', $amount, 'Frais de livraison']);
+        }
+    });
     ok(q("SELECT * FROM delivery_fees_paid WHERE id=?", [$id])->fetch(), 'Frais enregistre', 201);
 }
 
@@ -4169,14 +4212,16 @@ function finance_expense_create($pl) {
     if ($label === '' || $amount <= 0) fail('Libelle et montant requis');
     if (!empty($b['account_id'])) account_owned($b['account_id'], $bt['id']);
     $id = uid();
-    q("INSERT INTO expenses (id,boutique_id,label,category,amount,account_id,expense_date)
-       VALUES (?,?,?,?,?,?,COALESCE(?,CURRENT_DATE))",
-      [$id, $bt['id'], $label, trim($b['category'] ?? ''), $amount, $b['account_id'] ?? null, $b['expense_date'] ?? null]);
-    if (!empty($b['account_id'])) {
-        q("UPDATE accounts SET balance = balance - ? WHERE id=?", [$amount, $b['account_id']]);
-        q("INSERT INTO account_transactions (id,account_id,boutique_id,type,amount,note) VALUES (?,?,?,?,?,?)",
-          [uid(), $b['account_id'], $bt['id'], 'out', $amount, 'Depense: '.$label]);
-    }
+    db_transaction(function() use ($id, $bt, $b, $label, $amount) {
+        q("INSERT INTO expenses (id,boutique_id,label,category,amount,account_id,expense_date)
+           VALUES (?,?,?,?,?,?,COALESCE(?,CURRENT_DATE))",
+          [$id, $bt['id'], $label, trim($b['category'] ?? ''), $amount, $b['account_id'] ?? null, $b['expense_date'] ?? null]);
+        if (!empty($b['account_id'])) {
+            q("UPDATE accounts SET balance = balance - ? WHERE id=?", [$amount, $b['account_id']]);
+            q("INSERT INTO account_transactions (id,account_id,boutique_id,type,amount,note) VALUES (?,?,?,?,?,?)",
+              [uid(), $b['account_id'], $bt['id'], 'out', $amount, 'Depense: '.$label]);
+        }
+    });
     ok(q("SELECT * FROM expenses WHERE id=?", [$id])->fetch(), 'Depense enregistree', 201);
 }
 
@@ -4839,6 +4884,11 @@ function billing_affiliate_info($pl) {
     ]);
 }
 
+// Colonne qui rattache une commission a son retrait. Ajoutee ici aussi, car ces
+// deux operations rares ne doivent pas echouer tant que /install n'a pas ete relance.
+function ensure_commission_payout_column() {
+    q("ALTER TABLE referral_commissions ADD COLUMN IF NOT EXISTS payout_id VARCHAR(36)");
+}
 function billing_affiliate_request_payout($pl) {
     $b = body();
     $method = trim($b['method'] ?? '');
@@ -4847,16 +4897,18 @@ function billing_affiliate_request_payout($pl) {
     $cutoff = date('Y-m-d H:i:s', time() - REFERRAL_VALIDATION_DAYS * 86400);
     // L'UPDATE reserve les commissions en une seule operation : deux demandes
     // simultanees ne peuvent pas retirer deux fois le meme montant.
+    ensure_commission_payout_column();
+    $payoutId = uid();
     $pdo = db(); $pdo->beginTransaction();
     try {
-        $claimed = q("UPDATE referral_commissions SET status='requested' WHERE referrer_user_id=? AND status='pending' AND created_at <= ? RETURNING amount", [$pl['sub'], $cutoff])->fetchAll();
+        $claimed = q("UPDATE referral_commissions SET status='requested', payout_id=? WHERE referrer_user_id=? AND status='pending' AND created_at <= ? RETURNING amount", [$payoutId, $pl['sub'], $cutoff])->fetchAll();
         $total = array_sum(array_column($claimed, 'amount'));
         if ($total < REFERRAL_MIN_PAYOUT) {
             $pdo->rollBack();
             fail('Le solde disponible doit atteindre au moins '.REFERRAL_MIN_PAYOUT.' FCFA pour demander un retrait');
         }
         q("INSERT INTO referral_payouts (id,user_id,amount,method,phone,status) VALUES (?,?,?,?,?,'requested')",
-          [uid(), $pl['sub'], $total, $method, $phone]);
+          [$payoutId, $pl['sub'], $total, $method, $phone]);
         $pdo->commit();
     } catch (PDOException $e) {
         if ($pdo->inTransaction()) $pdo->rollBack();
@@ -6003,8 +6055,9 @@ function admin_subscription_approve() {
     $req = q("SELECT * FROM subscription_requests WHERE id=?", [$b['id'] ?? ''])->fetch();
     if (!$req) fail('Demande introuvable', 404);
     // Prise en une seule operation : un double clic n'approuve qu'une fois.
+    $pdo = db(); $pdo->beginTransaction();
     $claimed = q("UPDATE subscription_requests SET status='approved', reviewed_at=NOW() WHERE id=? AND status='pending' RETURNING id", [$req['id']])->fetch();
-    if (!$claimed) fail('Cette demande a deja ete traitee', 409);
+    if (!$claimed) { $pdo->rollBack(); fail('Cette demande a deja ete traitee', 409); }
     // Prolonge a partir de MAINTENANT (pas cumule sur l'ancienne date) - si
     // un compte est deja expire depuis longtemps, le paiement repart d'une
     // periode pleine a partir d'aujourd'hui plutot que de rester bloque a
@@ -6025,6 +6078,7 @@ function admin_subscription_approve() {
               [uid(), $referredUser['referred_by'], $req['user_id'], $req['id'], $req['plan'], $amount]);
         }
     }
+    $pdo->commit();
     ok(null, 'Plan active');
 }
 
@@ -6045,8 +6099,17 @@ function admin_payout_mark_paid() {
     $payout = q("SELECT * FROM referral_payouts WHERE id=?", [$b['id'] ?? ''])->fetch();
     if (!$payout) fail('Retrait introuvable', 404);
     if ($payout['status'] !== 'requested') fail('Ce retrait a deja ete traite', 409);
-    q("UPDATE referral_payouts SET status='paid', paid_at=NOW() WHERE id=?", [$payout['id']]);
-    q("UPDATE referral_commissions SET status='paid' WHERE referrer_user_id=? AND status='requested'", [$payout['user_id']]);
+    ensure_commission_payout_column();
+    db_transaction(function() use ($payout) {
+        q("UPDATE referral_payouts SET status='paid', paid_at=NOW() WHERE id=? AND status='requested'", [$payout['id']]);
+        $linked = q("UPDATE referral_commissions SET status='paid', paid_at=NOW() WHERE payout_id=? AND status='requested'", [$payout['id']])->rowCount();
+        // Retrait demande avant l'ajout de payout_id : ses commissions ne portent
+        // pas ce lien. On ne prend que celles deja reservees a la date de la demande.
+        if ($linked === 0) {
+            q("UPDATE referral_commissions SET status='paid', paid_at=NOW() WHERE referrer_user_id=? AND status='requested' AND payout_id IS NULL AND created_at <= ?",
+              [$payout['user_id'], $payout['created_at']]);
+        }
+    });
     ok(null, 'Retrait marque paye');
 }
 
