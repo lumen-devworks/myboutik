@@ -118,6 +118,7 @@
       <div><div class="name">MYBOUTIK</div><div class="tagline" id="taglineText"></div></div>
     </div>
     <div class="header-actions">
+      <button onclick="openMyOrders()" style="border:1px solid var(--border);background:#fff;border-radius:999px;padding:7px 14px;font-size:12px;font-weight:700;cursor:pointer">📦 <span id="myOrdersBtnText"></span></button>
       <button id="profileBtn" onclick="openCustomerProfile()" style="border:1px solid var(--border);background:#fff;border-radius:999px;padding:7px 14px;font-size:12px;font-weight:700;cursor:pointer">👤 <span id="profileBtnText"></span></button>
       <a id="accountLink" href="../index.html" style="border:1px solid var(--border);background:#fff;border-radius:999px;padding:7px 14px;font-size:12px;font-weight:700"></a>
       <button id="installBtn" onclick="installApp()">📲 <span id="installBtnText"></span></button>
@@ -161,6 +162,7 @@
 </footer>
 
 <div class="overlay" id="profileOverlay"><div class="sheet" id="profileSheet"></div></div>
+<div class="overlay" id="ordersOverlay"><div class="sheet" id="ordersSheet"></div></div>
 <div id="toastContainer"></div>
 
 <script src="../config.js"></script>
@@ -240,6 +242,19 @@ const I18N = {
     directory_cat_autre: 'Autre',
     reviews_count: 'avis',
     profile_link: 'Mon profil',
+    my_orders_link: 'Mes commandes',
+    my_orders_title: 'Mes commandes',
+    my_orders_desc: 'Vos commandes dans toutes les boutiques MYBOUTIK, avec le téléphone et le nom donnés à la commande.',
+    my_orders_show_btn: 'Voir mes commandes',
+    my_orders_not_you: 'Changer',
+    my_orders_required: 'Nom et téléphone requis',
+    status_pending: 'En attente',
+    status_processing: 'Confirmée',
+    status_shipped: 'En livraison',
+    status_shipped_mail: 'Expédiée',
+    status_delivered: 'Livrée',
+    status_refused: 'Refusée',
+    status_cancelled: 'Annulée',
     profile_title: 'Mon profil',
     profile_desc: 'Renseignez vos informations une fois : elles rempliront automatiquement le formulaire de commande dans n\'importe quelle boutique MYBOUTIK sur cet appareil.',
     profile_name_label: 'Nom complet',
@@ -284,6 +299,19 @@ const I18N = {
     directory_cat_autre: 'Other',
     reviews_count: 'reviews',
     profile_link: 'My profile',
+    my_orders_link: 'My orders',
+    my_orders_title: 'My orders',
+    my_orders_desc: 'Your orders across all MYBOUTIK shops, using the phone and name given when ordering.',
+    my_orders_show_btn: 'Show my orders',
+    my_orders_not_you: 'Change',
+    my_orders_required: 'Name and phone required',
+    status_pending: 'Pending',
+    status_processing: 'Confirmed',
+    status_shipped: 'Out for delivery',
+    status_shipped_mail: 'Shipped',
+    status_delivered: 'Delivered',
+    status_refused: 'Refused',
+    status_cancelled: 'Cancelled',
     profile_title: 'My profile',
     profile_desc: 'Fill in your details once: they will automatically fill the order form in any MYBOUTIK shop on this device.',
     profile_name_label: 'Full name',
@@ -381,6 +409,62 @@ function submitCustomerProfile() {
   saveCustomerProfile(Object.assign({}, loadCustomerProfile(), {name, phone, email}));
   document.getElementById('profileMsg').innerHTML = '<div class="msg msg-success">'+t('profile_saved')+'</div>';
 }
+// "Mes commandes" toutes boutiques confondues : la liste est ici, le suivi detaille
+// s'ouvre dans la boutique concernee (store/index.html?...&orders=1&ref=...).
+function openMyOrders() {
+  const p = loadCustomerProfile();
+  document.getElementById('ordersSheet').innerHTML = `
+    <button class="close" onclick="closeMyOrders()">✕</button>
+    <h2>${t('my_orders_title')}</h2>
+    <p style="color:var(--gray);font-size:12.5px;margin-top:6px">${t('my_orders_desc')}</p>
+    <div id="ordersMsg"></div>
+    <div id="ordersForm">
+      <div class="field"><label>${t('profile_phone_label')}</label><input id="moPhone" type="tel" autocomplete="tel" value="${escapeHtml(p.phone||'')}"></div>
+      <div class="field"><label>${t('profile_name_label')}</label><input id="moName" autocomplete="name" value="${escapeHtml(p.name||'')}"></div>
+      <button class="btn-primary" onclick="submitMyOrders()">${t('my_orders_show_btn')}</button>
+    </div>
+    <div id="ordersList"></div>
+  `;
+  document.getElementById('ordersOverlay').classList.add('open');
+  if (p.phone && p.name) submitMyOrders(true);
+}
+function closeMyOrders() { document.getElementById('ordersOverlay').classList.remove('open'); }
+function showMyOrdersForm() {
+  document.getElementById('ordersForm').style.display = '';
+  document.getElementById('ordersList').innerHTML = '';
+}
+function submitMyOrders(silent) {
+  const phone = document.getElementById('moPhone').value.trim();
+  const name = document.getElementById('moName').value.trim();
+  const msg = document.getElementById('ordersMsg');
+  const errorHtml = text => '<div class="msg" style="background:#fef2f2;color:#b91c1c">'+escapeHtml(text)+'</div>';
+  if (!phone || !name) { msg.innerHTML = errorHtml(t('my_orders_required')); return; }
+  api('/directory?action=my_orders', {method:'POST', body:JSON.stringify({phone, name})}).then(({data}) => {
+    if (!data.success) {
+      if (silent !== true) msg.innerHTML = errorHtml(data.message||'');
+      return;
+    }
+    msg.innerHTML = '';
+    saveCustomerProfile(Object.assign({}, loadCustomerProfile(), {phone, name}));
+    document.getElementById('ordersForm').style.display = 'none';
+    const statusLabels = {pending:t('status_pending'), processing:t('status_processing'), shipped:t('status_shipped'), delivered:t('status_delivered'), refused:t('status_refused'), cancelled:t('status_cancelled')};
+    document.getElementById('ordersList').innerHTML = `
+      <div style="display:flex;justify-content:space-between;gap:8px;font-size:12.5px;color:var(--gray);margin:10px 0">
+        <span>${escapeHtml(name)}</span>
+        <a href="#" onclick="showMyOrdersForm();return false" style="color:var(--blue);font-weight:600">${t('my_orders_not_you')}</a>
+      </div>` + (data.data||[]).map(o => {
+        const href = '../store/index.html?b='+encodeURIComponent(o.boutique_slug)+'&orders=1&ref='+encodeURIComponent(o.ref);
+        const color = o.status === 'delivered' ? '#16a34a' : ((o.status === 'refused' || o.status === 'cancelled') ? '#dc2626' : 'var(--blue)');
+        const more = Number(o.item_count) > 1 ? ' <span style="color:var(--gray);font-weight:400">('+Number(o.item_count)+')</span>' : '';
+        return `<a href="${escapeHtml(href)}" style="display:block;border:1px solid var(--border);border-radius:12px;padding:10px;margin-bottom:8px;color:inherit;text-decoration:none">
+          <div style="font-size:12px;font-weight:700;color:var(--gray)">${escapeHtml(o.boutique_name)}</div>
+          <div style="font-size:13.5px;font-weight:700;margin:2px 0">${escapeHtml(o.first_item_name||o.ref)}${more}</div>
+          <div style="font-size:12px;color:var(--gray)">${escapeHtml(new Date(o.created_at).toLocaleDateString(LANG === 'en' ? 'en-US' : 'fr-FR'))} · ${fmtMoney(o.total, o.currency)}</div>
+          <div style="font-size:12px;font-weight:700;color:${color}">${o.status === 'shipped' && o.delivery_method === 'shipping' ? t('status_shipped_mail') : (statusLabels[o.status]||escapeHtml(o.status))}</div>
+        </a>`;
+      }).join('');
+  });
+}
 function applyAccountLink() {
   const link = document.getElementById('accountLink');
   const loggedIn = !!localStorage.getItem('myboutik_token');
@@ -392,6 +476,7 @@ function applyStaticText() {
   document.getElementById('langEn').classList.toggle('active', LANG === 'en');
   document.getElementById('taglineText').textContent = t('tagline');
   document.getElementById('profileBtnText').textContent = t('profile_link');
+  document.getElementById('myOrdersBtnText').textContent = t('my_orders_link');
   applyAccountLink();
   document.getElementById('heroTitle').textContent = t('hero_title');
   document.getElementById('heroDesc').textContent = t('hero_desc');

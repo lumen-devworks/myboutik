@@ -146,7 +146,8 @@ const EN_DICT = [
     'Aucun lien de feuille configure' => 'No sheet link configured',
     'Aucune commande trouvee avec ces informations' => 'No order found with this information',
     'Operation impossible, rien n\'a ete enregistre. Reessayez.' => 'Operation failed, nothing was saved. Please try again.',
-    'Si des commandes correspondent a ce numero et qu\'un email y est associe, leurs references viennent d\'etre envoyees par email.' => 'If orders match this number and an email is linked to it, their references have just been sent by email.',
+    'Nom et telephone requis' => 'Name and phone required',
+    'Trop de tentatives pour ce numero. Reessayez plus tard.' => 'Too many attempts for this number. Please try again later.',
     'Aucune information a capturer' => 'No information to capture',
     'Avis introuvable' => 'Review not found',
     'Avis mis a jour' => 'Review updated',
@@ -548,6 +549,12 @@ function period_clause($period, $col='created_at') {
 // Statuts consideres comme "argent encaisse" (validee ou livree), par
 // opposition a pending (pas encore traitee)/refusee/annulee.
 const ENCAISSE_STATUSES = "('processing','shipped','delivered')";
+const ORDER_EVENTS_DDL = "CREATE TABLE IF NOT EXISTS order_events (
+    id SERIAL PRIMARY KEY,
+    order_id VARCHAR(36) NOT NULL,
+    status VARCHAR(30) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+)";
 
 // Devise habituelle par pays (noms francais, comme COUNTRIES_FR cote
 // frontend) : la devise d'une boutique se choisit automatiquement d'apres son
@@ -1460,6 +1467,8 @@ function route_install() {
         qty INT NOT NULL DEFAULT 1
     )",
     "CREATE INDEX IF NOT EXISTS idx_items_order ON order_items(order_id)",
+    ORDER_EVENTS_DDL,
+    "CREATE INDEX IF NOT EXISTS idx_order_events_order ON order_events(order_id)",
     "CREATE TABLE IF NOT EXISTS abandoned_carts (
         id VARCHAR(36) PRIMARY KEY,
         boutique_id VARCHAR(36) NOT NULL,
@@ -2611,7 +2620,7 @@ function route_shop($action) {
         case 'promo_for_phone':  shop_promo_for_phone(); break;
         case 'track_order':      shop_track_order(); break;
         case 'submit_dispute':   shop_submit_dispute(); break;
-        case 'send_order_refs':  shop_send_order_refs(); break;
+        case 'orders_lookup':    shop_orders_lookup(); break;
         case 'reviews':          shop_reviews(); break;
         case 'review_add':       shop_review_add(); break;
         default: fail('Action inconnue', 404);
@@ -2630,6 +2639,7 @@ function route_directory($action) {
         case 'boutiques': directory_boutiques(); break;
         case 'products':  directory_products(); break;
         case 'filters':   directory_filters(); break;
+        case 'my_orders': directory_my_orders(); break;
         default: fail('Action inconnue', 404);
     }
 }
@@ -3233,7 +3243,7 @@ function notify_customer_order_confirmation($bt, $ref, $email, $customerName, $l
         ($discountAmount > 0 ? "Remise : -".money_fmt($discountAmount, $currency).' '.money_label($currency)."\n" : '').
         "$totalLabel : ".money_fmt($total, $currency).' '.money_label($currency)."\n\n".
         $footer.
-        "Pour suivre votre commande, retournez sur la boutique et utilisez \"Suivre ma commande\" avec cette reference et votre telephone.";
+        "Suivre ma commande : ".FRONTEND_BASE_URL."/store/index.html?b=".urlencode($bt['slug'])."&orders=1&ref=".urlencode($ref);
     send_email($email, 'Confirmation de votre commande '.$ref.' - '.$bt['name'], $body);
 }
 
@@ -3306,7 +3316,11 @@ function shop_track_order() {
            [$bt['id'], $ref, phone_key($phone)])->fetch();
     if (!$o || !phones_match($o['customer_phone'], $phone)) fail('Aucune commande trouvee avec ces informations', 404);
     unset($o['customer_phone']);
-    $o['items'] = q("SELECT product_name,qty,unit_price FROM order_items WHERE order_id=?", [$o['id']])->fetchAll();
+    $o['items'] = q("SELECT product_id,variant_id,product_name,qty,unit_price FROM order_items WHERE order_id=? ORDER BY id", [$o['id']])->fetchAll();
+    // Produit supprime depuis : considere comme physique, le cas le plus courant.
+    $o['has_physical'] = (int)q("SELECT COUNT(*) c FROM order_items oi LEFT JOIN products p ON p.id=oi.product_id
+                                 WHERE oi.order_id=? AND (p.id IS NULL OR p.is_physical=1)", [$o['id']])->fetch()['c'] > 0;
+    $o['events'] = (object)array_filter(order_event_times($o['id']) + ['delivered' => $o['delivered_at']]);
     $delivery = q("SELECT da.status AS delivery_status, dp.name AS delivery_person_name, dp.phone AS delivery_person_phone
                    FROM delivery_assignments da LEFT JOIN delivery_persons dp ON dp.id = da.delivery_person_id
                    WHERE da.order_id=?", [$o['id']])->fetch();
@@ -3369,45 +3383,104 @@ function notify_admin_new_dispute($bt, $ref, $message) {
     send_email(ADMIN_NOTIFY_EMAIL, $subject, $body);
 }
 
-// Reference oubliee : elle part uniquement vers l'email enregistre pour ce
-// client, jamais a l'ecran, car n'importe qui peut taper le numero d'un autre.
-// La reponse est toujours la meme, pour ne pas reveler si ce numero a commande.
-function shop_send_order_refs() {
-    rate_limit_check('shop_send_order_refs', 5, 900);
-    $done = 'Si des commandes correspondent a ce numero et qu\'un email y est associe, leurs references viennent d\'etre envoyees par email.';
-    $b = body();
-    $bt = public_boutique_by_slug($b['slug'] ?? '');
-    $phone = trim($b['phone'] ?? '');
-    $key = phone_key($phone);
-    if ($key === '') ok(null, $done);
-
-    // Limite par numero aussi : changer d'adresse IP ne doit pas permettre
-    // d'inonder la boite mail d'un client (fenetre d'une heure maximum).
-    $phoneHash = md5($bt['id'].'|'.$key);
-    $recent = (int)q("SELECT COUNT(*) c FROM rate_limit_hits WHERE bucket='order_refs_phone' AND ip_address=? AND created_at > NOW() - INTERVAL '1 hour'", [$phoneHash])->fetch()['c'];
-    if ($recent >= 3) ok(null, $done);
-    q("INSERT INTO rate_limit_hits (bucket, ip_address) VALUES ('order_refs_phone', ?)", [$phoneHash]);
-
-    $emails = [];
-    foreach (q("SELECT phone, email FROM customers WHERE boutique_id=? AND email IS NOT NULL AND email<>'' AND RIGHT(regexp_replace(phone,'\D','','g'),8)=?", [$bt['id'], $key])->fetchAll() as $c) {
-        if (phones_match($c['phone'], $phone) && filter_var($c['email'], FILTER_VALIDATE_EMAIL)) $emails[strtolower($c['email'])] = true;
+// Compare le nom saisi au suivi a celui de la commande, sans tenir compte des
+// majuscules ni des accents. Un mot d'au moins 3 lettres en commun suffit, pour
+// qu'un client ne soit pas bloque parce qu'il a donne son nom complet a la commande.
+function name_words($name) {
+    $plain = strtr((string)$name, [
+        'à'=>'a','â'=>'a','ä'=>'a','á'=>'a','ã'=>'a','À'=>'a','Â'=>'a','Ä'=>'a','Á'=>'a',
+        'é'=>'e','è'=>'e','ê'=>'e','ë'=>'e','É'=>'e','È'=>'e','Ê'=>'e','Ë'=>'e',
+        'î'=>'i','ï'=>'i','í'=>'i','Î'=>'i','Ï'=>'i','Í'=>'i',
+        'ô'=>'o','ö'=>'o','ó'=>'o','õ'=>'o','Ô'=>'o','Ö'=>'o','Ó'=>'o',
+        'ù'=>'u','û'=>'u','ü'=>'u','ú'=>'u','Ù'=>'u','Û'=>'u','Ü'=>'u','Ú'=>'u',
+        'ç'=>'c','Ç'=>'c','ñ'=>'n','Ñ'=>'n','ÿ'=>'y',
+    ]);
+    return array_values(array_filter(preg_split('/[^\p{L}\p{N}]+/u', strtolower($plain)) ?: [], 'strlen'));
+}
+function names_match($typed, $stored) {
+    $t = name_words($typed); $s = name_words($stored);
+    if (!$t || !$s) return false;
+    if ($t === $s) return true;
+    foreach ($t as $word) {
+        if (strlen($word) >= 3 && in_array($word, $s, true)) return true;
     }
-    if (!$emails) ok(null, $done);
+    return false;
+}
+// "Mes commandes" : le telephone ET le nom donnes a la commande. Le telephone
+// seul ne suffit pas, n'importe qui pouvant taper celui d'un autre. Les echecs
+// sont limites par numero, pour empecher d'essayer une liste de noms.
+// $boutiqueId null = toutes les boutiques (annuaire).
+function customer_orders_lookup($boutiqueId) {
+    $b = body();
+    $phone = trim($b['phone'] ?? '');
+    $name = trim($b['name'] ?? '');
+    $key = phone_key($phone);
+    if ($key === '' || $name === '') fail('Nom et telephone requis');
 
-    $lines = [];
-    foreach (q("SELECT ref, total, created_at, customer_phone FROM orders WHERE boutique_id=? AND RIGHT(regexp_replace(customer_phone,'\D','','g'),8)=? ORDER BY created_at DESC LIMIT 20", [$bt['id'], $key])->fetchAll() as $o) {
-        if (phones_match($o['customer_phone'], $phone)) {
-            $lines[] = '- '.$o['ref'].' ('.date('d/m/Y', strtotime($o['created_at'])).', '.money_fmt($o['total'], $bt['currency']).' '.money_label($bt['currency'] ?: 'XOF').')';
+    $phoneHash = md5($key);
+    $failures = (int)q("SELECT COUNT(*) c FROM rate_limit_hits WHERE bucket='orders_lookup_fail' AND ip_address=? AND created_at > NOW() - INTERVAL '1 hour'", [$phoneHash])->fetch()['c'];
+    if ($failures >= 5) fail('Trop de tentatives pour ce numero. Reessayez plus tard.', 429);
+
+    $params = [$key];
+    $sql = "SELECT o.ref, o.status, o.total, o.created_at, o.delivery_method, o.customer_phone, o.customer_name,
+                   b.slug AS boutique_slug, b.name AS boutique_name, b.currency,
+                   (SELECT COALESCE(SUM(oi.qty),0) FROM order_items oi WHERE oi.order_id=o.id) AS item_count,
+                   (SELECT oi.product_name FROM order_items oi WHERE oi.order_id=o.id ORDER BY oi.id LIMIT 1) AS first_item_name,
+                   (SELECT oi.product_id FROM order_items oi WHERE oi.order_id=o.id ORDER BY oi.id LIMIT 1) AS first_product_id,
+                   (SELECT p.slug FROM order_items oi JOIN products p ON p.id=oi.product_id WHERE oi.order_id=o.id ORDER BY oi.id LIMIT 1) AS first_product_slug
+            FROM orders o JOIN boutiques b ON b.id=o.boutique_id JOIN users u ON u.id=b.owner_user_id
+            WHERE RIGHT(regexp_replace(o.customer_phone,'\D','','g'),8)=?
+              AND b.status='active' AND (u.plan_valid_until IS NULL OR u.plan_valid_until >= NOW())";
+    if ($boutiqueId !== null) { $sql .= " AND o.boutique_id=?"; $params[] = $boutiqueId; }
+    $rows = q($sql." ORDER BY o.created_at DESC LIMIT 100", $params)->fetchAll();
+
+    $out = [];
+    foreach ($rows as $r) {
+        // Commande par commande : deux personnes d'une famille peuvent partager un numero.
+        if (phones_match($r['customer_phone'], $phone) && names_match($name, $r['customer_name'])) {
+            unset($r['customer_phone'], $r['customer_name']);
+            $out[] = $r;
         }
     }
-    if (!$lines) ok(null, $done);
-    foreach (array_keys($emails) as $to) {
-        send_email($to, 'Vos references de commande - '.$bt['name'],
-            "Bonjour,\n\nVoici vos commandes chez ".$bt['name']." :\n".implode("\n", $lines).
-            "\n\nPour les suivre : ".FRONTEND_BASE_URL."/store/index.html?b=".urlencode($bt['slug']).
-            "\n\nSi vous n'avez rien demande, ignorez simplement cet email.");
+    if (!$out) {
+        q("INSERT INTO rate_limit_hits (bucket, ip_address) VALUES ('orders_lookup_fail', ?)", [$phoneHash]);
+        fail('Aucune commande trouvee avec ces informations', 404);
     }
-    ok(null, $done);
+    return array_slice($out, 0, 50);
+}
+function shop_orders_lookup() {
+    rate_limit_check('shop_orders_lookup', 20, 300);
+    $bt = public_boutique_by_slug(body()['slug'] ?? '');
+    ok(customer_orders_lookup($bt['id']));
+}
+function directory_my_orders() {
+    rate_limit_check('directory_my_orders', 20, 300);
+    ok(customer_orders_lookup(null));
+}
+
+// Heure de chaque etape d'une commande (voir record_order_event()). Une commande
+// plus ancienne que cette table n'a pas d'heures : le suivi affiche alors
+// seulement l'avancement. Jamais bloquant, le changement de statut prime.
+function record_order_event($orderId, $status) {
+    $sql = "INSERT INTO order_events (order_id, status) VALUES (?,?)";
+    try {
+        q($sql, [$orderId, $status]);
+    } catch (PDOException $e) {
+        try {
+            q(ORDER_EVENTS_DDL);
+            q($sql, [$orderId, $status]);
+        } catch (PDOException $e2) {
+            error_log('[MYBOUTIK] order_events: '.$e2->getMessage());
+        }
+    }
+}
+function order_event_times($orderId) {
+    try {
+        $rows = q("SELECT status, MAX(created_at) AS at FROM order_events WHERE order_id=? GROUP BY status", [$orderId])->fetchAll();
+    } catch (PDOException $e) {
+        return [];
+    }
+    return array_column($rows, 'at', 'status');
 }
 
 function shop_reviews() {
@@ -3554,6 +3627,7 @@ function orders_update_status($pl) {
     } else {
         q("UPDATE orders SET status=? WHERE id=?", [$status, $o['id']]);
     }
+    if ($o['status'] !== $status) record_order_event($o['id'], $status);
     log_activity($bt['id'], 'Commande '.$o['ref'].' -> '.$status, $pl['sub']);
     ok(q("SELECT * FROM orders WHERE id=?", [$o['id']])->fetch(), 'Statut mis a jour');
 }
@@ -3820,7 +3894,7 @@ function delivery_assign($pl) {
     delivery_person_owned($b['delivery_person_id'] ?? '', $bt['id']);
     q("UPDATE delivery_assignments SET delivery_person_id=?, status='assigned', assigned_at=NOW() WHERE order_id=?",
       [$b['delivery_person_id'], $o['id']]);
-    q("UPDATE orders SET status='processing' WHERE id=? AND status='pending'", [$o['id']]);
+    if (q("UPDATE orders SET status='processing' WHERE id=? AND status='pending'", [$o['id']])->rowCount() > 0) record_order_event($o['id'], 'processing');
     log_activity($bt['id'], 'Commande '.$o['ref'].' assignee a un livreur', $pl['sub']);
     ok(q("SELECT * FROM delivery_assignments WHERE order_id=?", [$o['id']])->fetch(), 'Commande assignee');
 }
@@ -3852,6 +3926,7 @@ function delivery_update_status($pl) {
         if ($status === 'refused') q("UPDATE orders SET status='refused' WHERE id=?", [$o['id']]);
         if ($status === 'in_delivery') q("UPDATE orders SET status='shipped' WHERE id=?", [$o['id']]);
     }
+    if ($newOrderStatus && $o['status'] !== $newOrderStatus) record_order_event($o['id'], $newOrderStatus);
     log_activity($bt['id'], 'Livraison '.$o['ref'].' -> '.$status, $pl['sub']);
     ok(q("SELECT * FROM delivery_assignments WHERE order_id=?", [$o['id']])->fetch(), 'Statut mis a jour');
 }
@@ -6012,7 +6087,10 @@ function admin_delete_demo_data() {
         // vitrine) et tout ce qui s'y rattache - sinon elles resteraient en
         // base sans boutique et fausseraient les compteurs du panneau admin.
         $orderIds = q("SELECT id FROM orders WHERE boutique_id=?", [$bt['id']])->fetchAll(PDO::FETCH_COLUMN);
-        foreach ($orderIds as $oid) q("DELETE FROM order_items WHERE order_id=?", [$oid]);
+        foreach ($orderIds as $oid) {
+            q("DELETE FROM order_items WHERE order_id=?", [$oid]);
+            try { q("DELETE FROM order_events WHERE order_id=?", [$oid]); } catch (PDOException $e) {}
+        }
         foreach (['delivery_assignments', 'orders', 'customers', 'visits', 'abandoned_carts', 'activity_log', 'contact_messages', 'newsletter_subscribers'] as $tbl) {
             q("DELETE FROM $tbl WHERE boutique_id=?", [$bt['id']]);
         }

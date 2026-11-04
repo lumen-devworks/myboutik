@@ -387,7 +387,7 @@ const I18N = {
     shop_not_found: 'Boutique introuvable.',
     add_slug_hint: "Ajoutez ?b=nom-de-la-boutique à l'adresse.",
     shop_not_found_closed: 'Boutique introuvable ou fermée.',
-    track_order_btn: '📦 Suivre ma commande',
+    track_order_btn: '📦 Mes commandes',
     back_to_directory: '← Accueil MYBOUTIK',
     cart_btn: '🛒 Panier',
     promo_banner_suffix: ' — à saisir au moment de commander !',
@@ -466,7 +466,7 @@ const I18N = {
     personal_promo_prefix: '🎁 Code personnel ',
     personal_promo_suffix: ' disponible pour vous',
     use_btn: 'Utiliser',
-    track_order_title: 'Suivre ma commande',
+    track_order_title: 'Mes commandes',
     report_problem_link: 'Signaler un problème avec cette commande',
     dispute_open_title: '🕓 Réclamation envoyée, en attente de réponse du marchand',
     dispute_resolved_title: '✅ Réponse du marchand',
@@ -474,16 +474,30 @@ const I18N = {
     dispute_submit_btn: 'Envoyer la réclamation',
     dispute_message_required: 'Décrivez le problème rencontré',
     track_phone_label: 'Téléphone utilisé à la commande',
-    track_ref_label: 'Numéro de commande',
+    track_name_label: 'Votre nom',
+    track_show_orders_btn: 'Voir mes commandes',
+    track_not_you: 'Changer',
+    track_more_items: '({n} articles)',
+    track_back: 'Mes commandes',
+    track_call_driver: 'Appeler le livreur',
+    track_reorder_btn: 'Commander à nouveau',
+    track_reorder_none: 'Ces articles ne sont plus disponibles.',
+    track_reorder_partial: 'Certains articles ne sont plus disponibles : les autres sont dans le panier.',
+    step_received: 'Commande reçue',
+    step_confirmed: 'Confirmée',
+    step_in_delivery: 'En livraison',
+    step_shipped: 'Expédiée',
+    step_delivered: 'Livrée',
+    step_sent_by_email: 'Envoyée par e-mail',
+    step_refused: 'Refusée',
+    step_cancelled: 'Annulée',
     search_btn: 'Rechercher',
-    forgot_ref_link: 'Numéro de commande oublié ? Le recevoir par e-mail',
-    forgot_ref_phone_first: 'Saisissez d\'abord votre téléphone.',
     delivery_label: 'Livraison : ',
     delivery_person_label: 'Livreur : ',
     order_total_label: 'Total : ',
     name_phone_required: 'Nom et téléphone requis',
     cart_empty_error: 'Votre panier est vide',
-    order_number_phone_required: 'Numéro de commande et téléphone requis',
+    order_number_phone_required: 'Nom et téléphone requis',
     server_unreachable: 'Impossible de contacter le serveur.',
     status_pending: 'En attente', status_processing: 'Validée', status_shipped: 'Expédiée',
     status_delivered: 'Livrée', status_refused: 'Refusée', status_cancelled: 'Annulée',
@@ -496,7 +510,7 @@ const I18N = {
     shop_not_found: 'Shop not found.',
     add_slug_hint: 'Add ?b=shop-name to the address.',
     shop_not_found_closed: 'Shop not found or closed.',
-    track_order_btn: '📦 Track my order',
+    track_order_btn: '📦 My orders',
     back_to_directory: '← MYBOUTIK Home',
     cart_btn: '🛒 Cart',
     promo_banner_suffix: ' — enter it when you order!',
@@ -575,7 +589,7 @@ const I18N = {
     personal_promo_prefix: '🎁 Personal code ',
     personal_promo_suffix: ' available for you',
     use_btn: 'Use',
-    track_order_title: 'Track my order',
+    track_order_title: 'My orders',
     report_problem_link: 'Report a problem with this order',
     dispute_open_title: '🕓 Complaint sent, waiting for the merchant\'s reply',
     dispute_resolved_title: '✅ Merchant\'s reply',
@@ -583,16 +597,30 @@ const I18N = {
     dispute_submit_btn: 'Send complaint',
     dispute_message_required: 'Describe the problem you encountered',
     track_phone_label: 'Phone used for the order',
-    track_ref_label: 'Order number',
+    track_name_label: 'Your name',
+    track_show_orders_btn: 'Show my orders',
+    track_not_you: 'Change',
+    track_more_items: '({n} items)',
+    track_back: 'My orders',
+    track_call_driver: 'Call the driver',
+    track_reorder_btn: 'Order again',
+    track_reorder_none: 'These items are no longer available.',
+    track_reorder_partial: 'Some items are no longer available: the others are in your cart.',
+    step_received: 'Order received',
+    step_confirmed: 'Confirmed',
+    step_in_delivery: 'Out for delivery',
+    step_shipped: 'Shipped',
+    step_delivered: 'Delivered',
+    step_sent_by_email: 'Sent by email',
+    step_refused: 'Refused',
+    step_cancelled: 'Cancelled',
     search_btn: 'Search',
-    forgot_ref_link: 'Forgot your order number? Get it by email',
-    forgot_ref_phone_first: 'Please enter your phone number first.',
     delivery_label: 'Delivery: ',
     delivery_person_label: 'Delivery person: ',
     order_total_label: 'Total: ',
     name_phone_required: 'Name and phone required',
     cart_empty_error: 'Your cart is empty',
-    order_number_phone_required: 'Order number and phone required',
+    order_number_phone_required: 'Name and phone required',
     server_unreachable: 'Unable to reach the server.',
     status_pending: 'Pending', status_processing: 'Confirmed', status_shipped: 'Shipped',
     status_delivered: 'Delivered', status_refused: 'Refused', status_cancelled: 'Cancelled',
@@ -649,6 +677,7 @@ if (!SLUG) {
     post('/shop?action=track_visit', {slug:SLUG, session_id:sessionId(), path:window.location.pathname, referrer:document.referrer});
     // Lien direct vers une fiche produit (ex: partage sur WhatsApp) :
     // store/index.html?b=boutique&p=slug-du-produit ouvre directement sa fiche.
+    if (new URLSearchParams(window.location.search).get('orders') === '1') openTrackOrder(); // lien de suivi (e-mail, annuaire)
     const productSlug = new URLSearchParams(window.location.search).get('p');
     if (productSlug) {
       const match = PRODUCTS.find(x => x.slug === productSlug);
@@ -1141,7 +1170,8 @@ function renderCartSheet(step, prefill) {
         <h2>${t('order_confirmed_title')}</h2>
         <p style="color:var(--gray);margin-top:8px">${t('order_ref_label')}<strong>${escapeHtml(window.__lastOrderRef||'')}</strong></p>
         <p style="color:var(--gray)">${window.__lastOrderHasPhysical ? (window.__lastOrderDeliveryMethod==='shipping' ? t('order_confirmed_shipping_note') : t('order_confirmed_note')) : t('order_confirmed_digital_note')}</p>
-        <button class="btn btn-primary" style="margin-top:16px" onclick="closeOverlay('cartOverlay')">${t('close_btn')}</button>
+        <button class="btn btn-primary" style="margin-top:16px" onclick="closeOverlay('cartOverlay');openTrackOrder()">${t('track_order_btn')}</button>
+        <button class="btn btn-ghost" style="margin-top:8px" onclick="closeOverlay('cartOverlay')">${t('close_btn')}</button>
       </div>
     `;
   }
@@ -1232,6 +1262,7 @@ function submitCheckout() {
     if (!data.success) { showCheckoutError(data.message); return; }
     window.__lastOrderRef = data.data.ref;
     saveCustomerProfile({name, phone, email, address});
+    try { localStorage.setItem('myboutik_ordered_'+SLUG, '1'); } catch (e) {}
     CART = []; saveCart(); APPLIED_PROMO = null; SELECTED_DELIVERY_METHOD = 'delivery'; SELECTED_SHIPPING_COUNTRY = '';
     renderCartSheet('confirm');
   });
@@ -1244,14 +1275,16 @@ function trackDeliveryLabels() {
   return {to_assign:t('delivery_to_assign'), assigned:t('delivery_assigned'), in_delivery:t('delivery_in_delivery'), delivered:t('delivery_delivered'), refused:t('delivery_refused')};
 }
 function openTrackOrder() {
+  const saved = loadCustomerProfile(); // deja connu sur cet appareil apres une commande : rien a retaper
   document.getElementById('trackSheet').innerHTML = `
     <button class="close" onclick="closeOverlay('trackOverlay')">✕</button>
     <h2>${t('track_order_title')}</h2>
     <div id="trackMsg"></div>
-    <div class="field"><label>${t('track_phone_label')}</label><input id="trkPhone"></div>
-    <div class="field"><label>${t('track_ref_label')}</label><input id="trkRef" placeholder="CMD-..."></div>
-    <button class="btn btn-primary" onclick="submitTrackOrder()">${t('search_btn')}</button>
-    <div style="margin-top:10px"><a href="#" onclick="sendOrderRefs();return false" style="font-size:13px;color:var(--blue)">${t('forgot_ref_link')}</a></div>
+    <div id="trkForm">
+      <div class="field"><label>${t('track_phone_label')}</label><input id="trkPhone" type="tel" autocomplete="tel" value="${escapeHtml(saved.phone||'')}"></div>
+      <div class="field"><label>${t('track_name_label')}</label><input id="trkName" autocomplete="name" value="${escapeHtml(saved.name||'')}"></div>
+      <button class="btn btn-primary" onclick="submitTrackOrder()">${t('track_show_orders_btn')}</button>
+    </div>
     <div id="trackResult"></div>
     <div style="margin-top:18px;border-top:1px solid var(--border);padding-top:14px">
       <a href="#" onclick="togglePlatformFeedbackForm();return false" style="font-size:13px;font-weight:700;color:var(--blue)">${t('platform_feedback_link')}</a>
@@ -1259,35 +1292,183 @@ function openTrackOrder() {
     </div>
   `;
   document.getElementById('trackOverlay').classList.add('open');
+  // Le profil sert a toutes les boutiques : recherche automatique seulement si ce
+  // client a commande ici ou arrive par un lien de suivi, sinon il verrait une
+  // erreur sans avoir rien fait.
+  let orderedHere = false;
+  try { orderedHere = localStorage.getItem('myboutik_ordered_'+SLUG) === '1'; } catch (e) {}
+  const fromLink = new URLSearchParams(window.location.search).get('orders') === '1';
+  if ((orderedHere || fromLink) && saved.phone && saved.name) submitTrackOrder(true);
 }
-// Reference oubliee : le serveur l'envoie a l'email enregistre, jamais a l'ecran
-// (voir shop_send_order_refs()), car un numero de telephone ne prouve pas l'identite.
-function sendOrderRefs() {
+// "Mes commandes" : le client donne son telephone et son nom, jamais de numero de
+// commande. Liste de ses commandes -> suivi detaille de celle qu'il choisit.
+let TRACK_ROWS = [], TRACK_REF = '', TRACK_PHONE = '', TRACK_NAME = '', TRACK_ORDER = null;
+let TRACK_WANTED_REF = new URLSearchParams(window.location.search).get('ref') || ''; // lien de l'e-mail
+function trackStatusColor(status) {
+  if (status === 'delivered') return '#16a34a';
+  if (status === 'refused' || status === 'cancelled') return '#dc2626';
+  return 'var(--blue)';
+}
+function submitTrackOrder(silent) {
   const phone = document.getElementById('trkPhone').value.trim();
+  const name = document.getElementById('trkName').value.trim();
   const msg = document.getElementById('trackMsg');
-  if (!phone) { msg.innerHTML = '<div class="msg error">'+t('forgot_ref_phone_first')+'</div>'; return; }
-  post('/shop?action=send_order_refs', {slug:SLUG, phone}).then(({data}) => {
-    msg.innerHTML = '<div class="msg '+(data.success?'success':'error')+'">'+escapeHtml(data.message||'')+'</div>';
+  if (!phone || !name) { msg.innerHTML = '<div class="msg error">'+t('order_number_phone_required')+'</div>'; return; }
+  post('/shop?action=orders_lookup', {slug:SLUG, phone, name}).then(({data}) => {
+    if (!data.success) {
+      if (silent !== true) msg.innerHTML = '<div class="msg error">'+escapeHtml(data.message||'')+'</div>';
+      document.getElementById('trackResult').innerHTML = '';
+      return;
+    }
+    msg.innerHTML = '';
+    TRACK_ROWS = data.data || [];
+    TRACK_PHONE = phone; TRACK_NAME = name;
+    saveCustomerProfile(Object.assign({}, loadCustomerProfile(), {phone, name}));
+    try { localStorage.setItem('myboutik_ordered_'+SLUG, '1'); } catch (e) {}
+    document.getElementById('trkForm').style.display = 'none';
+    const wanted = TRACK_WANTED_REF;
+    TRACK_WANTED_REF = '';
+    if (wanted && TRACK_ROWS.some(o => o.ref === wanted)) { showTrackedOrder(wanted); return; }
+    renderTrackList();
   });
 }
-function submitTrackOrder() {
-  const ref = document.getElementById('trkRef').value.trim();
-  const phone = document.getElementById('trkPhone').value.trim();
-  if (!ref || !phone) { document.getElementById('trackMsg').innerHTML = '<div class="msg error">'+t('order_number_phone_required')+'</div>'; return; }
-  post('/shop?action=track_order', {slug:SLUG, ref, phone}).then(({data}) => {
-    if (!data.success) { document.getElementById('trackMsg').innerHTML = '<div class="msg error">'+data.message+'</div>'; document.getElementById('trackResult').innerHTML=''; return; }
-    document.getElementById('trackMsg').innerHTML = '';
-    const o = data.data;
-    document.getElementById('trackResult').innerHTML = `
-      <div style="margin-top:14px;border:1px solid var(--border);border-radius:12px;padding:14px">
-        <div><strong>${escapeHtml(o.ref)}</strong> — ${trackStatusLabels()[o.status]||o.status}</div>
-        ${o.delivery_status ? '<div style="color:var(--gray);font-size:13px;margin-top:4px">'+t('delivery_label')+(trackDeliveryLabels()[o.delivery_status]||o.delivery_status)+'</div>' : ''}
-        ${o.delivery_person_name ? '<div style="color:var(--gray);font-size:13px">'+t('delivery_person_label')+escapeHtml(o.delivery_person_name)+' ('+escapeHtml(o.delivery_person_phone||'')+')</div>' : ''}
-        <div style="margin-top:10px">${(o.items||[]).map(it=>'<div style="font-size:13px">'+it.qty+' × '+escapeHtml(it.product_name)+'</div>').join('')}</div>
-        <div style="font-weight:700;margin-top:8px">${t('order_total_label')}${moneyHtml(o.total)}</div>
-        ${o.status === 'delivered' ? renderDisputeBlock(o) : ''}
+function showTrackForm() {
+  document.getElementById('trkForm').style.display = '';
+  document.getElementById('trackResult').innerHTML = '';
+  document.getElementById('trackMsg').innerHTML = '';
+}
+function renderTrackList() {
+  document.getElementById('trackResult').innerHTML = `
+    <div style="display:flex;justify-content:space-between;gap:8px;font-size:12.5px;color:var(--gray);margin:10px 0">
+      <span>${escapeHtml(TRACK_NAME)}</span>
+      <a href="#" onclick="showTrackForm();return false" style="color:var(--blue);font-weight:600">${t('track_not_you')}</a>
+    </div>` + TRACK_ROWS.map((o, i) => {
+      const p = PRODUCTS.find(x => x.id === o.first_product_id);
+      const img = p && ((p.images && p.images[0] && p.images[0].data) || p.image_url);
+      const more = Number(o.item_count) > 1 ? ' <span style="color:var(--gray);font-weight:400">'+tf('track_more_items', {n: Number(o.item_count)})+'</span>' : '';
+      return `<div onclick="showTrackedOrder(TRACK_ROWS[${i}].ref)" style="display:flex;gap:10px;align-items:center;border:1px solid var(--border);border-radius:12px;padding:10px;margin-bottom:8px;cursor:pointer">
+        ${img ? '<img src="'+escapeHtml(img)+'" alt="" onerror="this.remove()" style="width:48px;height:48px;border-radius:9px;object-fit:cover;flex-shrink:0">' : '<div style="width:48px;height:48px;border-radius:9px;background:var(--bg);display:flex;align-items:center;justify-content:center;flex-shrink:0">📦</div>'}
+        <div style="flex:1;min-width:0">
+          <div style="font-size:13.5px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(o.first_item_name||o.ref)}${more}</div>
+          <div style="font-size:12px;color:var(--gray)">${escapeHtml(fmtDateTime(o.created_at))} · ${fmtMoney(o.total, BOUTIQUE.currency)}</div>
+          <div style="font-size:12px;font-weight:700;color:${trackStatusColor(o.status)}">${o.status === 'shipped' ? t(o.delivery_method === 'shipping' ? 'step_shipped' : 'step_in_delivery') : (trackStatusLabels()[o.status]||escapeHtml(o.status))}</div>
+        </div>
+        <span style="color:var(--gray)">›</span>
       </div>`;
+    }).join('');
+}
+function showTrackedOrder(ref) {
+  TRACK_REF = ref;
+  post('/shop?action=track_order', {slug:SLUG, ref, phone:TRACK_PHONE}).then(({data}) => {
+    if (!data.success) { document.getElementById('trackMsg').innerHTML = '<div class="msg error">'+escapeHtml(data.message||'')+'</div>'; return; }
+    document.getElementById('trackMsg').innerHTML = '';
+    TRACK_ORDER = data.data;
+    renderTrackDetail();
   });
+}
+// Etapes du suivi : un produit numerique n'a que "recue" puis "envoyee" ; une
+// commande annulee ou refusee s'arrete sur une etape rouge, apres les etapes
+// qu'elle a reellement franchies.
+function trackSteps(o) {
+  const events = o.events || {};
+  const labels = {
+    pending: t('step_received'), processing: t('step_confirmed'),
+    shipped: o.delivery_method === 'shipping' ? t('step_shipped') : t('step_in_delivery'),
+    delivered: o.has_physical ? t('step_delivered') : t('step_sent_by_email'),
+  };
+  const keys = o.has_physical ? ['pending','processing','shipped','delivered'] : ['pending','delivered'];
+  const at = k => k === 'pending' ? o.created_at : (events[k] || null);
+  if (o.status === 'refused' || o.status === 'cancelled') {
+    const passed = keys.filter(k => k === 'pending' || (k !== 'delivered' && events[k]));
+    return passed.map(k => ({label:labels[k], at:at(k), state:'done'}))
+      .concat([{label: t(o.status === 'refused' ? 'step_refused' : 'step_cancelled'), at:events[o.status]||null, state:'stopped'}]);
+  }
+  const reached = Math.max(0, keys.indexOf(o.status));
+  return keys.map((k, i) => ({label:labels[k], at: i <= reached ? at(k) : null, state: i < reached ? 'done' : (i === reached ? (k === 'delivered' ? 'done' : 'current') : 'todo')}));
+}
+function trackTimelineHtml(o) {
+  const steps = trackSteps(o);
+  return '<div style="margin:12px 0">' + steps.map((s, i) => {
+    const color = s.state === 'stopped' ? '#dc2626' : (s.state === 'todo' ? 'var(--border)' : (s.state === 'current' ? 'var(--blue)' : '#16a34a'));
+    const icon = s.state === 'stopped' ? '✕' : (s.state === 'todo' ? '' : '✓');
+    const line = i < steps.length - 1 ? '<div style="flex:1;width:2px;min-height:18px;background:'+(s.state === 'done' ? '#16a34a' : 'var(--border)')+'"></div>' : '';
+    return `<div style="display:flex;gap:10px">
+      <div style="display:flex;flex-direction:column;align-items:center">
+        <div style="width:22px;height:22px;border-radius:50%;background:${color};color:#fff;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">${icon}</div>
+        ${line}
+      </div>
+      <div style="padding-bottom:12px;font-size:13.5px;${s.state === 'todo' ? 'color:var(--gray)' : 'font-weight:700'}">
+        ${escapeHtml(s.label)}
+        ${s.at ? '<div style="font-size:12px;font-weight:400;color:var(--gray)">'+escapeHtml(fmtDateTime(s.at))+'</div>' : ''}
+      </div>
+    </div>`;
+  }).join('') + '</div>';
+}
+function renderTrackDetail() {
+  const o = TRACK_ORDER;
+  const onTheWay = o.status === 'processing' || o.status === 'shipped';
+  const tel = String(o.delivery_person_phone||'').replace(/[^\d+]/g, '');
+  const canReorder = (o.items||[]).some(it => PRODUCTS.some(p => p.id === it.product_id));
+  document.getElementById('trackResult').innerHTML = `
+    <div style="margin:10px 0"><a href="#" onclick="renderTrackList();return false" style="font-size:13px;font-weight:600;color:var(--blue)">‹ ${t('track_back')}</a></div>
+    <div style="border:1px solid var(--border);border-radius:12px;padding:14px">
+      <div style="font-size:12px;color:var(--gray)">${escapeHtml(o.ref)}</div>
+      ${trackTimelineHtml(o)}
+      ${onTheWay && o.delivery_person_name ? `<div style="background:var(--bg);border-radius:9px;padding:10px;font-size:13px;margin-bottom:12px">
+        ${t('delivery_person_label')}<strong>${escapeHtml(o.delivery_person_name)}</strong>
+        ${tel ? '<a class="btn btn-ghost btn-sm" style="margin-top:6px;display:block;text-align:center" href="tel:'+escapeHtml(tel)+'">📞 '+t('track_call_driver')+'</a>' : ''}
+      </div>` : ''}
+      <div style="border-top:1px solid var(--border);padding-top:10px">${(o.items||[]).map((it, i) => `
+        <div style="font-size:13px;margin-bottom:6px">${Number(it.qty)} × ${escapeHtml(it.product_name)}
+          ${o.status === 'delivered' && PRODUCTS.some(p => p.id === it.product_id) ? '<a href="#" onclick="toggleTrackReview('+i+');return false" style="margin-left:6px;font-size:12px;font-weight:600;color:var(--blue)">⭐ '+t('leave_review_btn')+'</a><div id="trackReview'+i+'"></div>' : ''}
+        </div>`).join('')}</div>
+      <div style="font-weight:700;margin-top:8px">${t('order_total_label')}${moneyHtml(o.total)}</div>
+      ${canReorder ? '<button class="btn btn-primary" style="margin-top:12px" onclick="reorderTracked()">🔁 '+t('track_reorder_btn')+'</button>' : ''}
+      ${o.status === 'delivered' ? renderDisputeBlock(o) : ''}
+    </div>`;
+}
+function toggleTrackReview(i) {
+  const wrap = document.getElementById('trackReview'+i);
+  if (wrap.innerHTML) { wrap.innerHTML = ''; return; }
+  wrap.innerHTML = `<div style="margin-top:8px">
+    <div id="trackReviewMsg${i}"></div>
+    <div class="field"><label>${t('review_rating_label')}</label><select id="trackRating${i}">
+      <option value="5">${t('rating_5')}</option><option value="4">${t('rating_4')}</option>
+      <option value="3">${t('rating_3')}</option><option value="2">${t('rating_2')}</option><option value="1">${t('rating_1')}</option>
+    </select></div>
+    <div class="field"><label>${t('review_comment_label')}</label><textarea id="trackComment${i}" rows="2"></textarea></div>
+    <button class="btn btn-primary btn-sm" onclick="submitTrackReview(${i})">${t('contact_send_btn')}</button>
+  </div>`;
+}
+function submitTrackReview(i) {
+  const it = TRACK_ORDER.items[i];
+  post('/shop?action=review_add', {
+    slug: SLUG, product_id: it.product_id, customer_name: TRACK_ORDER.customer_name,
+    rating: Number(document.getElementById('trackRating'+i).value), comment: document.getElementById('trackComment'+i).value.trim(),
+  }).then(({data}) => {
+    if (!data.success) { document.getElementById('trackReviewMsg'+i).innerHTML = '<div class="msg error">'+escapeHtml(data.message||'')+'</div>'; return; }
+    document.getElementById('trackReview'+i).innerHTML = '<div class="msg success">'+escapeHtml(data.message||'')+'</div>';
+  });
+}
+// Remet les articles encore en vente dans le panier, au prix actuel : le serveur
+// recalcule de toute facon les montants a la commande.
+function reorderTracked() {
+  let added = 0, missing = 0;
+  (TRACK_ORDER.items||[]).forEach(it => {
+    const p = PRODUCTS.find(x => x.id === it.product_id);
+    const variant = p && it.variant_id ? (p.variants||[]).find(v => v.id === it.variant_id) : null;
+    if (!p || (it.variant_id && !variant)) { missing++; return; }
+    const key = p.id+'|'+(variant ? variant.id : '');
+    const existing = CART.find(l => l.key === key);
+    if (existing) existing.qty += Number(it.qty);
+    else CART.push({key, product_id:p.id, variant_id:variant?variant.id:null, name:p.name+(variant?' - '+variant.name:''), price:variant?(variant.price??p.price):p.price, qty:Number(it.qty)});
+    added++;
+  });
+  if (!added) { showToast(t('track_reorder_none'), 'error'); return; }
+  saveCart();
+  showToast(t(missing ? 'track_reorder_partial' : 'added_to_cart_toast'), missing ? 'info' : 'success');
+  closeOverlay('trackOverlay');
+  openCart();
 }
 // Reclamation client, uniquement proposee sur une commande deja livree (voir
 // shop_submit_dispute() cote serveur, meme condition). Trois etats possibles :
@@ -1322,15 +1503,15 @@ function toggleDisputeForm() {
   `;
 }
 function submitDispute() {
-  const ref = document.getElementById('trkRef').value.trim();
-  const phone = document.getElementById('trkPhone').value.trim();
+  const ref = TRACK_REF;
+  const phone = TRACK_PHONE;
   const message = document.getElementById('disputeMessage').value.trim();
   const msg = document.getElementById('disputeMsg');
   if (!message) { msg.innerHTML = '<div class="msg error">'+t('dispute_message_required')+'</div>'; return; }
   post('/shop?action=submit_dispute', {slug:SLUG, ref, phone, message}).then(({data}) => {
     if (!data.success) { msg.innerHTML = '<div class="msg error">'+data.message+'</div>'; return; }
     showToast(data.message, 'success');
-    submitTrackOrder();
+    showTrackedOrder(TRACK_REF);
   });
 }
 function subscribeNewsletter() {
