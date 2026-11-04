@@ -2687,6 +2687,8 @@ function output_data_uri_image($dataUri) {
         exit;
     }
     header('Content-Type: '.$m[1]);
+    header('X-Content-Type-Options: nosniff');
+    header("Content-Security-Policy: default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'; sandbox");
     header('Cache-Control: public, max-age=3600');
     echo base64_decode($m[2]);
     exit;
@@ -2734,6 +2736,7 @@ function preview_html($title, $description, $imageUrl, $redirectUrl) {
     $title = htmlspecialchars($title, ENT_QUOTES, 'UTF-8');
     $description = htmlspecialchars($description, ENT_QUOTES, 'UTF-8');
     $imageAttr = $imageUrl ? '<meta property="og:image" content="'.htmlspecialchars($imageUrl, ENT_QUOTES, 'UTF-8').'">' : '';
+    $redirectJs = json_encode($redirectUrl, JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
     $redirectUrl = htmlspecialchars($redirectUrl, ENT_QUOTES, 'UTF-8');
     echo '<!doctype html><html lang="fr"><head><meta charset="utf-8">'
         .'<title>'.$title.'</title>'
@@ -2747,7 +2750,7 @@ function preview_html($title, $description, $imageUrl, $redirectUrl) {
         .'</head><body>'
         .'<p>Redirection vers '.$title.'…</p>'
         .'<p><a href="'.$redirectUrl.'">Cliquez ici si la redirection ne fonctionne pas</a></p>'
-        .'<script>window.location.replace('.json_encode($redirectUrl).');</script>'
+        .'<script>window.location.replace('.$redirectJs.');</script>'
         .'</body></html>';
     exit;
 }
@@ -3959,13 +3962,20 @@ function route_finance($action) {
 // au lieu du JSON habituel - seule route de l'API qui ne repond pas via
 // ok()/fail(), donc le Content-Type JSON pose en tete de fichier est
 // volontairement ecrase ici avant le premier echo.
+// Un nom de client commencant par = + - @ serait execute comme une formule a
+// l'ouverture dans Excel : ces champs viennent du formulaire public. Les nombres
+// et les numeros de telephone restent tels quels.
+function spreadsheet_safe($v) {
+    if (!is_string($v) || is_numeric($v) || preg_match('/^\+?[\d\s().-]+$/', $v)) return $v;
+    return preg_match('/^[=+\-@\t\r]/', $v) ? "'".$v : $v;
+}
 function csv_output($filename, $headers, $rows) {
     header('Content-Type: text/csv; charset=utf-8');
     header('Content-Disposition: attachment; filename="'.$filename.'"');
     $out = fopen('php://output', 'w');
     fwrite($out, "\xEF\xBB\xBF"); // BOM UTF-8 : Excel affiche correctement les accents avec.
     fputcsv($out, $headers);
-    foreach ($rows as $row) fputcsv($out, $row);
+    foreach ($rows as $row) fputcsv($out, array_map('spreadsheet_safe', $row));
     fclose($out);
     exit;
 }
@@ -3986,14 +3996,14 @@ function excel_output($filename, $title, $headers, $rows) {
     echo '</tr>';
     foreach ($rows as $row) {
         echo '<tr>';
-        foreach ($row as $cell) echo '<td style="padding:6px;border:1px solid #cbd5e1">'.htmlspecialchars((string)$cell).'</td>';
+        foreach ($row as $cell) echo '<td style="padding:6px;border:1px solid #cbd5e1">'.htmlspecialchars((string)spreadsheet_safe($cell)).'</td>';
         echo '</tr>';
     }
     echo '</table></body></html>';
     exit;
 }
 function finance_export_rows($bt, $period) {
-    $pc = period_clause($period, 'delivered_at');
+    $pc = period_clause($period); // meme periode que l'ecran finance_detail()
     $orders = q("SELECT * FROM orders WHERE boutique_id=? AND status='delivered' AND $pc ORDER BY delivered_at DESC", [$bt['id']])->fetchAll();
     $rows = [];
     foreach ($orders as $o) {
@@ -4026,7 +4036,7 @@ function finance_overview($pl) {
 
     $coutProduits = (float)q("SELECT COALESCE(SUM(oi.unit_cost*oi.qty),0) s
                                FROM order_items oi JOIN orders o ON o.id=oi.order_id
-                               WHERE o.boutique_id=? AND o.status='delivered' AND $pc", [$bt['id']])
+                               WHERE o.boutique_id=? AND o.status IN ".ENCAISSE_STATUSES." AND $pc", [$bt['id']])
                      ->fetch()['s'];
     $fraisLivraison = (float)q("SELECT COALESCE(SUM(amount),0) s FROM delivery_fees_paid
                                  WHERE boutique_id=? AND ".period_clause($period,'created_at'), [$bt['id']])->fetch()['s'];
@@ -4131,13 +4141,13 @@ function finance_delivery_fee_create($pl) {
         $dp = q("SELECT id FROM delivery_persons WHERE id=? AND boutique_id=?", [$b['delivery_person_id'], $bt['id']])->fetch();
         if (!$dp) fail('Livreur introuvable', 404);
     }
+    if (!empty($b['account_id'])) account_owned($b['account_id'], $bt['id']);
     $id = uid();
     q("INSERT INTO delivery_fees_paid (id,boutique_id,order_id,delivery_person_id,amount,note,account_id,paid_at)
        VALUES (?,?,?,?,?,?,?,COALESCE(?,CURRENT_DATE))",
       [$id, $bt['id'], $b['order_id'] ?? null, $b['delivery_person_id'] ?? null, $amount,
        trim($b['note'] ?? ''), $b['account_id'] ?? null, $b['paid_at'] ?? null]);
     if (!empty($b['account_id'])) {
-        account_owned($b['account_id'], $bt['id']);
         q("UPDATE accounts SET balance = balance - ? WHERE id=?", [$amount, $b['account_id']]);
         q("INSERT INTO account_transactions (id,account_id,boutique_id,type,amount,note) VALUES (?,?,?,?,?,?)",
           [uid(), $b['account_id'], $bt['id'], 'out', $amount, 'Frais de livraison']);
@@ -4157,12 +4167,12 @@ function finance_expense_create($pl) {
     $label = trim($b['label'] ?? '');
     $amount = (float)($b['amount'] ?? 0);
     if ($label === '' || $amount <= 0) fail('Libelle et montant requis');
+    if (!empty($b['account_id'])) account_owned($b['account_id'], $bt['id']);
     $id = uid();
     q("INSERT INTO expenses (id,boutique_id,label,category,amount,account_id,expense_date)
        VALUES (?,?,?,?,?,?,COALESCE(?,CURRENT_DATE))",
       [$id, $bt['id'], $label, trim($b['category'] ?? ''), $amount, $b['account_id'] ?? null, $b['expense_date'] ?? null]);
     if (!empty($b['account_id'])) {
-        account_owned($b['account_id'], $bt['id']);
         q("UPDATE accounts SET balance = balance - ? WHERE id=?", [$amount, $b['account_id']]);
         q("INSERT INTO account_transactions (id,account_id,boutique_id,type,amount,note) VALUES (?,?,?,?,?,?)",
           [uid(), $b['account_id'], $bt['id'], 'out', $amount, 'Depense: '.$label]);
@@ -4228,7 +4238,18 @@ function finance_ads($pl) {
         $row['roas'] = $row['spend'] > 0 ? round($revenu / $row['spend'], 2) : null;
     }
 
-    $revenuAttribueTotal = array_sum(array_column($byProduct, 'revenue')) + array_sum(array_column($byCampaign, 'revenue'));
+    // Une commande liee a la fois a une campagne et a un produit suivi ne compte
+    // qu'une fois : commandes des campagnes, puis articles suivis des autres commandes.
+    $revenuAttribueTotal = array_sum(array_column($byCampaign, 'revenue'));
+    $adProductIds = array_values(array_filter(array_column($byProduct, 'product_id')));
+    if ($adProductIds) {
+        $campaignNames = array_column($byCampaign, 'campaign_name');
+        $sql = "SELECT COALESCE(SUM(oi.unit_price*oi.qty),0) s FROM order_items oi JOIN orders o ON o.id = oi.order_id
+                WHERE o.boutique_id=? AND o.status='delivered' AND ".period_clause($period, 'o.created_at')."
+                  AND oi.product_id IN (".implode(',', array_fill(0, count($adProductIds), '?')).")";
+        if ($campaignNames) $sql .= " AND (o.utm_campaign IS NULL OR o.utm_campaign NOT IN (".implode(',', array_fill(0, count($campaignNames), '?'))."))";
+        $revenuAttribueTotal += (float)q($sql, array_merge([$bt['id']], $adProductIds, $campaignNames))->fetch()['s'];
+    }
     $roasGlobal = $depenseTotale > 0 ? round($revenuAttribueTotal / $depenseTotale, 2) : null;
 
     // product_slug permet au tableau de bord de reconstituer le lien exact
@@ -4372,7 +4393,7 @@ function analytics_report($pl) {
                        GROUP BY oi.product_id, oi.product_name ORDER BY qty DESC LIMIT 10", [$bt['id']])->fetchAll();
 
     $utm = q("SELECT utm_source, utm_campaign, COUNT(*) commandes, COALESCE(SUM(total),0) ventes
-              FROM orders WHERE boutique_id=? AND (utm_source<>'' OR utm_campaign<>'') AND $pc
+              FROM orders WHERE boutique_id=? AND status<>'cancelled' AND (utm_source<>'' OR utm_campaign<>'') AND $pc
               GROUP BY utm_source, utm_campaign", [$bt['id']])->fetchAll();
 
     ok([
@@ -4478,6 +4499,11 @@ function marketing_promo_create($pl) {
     log_activity($bt['id'], 'Code promo cree: '.strtoupper($code), $pl['sub']);
     ok(q("SELECT * FROM promo_codes WHERE id=?", [$id])->fetch(), 'Code promo cree', 201);
 }
+function assert_discount_valid($type, $value) {
+    if ($value === '' ) return; // champ vide : la valeur actuelle est conservee
+    if ((float)$value <= 0) fail('La valeur doit etre superieure a 0');
+    if ($type === 'percent' && (float)$value > 100) fail('Un pourcentage ne peut pas depasser 100');
+}
 function promo_owned($id, $boutiqueId) {
     $row = q("SELECT * FROM promo_codes WHERE id=? AND boutique_id=?", [$id, $boutiqueId])->fetch();
     if (!$row) fail('Code promo introuvable', 404);
@@ -4490,6 +4516,7 @@ function marketing_promo_update($pl) {
     $wasActive = (bool)$promo['active'];
     $nowActive = isset($b['active']) ? (bool)!!$b['active'] : $wasActive;
     if (!$wasActive && $nowActive) assert_promo_limit_not_reached($bt, $pl['sub']);
+    assert_discount_valid($b['type'] ?? $promo['type'], $b['value'] ?? $promo['value']);
     q("UPDATE promo_codes SET type=?, value=?, max_uses=?, expires_at=?, active=? WHERE id=?",
       [in_array($b['type'] ?? '', ['percent','amount'], true) ? $b['type'] : $promo['type'],
        isset($b['value']) && $b['value'] !== '' ? (float)$b['value'] : $promo['value'],
@@ -4566,6 +4593,7 @@ function marketing_promotion_create($pl) {
     if ($value <= 0) fail('La valeur doit etre superieure a 0');
     if ($type === 'percent' && $value > 100) fail('Un pourcentage ne peut pas depasser 100');
     if (!$productIds) fail('Selectionnez au moins un produit');
+    foreach ($productIds as $pid) product_owned($pid, $bt['id']); // avant d'enregistrer quoi que ce soit
     $id = uid();
     q("INSERT INTO product_promotions (id,boutique_id,type,value,starts_at,expires_at,active) VALUES (?,?,?,?,?,?,1)",
       [$id, $bt['id'], $type, $value,
@@ -4584,6 +4612,7 @@ function marketing_promotion_update($pl) {
     $b = body();
     $bt = require_boutique_owned($b['boutique_id'] ?? '', $pl['sub']);
     $promo = promotion_owned($b['id'] ?? '', $bt['id']);
+    assert_discount_valid($b['type'] ?? $promo['type'], $b['value'] ?? $promo['value']);
     q("UPDATE product_promotions SET type=?, value=?, starts_at=?, expires_at=?, active=? WHERE id=?",
       [in_array($b['type'] ?? '', ['percent','amount'], true) ? $b['type'] : $promo['type'],
        isset($b['value']) && $b['value'] !== '' ? (float)$b['value'] : $promo['value'],
@@ -4783,12 +4812,12 @@ function billing_affiliate_info($pl) {
     $payingCount = count(array_filter($referred, fn($r) => $r['plan_status'] === 'active'));
 
     $commissions = q("SELECT * FROM referral_commissions WHERE referrer_user_id=? ORDER BY created_at DESC", [$pl['sub']])->fetchAll();
-    $pending = 0; $available = 0; $paid = 0;
+    $pending = 0; $available = 0; $paid = 0; $requested = 0;
     $cutoff = time() - REFERRAL_VALIDATION_DAYS * 86400;
     foreach ($commissions as $c) {
         $amount = (float)$c['amount'];
         if ($c['status'] === 'paid') { $paid += $amount; }
-        elseif ($c['status'] === 'requested') { /* deja compte comme "disponible" au moment de la demande, en cours de versement */ $available += 0; }
+        elseif ($c['status'] === 'requested') { $requested += $amount; /* en cours de versement : ni disponible ni encore paye */ }
         elseif ($c['status'] === 'pending' && strtotime($c['created_at']) <= $cutoff) { $available += $amount; }
         else { $pending += $amount; }
     }
@@ -4799,7 +4828,7 @@ function billing_affiliate_info($pl) {
         'clicks' => (int)$user['referral_clicks'],
         'signups' => count($referred),
         'paying_referrals' => $payingCount,
-        'total_earned' => $pending + $available + $paid,
+        'total_earned' => $pending + $available + $requested + $paid,
         'pending_validation' => $pending,
         'available' => $available,
         'paid' => $paid,
@@ -4816,15 +4845,24 @@ function billing_affiliate_request_payout($pl) {
     $phone = trim($b['phone'] ?? '');
     if ($phone === '') fail('Numero Mobile Money requis');
     $cutoff = date('Y-m-d H:i:s', time() - REFERRAL_VALIDATION_DAYS * 86400);
-    $available = q("SELECT * FROM referral_commissions WHERE referrer_user_id=? AND status='pending' AND created_at <= ?", [$pl['sub'], $cutoff])->fetchAll();
-    $total = array_sum(array_column($available, 'amount'));
-    if ($total < REFERRAL_MIN_PAYOUT) {
-        fail('Le solde disponible doit atteindre au moins '.REFERRAL_MIN_PAYOUT.' FCFA pour demander un retrait');
+    // L'UPDATE reserve les commissions en une seule operation : deux demandes
+    // simultanees ne peuvent pas retirer deux fois le meme montant.
+    $pdo = db(); $pdo->beginTransaction();
+    try {
+        $claimed = q("UPDATE referral_commissions SET status='requested' WHERE referrer_user_id=? AND status='pending' AND created_at <= ? RETURNING amount", [$pl['sub'], $cutoff])->fetchAll();
+        $total = array_sum(array_column($claimed, 'amount'));
+        if ($total < REFERRAL_MIN_PAYOUT) {
+            $pdo->rollBack();
+            fail('Le solde disponible doit atteindre au moins '.REFERRAL_MIN_PAYOUT.' FCFA pour demander un retrait');
+        }
+        q("INSERT INTO referral_payouts (id,user_id,amount,method,phone,status) VALUES (?,?,?,?,?,'requested')",
+          [uid(), $pl['sub'], $total, $method, $phone]);
+        $pdo->commit();
+    } catch (PDOException $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        error_log('[MYBOUTIK] payout: '.$e->getMessage());
+        fail('Demande de retrait impossible, reessayez', 500);
     }
-    $id = uid();
-    q("INSERT INTO referral_payouts (id,user_id,amount,method,phone,status) VALUES (?,?,?,?,?,'requested')",
-      [$id, $pl['sub'], $total, $method, $phone]);
-    foreach ($available as $c) { q("UPDATE referral_commissions SET status='requested' WHERE id=?", [$c['id']]); }
     ok(null, 'Demande de retrait envoyee. Vous serez paye(e) apres verification.', 201);
 }
 
@@ -5461,7 +5499,7 @@ function announcement_parse_input($b, $current = null) {
     }
     return ['title' => $title !== '' ? $title : null, 'message' => $message,
             'title_en' => $titleEn !== '' ? $titleEn : null, 'message_en' => $messageEn !== '' ? $messageEn : null,
-            'level' => $level, 'aud' => $aud, 'val' => in_array($aud, ['plan', 'country'], true) ? $val : null,
+            'level' => $level, 'aud' => $aud, 'val' => in_array($aud, ['plan', 'country', 'users'], true) ? $val : null,
             'starts_at' => $startsAt, 'ends_at' => $endsAt,
             'cta_target' => $ctaTarget !== '' ? $ctaTarget : null, 'cta_label' => $ctaLabel !== '' ? $ctaLabel : null, 'cta_label_en' => $ctaLabelEn !== '' ? $ctaLabelEn : null];
 }
@@ -5964,6 +6002,9 @@ function admin_subscription_approve() {
     $b = body();
     $req = q("SELECT * FROM subscription_requests WHERE id=?", [$b['id'] ?? ''])->fetch();
     if (!$req) fail('Demande introuvable', 404);
+    // Prise en une seule operation : un double clic n'approuve qu'une fois.
+    $claimed = q("UPDATE subscription_requests SET status='approved', reviewed_at=NOW() WHERE id=? AND status='pending' RETURNING id", [$req['id']])->fetch();
+    if (!$claimed) fail('Cette demande a deja ete traitee', 409);
     // Prolonge a partir de MAINTENANT (pas cumule sur l'ancienne date) - si
     // un compte est deja expire depuis longtemps, le paiement repart d'une
     // periode pleine a partir d'aujourd'hui plutot que de rester bloque a
@@ -5972,7 +6013,6 @@ function admin_subscription_approve() {
     // subscription_request_days()).
     $days = subscription_request_days($req);
     q("UPDATE users SET plan=?, plan_status='active', plan_valid_until=NOW() + (?::text || ' days')::interval WHERE id=?", [$req['plan'], $days, $req['user_id']]);
-    q("UPDATE subscription_requests SET status='approved', reviewed_at=NOW() WHERE id=?", [$req['id']]);
     // Commission de parrainage (10% du montant reellement paye) si ce
     // compte a ete recrute via un lien d'affiliation - une seule fois par
     // abonnement approuve (subscription_request_id), jamais recalculee si
@@ -5990,7 +6030,8 @@ function admin_subscription_approve() {
 
 function admin_subscription_reject() {
     $b = body();
-    q("UPDATE subscription_requests SET status='rejected', reviewed_at=NOW() WHERE id=?", [$b['id'] ?? '']);
+    $done = q("UPDATE subscription_requests SET status='rejected', reviewed_at=NOW() WHERE id=? AND status='pending' RETURNING id", [$b['id'] ?? ''])->fetch();
+    if (!$done) fail('Cette demande a deja ete traitee', 409);
     ok(null, 'Demande rejetee');
 }
 
@@ -6003,6 +6044,7 @@ function admin_payout_mark_paid() {
     $b = body();
     $payout = q("SELECT * FROM referral_payouts WHERE id=?", [$b['id'] ?? ''])->fetch();
     if (!$payout) fail('Retrait introuvable', 404);
+    if ($payout['status'] !== 'requested') fail('Ce retrait a deja ete traite', 409);
     q("UPDATE referral_payouts SET status='paid', paid_at=NOW() WHERE id=?", [$payout['id']]);
     q("UPDATE referral_commissions SET status='paid' WHERE referrer_user_id=? AND status='requested'", [$payout['user_id']]);
     ok(null, 'Retrait marque paye');
@@ -6205,13 +6247,13 @@ function cron_abandoned_reminders() {
                 FROM abandoned_carts ac
                 JOIN boutiques b ON b.id = ac.boutique_id
                 JOIN abandoned_settings s ON s.boutique_id = ac.boutique_id
-                WHERE ac.converted=0 AND ac.reminded_at IS NULL AND s.customer_reminder_enabled=1
+                WHERE b.status='active' AND ac.converted=0 AND ac.reminded_at IS NULL AND s.customer_reminder_enabled=1
                 AND ac.captured_at <= NOW() - INTERVAL '30 minutes'
                 AND ac.captured_at >= NOW() - INTERVAL '48 hours'")->fetchAll();
     $sent = 0;
     foreach ($carts as $c) {
         $total = money_fmt($c['total'], $c['currency']).' '.money_label($c['currency'] ?: 'XOF');
-        $message = "Bonjour, vous avez laisse des articles dans votre panier chez ".$c['boutique_name']." (".$total."). Revenez finaliser votre commande !";
+        $message = "Bonjour, vous avez laisse des articles dans votre panier chez ".$c['boutique_name']." (".$total."). Revenez finaliser votre commande : ".FRONTEND_BASE_URL."/store/index.html?b=".urlencode($c['slug']);
         if ($c['email']) send_email($c['email'], 'Votre panier vous attend - '.$c['boutique_name'], $message);
         q("UPDATE abandoned_carts SET reminded_at=NOW() WHERE id=?", [$c['id']]);
         $sent++;
