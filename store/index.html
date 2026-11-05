@@ -412,6 +412,8 @@ const I18N = {
     platform_feedback_link: '💬 Donner votre avis sur MYBOUTIK',
     contact_message_required: 'Le message est requis',
     leave_review_btn: 'Laisser un avis',
+    review_buyers_only: 'Vous avez reçu ce produit ? Donnez votre avis depuis',
+    review_sent: 'Avis envoyé',
     review_name_label: 'Votre nom',
     review_rating_label: 'Note',
     rating_5: '★★★★★ Excellent', rating_4: '★★★★☆ Très bien', rating_3: '★★★☆☆ Correct',
@@ -533,6 +535,8 @@ const I18N = {
     platform_feedback_link: '💬 Give your feedback on MYBOUTIK',
     contact_message_required: 'The message is required',
     leave_review_btn: 'Leave a review',
+    review_buyers_only: 'Received this product? Leave a review from',
+    review_sent: 'Review sent',
     review_name_label: 'Your name',
     review_rating_label: 'Rating',
     rating_5: '★★★★★ Excellent', rating_4: '★★★★☆ Very good', rating_3: '★★★☆☆ Okay',
@@ -880,33 +884,7 @@ function loadReviews(productId) {
             ${r.comment ? '<span style="color:var(--gray)"> — '+escapeHtml(r.comment)+'</span>' : ''}
           </div>`).join('') : '<div class="empty" style="padding:10px 0">'+t('no_reviews_yet')+'</div>'}
       </div>
-      <button class="btn btn-ghost btn-sm" style="margin-top:8px" onclick="toggleReviewForm('${productId}')">${t('leave_review_btn')}</button>
-      <div id="reviewFormWrap"></div>`;
-  });
-}
-function toggleReviewForm(productId) {
-  const wrap = document.getElementById('reviewFormWrap');
-  if (!wrap) return;
-  wrap.innerHTML = `<div style="margin-top:10px">
-    <div id="reviewMsg"></div>
-    <div class="field"><label>${t('review_name_label')}</label><input id="rvName"></div>
-    <div class="field"><label>${t('review_rating_label')}</label><select id="rvRating">
-      <option value="5">${t('rating_5')}</option><option value="4">${t('rating_4')}</option>
-      <option value="3">${t('rating_3')}</option><option value="2">${t('rating_2')}</option><option value="1">${t('rating_1')}</option>
-    </select></div>
-    <div class="field"><label>${t('review_comment_label')}</label><textarea id="rvComment" rows="2"></textarea></div>
-    <button class="btn btn-primary btn-sm" onclick="submitReview('${productId}')">${t('contact_send_btn')}</button>
-  </div>`;
-}
-function submitReview(productId) {
-  const name = document.getElementById('rvName').value.trim();
-  if (!name) { document.getElementById('reviewMsg').innerHTML = '<div class="msg error">'+t('review_name_required')+'</div>'; return; }
-  post('/shop?action=review_add', {
-    slug: SLUG, product_id: productId, customer_name: name,
-    rating: Number(document.getElementById('rvRating').value), comment: document.getElementById('rvComment').value.trim(),
-  }).then(({data}) => {
-    if (!data.success) { document.getElementById('reviewMsg').innerHTML = '<div class="msg error">'+data.message+'</div>'; return; }
-    document.getElementById('reviewFormWrap').innerHTML = '<div class="msg success">'+data.message+'</div>';
+      <div style="font-size:12.5px;color:var(--gray);margin-top:8px">${t('review_buyers_only')} <a href="#" onclick="closeOverlay('productOverlay');openTrackOrder();return false" style="color:var(--blue);font-weight:600">${t('track_order_title')}</a></div>`;
   });
 }
 function renderPriceHtml(price, compareAt) {
@@ -1420,12 +1398,19 @@ function renderTrackDetail() {
       </div>` : ''}
       <div style="border-top:1px solid var(--border);padding-top:10px">${(o.items||[]).map((it, i) => `
         <div style="font-size:13px;margin-bottom:6px">${Number(it.qty)} × ${escapeHtml(it.product_name)}
-          ${o.status === 'delivered' && PRODUCTS.some(p => p.id === it.product_id) ? '<a href="#" onclick="toggleTrackReview('+i+');return false" style="margin-left:6px;font-size:12px;font-weight:600;color:var(--blue)">⭐ '+t('leave_review_btn')+'</a><div id="trackReview'+i+'"></div>' : ''}
+          ${trackReviewLink(o, it, i)}
         </div>`).join('')}</div>
       <div style="font-weight:700;margin-top:8px">${t('order_total_label')}${moneyHtml(o.total)}</div>
       ${canReorder ? '<button class="btn btn-primary" style="margin-top:12px" onclick="reorderTracked()">🔁 '+t('track_reorder_btn')+'</button>' : ''}
       ${o.status === 'delivered' ? renderDisputeBlock(o) : ''}
     </div>`;
+}
+// Un seul lien par produit, meme s'il figure deux fois dans la commande (deux variantes).
+function trackReviewLink(o, it, i) {
+  if (o.status !== 'delivered' || !PRODUCTS.some(p => p.id === it.product_id)) return '';
+  if (o.items.findIndex(x => x.product_id === it.product_id) !== i) return '';
+  if ((o.reviewed_product_ids||[]).includes(it.product_id)) return '<span style="margin-left:6px;font-size:12px;font-weight:600;color:#16a34a">✓ '+t('review_sent')+'</span>';
+  return '<a href="#" onclick="toggleTrackReview('+i+');return false" style="margin-left:6px;font-size:12px;font-weight:600;color:var(--blue)">⭐ '+t('leave_review_btn')+'</a><div id="trackReview'+i+'"></div>';
 }
 function toggleTrackReview(i) {
   const wrap = document.getElementById('trackReview'+i);
@@ -1436,18 +1421,20 @@ function toggleTrackReview(i) {
       <option value="5">${t('rating_5')}</option><option value="4">${t('rating_4')}</option>
       <option value="3">${t('rating_3')}</option><option value="2">${t('rating_2')}</option><option value="1">${t('rating_1')}</option>
     </select></div>
-    <div class="field"><label>${t('review_comment_label')}</label><textarea id="trackComment${i}" rows="2"></textarea></div>
+    <div class="field"><label>${t('review_comment_label')}</label><textarea id="trackComment${i}" rows="2" maxlength="500"></textarea></div>
     <button class="btn btn-primary btn-sm" onclick="submitTrackReview(${i})">${t('contact_send_btn')}</button>
   </div>`;
 }
 function submitTrackReview(i) {
   const it = TRACK_ORDER.items[i];
   post('/shop?action=review_add', {
-    slug: SLUG, product_id: it.product_id, customer_name: TRACK_ORDER.customer_name,
+    slug: SLUG, product_id: it.product_id, ref: TRACK_ORDER.ref, phone: TRACK_PHONE,
     rating: Number(document.getElementById('trackRating'+i).value), comment: document.getElementById('trackComment'+i).value.trim(),
   }).then(({data}) => {
     if (!data.success) { document.getElementById('trackReviewMsg'+i).innerHTML = '<div class="msg error">'+escapeHtml(data.message||'')+'</div>'; return; }
-    document.getElementById('trackReview'+i).innerHTML = '<div class="msg success">'+escapeHtml(data.message||'')+'</div>';
+    showToast(data.message||'', 'info');
+    TRACK_ORDER.reviewed_product_ids = (TRACK_ORDER.reviewed_product_ids||[]).concat(it.product_id);
+    renderTrackDetail();
   });
 }
 // Remet les articles encore en vente dans le panier, au prix actuel : le serveur

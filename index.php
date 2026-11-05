@@ -283,6 +283,10 @@ const EN_DICT = [
     'Marque comme lu' => 'Marked as read',
     'Membre retire' => 'Member removed',
     'Merci pour votre avis !' => 'Thank you for your review!',
+    'Vous pourrez donner votre avis une fois la commande livree' => 'You can leave a review once the order has been delivered',
+    'Ce produit ne fait pas partie de cette commande' => 'This product is not part of this order',
+    'Vous avez deja donne votre avis sur ce produit' => 'You have already reviewed this product',
+    'Votre commentaire est trop long' => 'Your comment is too long',
     'Message envoye' => 'Message sent',
     'Mis a jour' => 'Updated',
     'Module inconnu' => 'Unknown module',
@@ -1653,6 +1657,8 @@ function route_install() {
     )",
     "CREATE INDEX IF NOT EXISTS idx_reviews_product ON product_reviews(product_id)",
     "CREATE INDEX IF NOT EXISTS idx_reviews_boutique ON product_reviews(boutique_id)",
+    "ALTER TABLE product_reviews ADD COLUMN IF NOT EXISTS order_id VARCHAR(36)",
+    "CREATE UNIQUE INDEX IF NOT EXISTS uniq_review_order_product ON product_reviews(order_id, product_id) WHERE order_id IS NOT NULL",
     // Promotion automatiquement visible sur les fiches produits ciblees
     // (contrairement aux codes promo, aucune saisie du client - le prix
     // barre/reduit s'affiche tout seul, voir effective_unit_price()).
@@ -3332,6 +3338,11 @@ function shop_track_order() {
     $o['delivery_status'] = $delivery['delivery_status'] ?? null;
     $o['delivery_person_name'] = $delivery['delivery_person_name'] ?? null;
     $o['delivery_person_phone'] = $delivery['delivery_person_phone'] ?? null;
+    try {
+        $o['reviewed_product_ids'] = q("SELECT product_id FROM product_reviews WHERE order_id=?", [$o['id']])->fetchAll(PDO::FETCH_COLUMN);
+    } catch (PDOException $e) {
+        $o['reviewed_product_ids'] = []; // colonne creee au premier avis, voir ensure_review_order_column()
+    }
     ok($o);
 }
 
@@ -3498,20 +3509,48 @@ function shop_reviews() {
     ok($rows);
 }
 
+function ensure_review_order_column() {
+    q("ALTER TABLE product_reviews ADD COLUMN IF NOT EXISTS order_id VARCHAR(36)");
+    q("CREATE UNIQUE INDEX IF NOT EXISTS uniq_review_order_product ON product_reviews(order_id, product_id) WHERE order_id IS NOT NULL");
+}
+// Nom affiche publiquement sous un avis : "Awa Kone" devient "Awa K.". Le client
+// n'a pas choisi de publier son nom complet en passant commande.
+function review_display_name($fullName) {
+    $words = preg_split('/\s+/u', trim((string)$fullName), -1, PREG_SPLIT_NO_EMPTY) ?: [];
+    if (!$words) return 'Client';
+    if (count($words) === 1) return $words[0];
+    return preg_match('/^./u', end($words), $m) ? $words[0].' '.$m[0].'.' : $words[0];
+}
+// Avis reserve a l'acheteur : meme couple ref+telephone que shop_track_order(),
+// commande livree, produit present dans cette commande, un seul avis par produit
+// et par commande. Le nom publie vient de la commande, jamais du formulaire.
 function shop_review_add() {
     rate_limit_check('shop_review_add', 10, 600);
     $b = body();
     $bt = public_boutique_by_slug($b['slug'] ?? '');
-    $product = product_owned($b['product_id'] ?? '', $bt['id']);
-    $name = trim($b['customer_name'] ?? '');
+    $ref = trim($b['ref'] ?? '');
+    $phone = trim($b['phone'] ?? '');
     $rating = (int)($b['rating'] ?? 0);
-    if ($name === '') fail('Votre nom est requis');
+    $comment = trim($b['comment'] ?? '');
+    if ($ref === '' || $phone === '') fail('Numero de commande et telephone requis');
     if ($rating < 1 || $rating > 5) fail('Note invalide (1 a 5)');
+    if (strlen($comment) > 2000) fail('Votre commentaire est trop long');
+    $o = q("SELECT id,status,customer_name,customer_phone FROM orders WHERE boutique_id=? AND ref=? AND RIGHT(regexp_replace(customer_phone,'\D','','g'),8)=?",
+           [$bt['id'], $ref, phone_key($phone)])->fetch();
+    if (!$o || !phones_match($o['customer_phone'], $phone)) fail('Aucune commande trouvee avec ces informations', 404);
+    if ($o['status'] !== 'delivered') fail('Vous pourrez donner votre avis une fois la commande livree');
+    $product = product_owned($b['product_id'] ?? '', $bt['id']);
+    if (!q("SELECT 1 FROM order_items WHERE order_id=? AND product_id=? LIMIT 1", [$o['id'], $product['id']])->fetch()) {
+        fail('Ce produit ne fait pas partie de cette commande');
+    }
+    ensure_review_order_column();
     // Publie immediatement (status='approved') : le marchand n'a plus a valider
     // avant affichage, mais garde la main pour supprimer un avis apres coup
     // depuis Marketing > Avis (voir marketing_review_delete()).
-    q("INSERT INTO product_reviews (id,boutique_id,product_id,customer_name,rating,comment,status) VALUES (?,?,?,?,?,?,'approved')",
-      [uid(), $bt['id'], $product['id'], $name, $rating, trim($b['comment'] ?? '')]);
+    $added = q("INSERT INTO product_reviews (id,boutique_id,product_id,order_id,customer_name,rating,comment,status) VALUES (?,?,?,?,?,?,?,'approved')
+                ON CONFLICT (order_id, product_id) WHERE order_id IS NOT NULL DO NOTHING RETURNING id",
+               [uid(), $bt['id'], $product['id'], $o['id'], review_display_name($o['customer_name']), $rating, $comment])->fetch();
+    if (!$added) fail('Vous avez deja donne votre avis sur ce produit', 409);
     ok(null, 'Merci pour votre avis !');
 }
 
