@@ -41,6 +41,9 @@ define('CRON_KEY', getenv('CRON_KEY') ?: INSTALL_KEY);
 // Delai pendant lequel un compte dont la suppression est demandee reste
 // recuperable, avant l'effacement definitif (voir account_purge()).
 define('ACCOUNT_DELETION_DAYS', 30);
+// Duree de garde des photos dans le navigateur des visiteurs, et taille des miniatures.
+define('IMAGE_CACHE_SECONDS', 30 * 86400);
+define('IMAGE_THUMB_SIZE', 400);
 // Aucune valeur de repli codee en dur pour ce secret : un secret visible
 // dans le code source n'est plus un secret. Si JWT_SECRET n'est pas
 // configuree sur l'hebergeur, l'app s'arrete plutot que de tourner avec
@@ -574,6 +577,16 @@ function period_clause($period, $col='created_at') {
 const ENCAISSE_STATUSES = "('processing','shipped','delivered')";
 // Commande terminee : voir assert_order_correction_allowed().
 const ORDER_FINAL_STATUSES = ['delivered','refused','cancelled'];
+// Photos stockees en base : dans les reponses publiques, on ne lit qu'une empreinte
+// (l'adresse de la photo la contient) et jamais l'image elle-meme, voir public_image_url().
+const PUBLIC_IMAGE_COLS = "CASE WHEN image_url LIKE 'data:%' THEN NULL ELSE image_url END AS image_external, CASE WHEN image_url LIKE 'data:%' THEN md5(image_url) END AS image_hash";
+const PUBLIC_LOGO_COLS = "CASE WHEN b.logo_url LIKE 'data:%' THEN NULL ELSE b.logo_url END AS logo_external, CASE WHEN b.logo_url LIKE 'data:%' THEN md5(b.logo_url) END AS logo_hash";
+const PRODUCT_THUMBS_DDL = "CREATE TABLE IF NOT EXISTS product_thumbs (
+    product_id VARCHAR(36) PRIMARY KEY,
+    source_hash VARCHAR(32) NOT NULL,
+    data TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+)";
 const ORDER_EVENTS_DDL = "CREATE TABLE IF NOT EXISTS order_events (
     id SERIAL PRIMARY KEY,
     order_id VARCHAR(36) NOT NULL,
@@ -1499,6 +1512,7 @@ function route_install() {
     )",
     "CREATE INDEX IF NOT EXISTS idx_items_order ON order_items(order_id)",
     ORDER_EVENTS_DDL,
+    PRODUCT_THUMBS_DDL,
     "CREATE INDEX IF NOT EXISTS idx_order_events_order ON order_events(order_id)",
     "CREATE TABLE IF NOT EXISTS abandoned_carts (
         id VARCHAR(36) PRIMARY KEY,
@@ -2090,6 +2104,7 @@ function account_purge_statements() {
         "DELETE FROM product_digital_codes WHERE product_id IN (SELECT id FROM products WHERE boutique_id IN $in)",
         "DELETE FROM product_variants WHERE product_id IN (SELECT id FROM products WHERE boutique_id IN $in)",
         "DELETE FROM product_images WHERE product_id IN (SELECT id FROM products WHERE boutique_id IN $in)",
+        "DELETE FROM product_thumbs WHERE product_id IN (SELECT id FROM products WHERE boutique_id IN $in)",
         "DELETE FROM product_promotion_items WHERE promotion_id IN (SELECT id FROM product_promotions WHERE boutique_id IN $in)",
         "DELETE FROM promo_code_customers WHERE promo_code_id IN (SELECT id FROM promo_codes WHERE boutique_id IN $in)",
         "DELETE FROM ad_expense_products WHERE ad_expense_id IN (SELECT id FROM ad_expenses WHERE boutique_id IN $in)",
@@ -2116,6 +2131,9 @@ function account_purge_statements() {
 function account_purge($userId) {
     $email = q("SELECT email FROM users WHERE id=? AND status='deletion_pending'", [$userId])->fetchColumn();
     if (!$email) return false;
+    // Tables creees a la demande : elles doivent exister avant la transaction.
+    q(PRODUCT_THUMBS_DDL);
+    q(ORDER_EVENTS_DDL);
     $pdo = db();
     $pdo->beginTransaction();
     try {
@@ -2618,6 +2636,7 @@ function products_delete($pl) {
     $p = product_owned($b['id'] ?? '', $bt['id']);
     q("DELETE FROM product_variants WHERE product_id=?", [$p['id']]);
     q("DELETE FROM product_images WHERE product_id=?", [$p['id']]);
+    try { q("DELETE FROM product_thumbs WHERE product_id=?", [$p['id']]); } catch (PDOException $e) { /* table creee a la premiere miniature */ }
     q("DELETE FROM product_digital_codes WHERE product_id=?", [$p['id']]);
     q("DELETE FROM product_reviews WHERE product_id=?", [$p['id']]);
     q("DELETE FROM products WHERE id=?", [$p['id']]);
@@ -2804,7 +2823,7 @@ function directory_boutiques() {
     // Note moyenne calculee a la volee a partir des avis produits deja
     // approuves par le marchand (product_reviews.status='approved') -
     // aucune nouvelle table, juste une agregation par boutique.
-    $sql = "SELECT b.slug, b.name, b.description, b.logo_url, b.currency, b.category, b.city, b.country,
+    $sql = "SELECT b.slug, b.name, b.description, ".PUBLIC_LOGO_COLS.", b.currency, b.category, b.city, b.country,
               (SELECT ROUND(AVG(r.rating)::numeric, 1) FROM product_reviews r WHERE r.boutique_id=b.id AND r.status='approved') AS avg_rating,
               (SELECT COUNT(*) FROM product_reviews r WHERE r.boutique_id=b.id AND r.status='approved') AS review_count
             FROM boutiques b JOIN users u ON u.id=b.owner_user_id
@@ -2815,7 +2834,10 @@ function directory_boutiques() {
     if ($city !== '') { $sql .= " AND b.city ILIKE ?"; $params[] = '%'.$city.'%'; }
     if ($country !== '') { $sql .= " AND b.country=?"; $params[] = $country; }
     $sql .= " ORDER BY b.created_at DESC LIMIT 60";
-    ok(q($sql, $params)->fetchAll());
+    $rows = q($sql, $params)->fetchAll();
+    foreach ($rows as &$row) public_logo_url($row);
+    unset($row);
+    ok($rows);
 }
 // Categories et villes distinctes parmi les boutiques listees - alimente
 // les listes deroulantes de filtre de l'annuaire (evite de proposer un
@@ -2857,10 +2879,13 @@ function route_image($action) {
     switch ($action) {
         case 'boutique_logo': image_boutique_logo(); break;
         case 'product_photo': image_product_photo(); break;
+        case 'gallery':       image_gallery(); break;
+        case 'product_main':  image_product_main(); break;
+        case 'product_thumb': image_product_thumb(); break;
         default: fail('Action inconnue', 404);
     }
 }
-function output_data_uri_image($dataUri) {
+function output_data_uri_image($dataUri, $maxAge = 3600) {
     if (!$dataUri || !preg_match('#^data:(image/[a-zA-Z0-9.+-]+);base64,(.+)$#', $dataUri, $m)) {
         http_response_code(404);
         header('Content-Type: text/plain; charset=utf-8');
@@ -2870,14 +2895,95 @@ function output_data_uri_image($dataUri) {
     header('Content-Type: '.$m[1]);
     header('X-Content-Type-Options: nosniff');
     header("Content-Security-Policy: default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'; sandbox");
-    header('Cache-Control: public, max-age=3600');
+    header('Cache-Control: public, max-age='.(int)$maxAge);
     echo base64_decode($m[2]);
     exit;
 }
 function image_boutique_logo() {
     $slug = trim($_GET['slug'] ?? '');
     $bt = q("SELECT logo_url FROM boutiques WHERE slug=? AND status='active'", [$slug])->fetch();
-    output_data_uri_image($bt['logo_url'] ?? null);
+    output_data_uri_image($bt['logo_url'] ?? null, empty($_GET['v']) ? 3600 : IMAGE_CACHE_SECONDS);
+}
+// Une adresse contient l'empreinte de sa photo : une nouvelle photo a une nouvelle
+// adresse, le navigateur peut donc garder celle-ci sans la redemander.
+function public_image_base() {
+    return preview_self_base().'/image?action=';
+}
+function public_image_url(&$p) {
+    $external = $p['image_external'] ?? null;
+    $hash = $p['image_hash'] ?? null;
+    unset($p['image_external'], $p['image_hash']);
+    if ($hash) {
+        $p['image_url'] = public_image_base().'product_main&id='.urlencode($p['id']).'&v='.$hash;
+        $p['thumb_url'] = public_image_base().'product_thumb&id='.urlencode($p['id']).'&v='.$hash;
+    } else {
+        $p['image_url'] = $p['thumb_url'] = (string)$external;
+    }
+}
+function public_product_images(&$p) {
+    public_image_url($p);
+    $rows = q("SELECT id, CASE WHEN data LIKE 'data:%' THEN NULL ELSE data END AS external, CASE WHEN data LIKE 'data:%' THEN md5(data) END AS hash
+               FROM product_images WHERE product_id=? ORDER BY position", [$p['id']])->fetchAll();
+    $p['images'] = array_map(fn($r) => ['id' => $r['id'], 'data' => $r['hash'] ? public_image_base().'gallery&id='.urlencode($r['id']).'&v='.$r['hash'] : (string)$r['external']], $rows);
+    // Meme adresse pour la photo principale et la galerie : un seul telechargement.
+    if ($p['images'] && $p['image_url'] !== '') $p['image_url'] = $p['images'][0]['data'];
+}
+function public_logo_url(&$row) {
+    $external = $row['logo_external'] ?? null;
+    $hash = $row['logo_hash'] ?? null;
+    unset($row['logo_external'], $row['logo_hash']);
+    $row['logo_url'] = $hash ? public_image_base().'boutique_logo&slug='.urlencode($row['slug']).'&v='.$hash : (string)$external;
+}
+function image_gallery() {
+    $row = q("SELECT i.data FROM product_images i JOIN products p ON p.id=i.product_id JOIN boutiques b ON b.id=p.boutique_id
+              WHERE i.id=? AND p.status='active' AND b.status='active'", [$_GET['id'] ?? ''])->fetch();
+    output_data_uri_image($row['data'] ?? null, IMAGE_CACHE_SECONDS);
+}
+function image_product_main() {
+    $row = q("SELECT p.image_url FROM products p JOIN boutiques b ON b.id=p.boutique_id
+              WHERE p.id=? AND p.status='active' AND b.status='active'", [$_GET['id'] ?? ''])->fetch();
+    output_data_uri_image($row['image_url'] ?? null, IMAGE_CACHE_SECONDS);
+}
+// La miniature est creee a la premiere demande puis gardee : les suivantes ne
+// lisent que ces quelques Ko. Sans miniature possible, la photo d'origine est servie.
+function image_product_thumb() {
+    $id = $_GET['id'] ?? '';
+    $hash = q("SELECT md5(p.image_url) FROM products p JOIN boutiques b ON b.id=p.boutique_id
+               WHERE p.id=? AND p.status='active' AND b.status='active'", [$id])->fetchColumn();
+    if (!$hash) output_data_uri_image(null);
+    try {
+        $thumb = q("SELECT data FROM product_thumbs WHERE product_id=? AND source_hash=?", [$id, $hash])->fetchColumn();
+    } catch (PDOException $e) {
+        q(PRODUCT_THUMBS_DDL);
+        $thumb = false;
+    }
+    if (!$thumb) {
+        $source = q("SELECT image_url FROM products WHERE id=?", [$id])->fetchColumn();
+        $thumb = make_thumbnail($source);
+        if (!$thumb) output_data_uri_image($source, IMAGE_CACHE_SECONDS);
+        q("INSERT INTO product_thumbs (product_id,source_hash,data) VALUES (?,?,?)
+           ON CONFLICT (product_id) DO UPDATE SET source_hash=EXCLUDED.source_hash, data=EXCLUDED.data, created_at=NOW()", [$id, $hash, $thumb]);
+    }
+    output_data_uri_image('data:image/jpeg;base64,'.$thumb, IMAGE_CACHE_SECONDS);
+}
+function make_thumbnail($dataUri) {
+    if (!function_exists('imagecreatefromstring') || !preg_match('#^data:image/[a-zA-Z0-9.+-]+;base64,(.+)$#', (string)$dataUri, $m)) return null;
+    try {
+        $image = @imagecreatefromstring((string)base64_decode($m[1]));
+        if (!$image) return null;
+        $width = imagesx($image); $height = imagesy($image);
+        if (max($width, $height) <= IMAGE_THUMB_SIZE) return null;
+        $ratio = IMAGE_THUMB_SIZE / max($width, $height);
+        $thumb = imagecreatetruecolor(max(1, (int)round($width * $ratio)), max(1, (int)round($height * $ratio)));
+        imagefill($thumb, 0, 0, imagecolorallocate($thumb, 255, 255, 255)); // fond des PNG transparents
+        imagecopyresampled($thumb, $image, 0, 0, 0, 0, imagesx($thumb), imagesy($thumb), $width, $height);
+        ob_start();
+        imagejpeg($thumb, null, 70);
+        return base64_encode((string)ob_get_clean());
+    } catch (Throwable $e) {
+        error_log('[MYBOUTIK] miniature: '.$e->getMessage());
+        return null;
+    }
 }
 function image_product_photo() {
     $slug = trim($_GET['slug'] ?? '');
@@ -3003,11 +3109,12 @@ function preview_product() {
 // l'annuaire (public_listed reste tel quel) : des qu'il se reabonne, elle
 // redevient visible automatiquement, aucune reactivation manuelle requise.
 function public_boutique_by_slug($slug) {
-    $row = q("SELECT b.id,b.slug,b.name,b.description,b.logo_url,b.currency,b.cod_enabled,b.default_delivery_fee,b.default_shipping_fee,b.default_shipping_fee_other_country,b.status,b.city,b.country,b.public_listed, u.plan_valid_until
+    $row = q("SELECT b.id,b.slug,b.name,b.description,".PUBLIC_LOGO_COLS.",b.currency,b.cod_enabled,b.default_delivery_fee,b.default_shipping_fee,b.default_shipping_fee_other_country,b.status,b.city,b.country,b.public_listed, u.plan_valid_until
               FROM boutiques b JOIN users u ON u.id=b.owner_user_id WHERE b.slug=?", [$slug])->fetch();
     if (!$row || $row['status'] !== 'active') fail('Boutique introuvable', 404);
     if ($row['plan_valid_until'] !== null && strtotime($row['plan_valid_until']) < time()) fail('Boutique introuvable', 404);
     unset($row['plan_valid_until']);
+    public_logo_url($row);
     return $row;
 }
 
@@ -3076,7 +3183,7 @@ function shop_categories() {
 
 function shop_products() {
     $bt = public_boutique_by_slug($_GET['slug'] ?? '');
-    $sql = "SELECT id,name,description,price,compare_at_price,stock_qty,image_url,slug,track_inventory,allow_backorder,is_physical,is_digital,delivery_fee,shipping_fee,shipping_fee_other_country,options_json,category_id
+    $sql = "SELECT id,name,description,price,compare_at_price,stock_qty,".PUBLIC_IMAGE_COLS.",slug,track_inventory,allow_backorder,is_physical,is_digital,delivery_fee,shipping_fee,shipping_fee_other_country,options_json,category_id
             FROM products WHERE boutique_id=? AND status='active'";
     $params = [$bt['id']];
     if (!empty($_GET['category_id'])) { $sql .= " AND category_id=?"; $params[] = $_GET['category_id']; }
@@ -3084,7 +3191,7 @@ function shop_products() {
     $rows = q($sql, $params)->fetchAll();
     foreach ($rows as &$p) {
         $p['variants'] = q("SELECT id,name,price,stock_qty FROM product_variants WHERE product_id=? ORDER BY name", [$p['id']])->fetchAll();
-        $p['images'] = q("SELECT id,data FROM product_images WHERE product_id=? ORDER BY position", [$p['id']])->fetchAll();
+        public_product_images($p);
         apply_active_promotion($p);
     }
     ok($rows);
@@ -3092,11 +3199,11 @@ function shop_products() {
 
 function shop_product() {
     $bt = public_boutique_by_slug($_GET['slug'] ?? '');
-    $p = q("SELECT id,name,description,price,compare_at_price,stock_qty,image_url,slug,track_inventory,allow_backorder,is_physical,is_digital,delivery_fee,shipping_fee,shipping_fee_other_country,options_json,related_product_ids
+    $p = q("SELECT id,name,description,price,compare_at_price,stock_qty,".PUBLIC_IMAGE_COLS.",slug,track_inventory,allow_backorder,is_physical,is_digital,delivery_fee,shipping_fee,shipping_fee_other_country,options_json,related_product_ids
             FROM products WHERE id=? AND boutique_id=? AND status='active'", [$_GET['id'] ?? '', $bt['id']])->fetch();
     if (!$p) fail('Produit introuvable', 404);
     $p['variants'] = q("SELECT id,name,price,stock_qty FROM product_variants WHERE product_id=? ORDER BY name", [$p['id']])->fetchAll();
-    $p['images'] = q("SELECT id,data FROM product_images WHERE product_id=? ORDER BY position", [$p['id']])->fetchAll();
+    public_product_images($p);
     apply_active_promotion($p);
     // Produits associes (upsell) choisis a la main par le marchand sur la
     // fiche produit du tableau de bord - seuls les produits toujours actifs
@@ -3106,9 +3213,11 @@ function shop_product() {
     $p['related'] = [];
     if (is_array($relatedIds) && $relatedIds) {
         $placeholders = implode(',', array_fill(0, count($relatedIds), '?'));
-        $p['related'] = q("SELECT id,name,slug,price,compare_at_price,image_url
+        $p['related'] = q("SELECT id,name,slug,price,compare_at_price,".PUBLIC_IMAGE_COLS."
                             FROM products WHERE boutique_id=? AND status='active' AND id IN ($placeholders)",
                            array_merge([$bt['id']], $relatedIds))->fetchAll();
+        foreach ($p['related'] as &$related) public_image_url($related);
+        unset($related);
     }
     unset($p['related_product_ids']);
     $ratingRow = q("SELECT COUNT(*) c, COALESCE(AVG(rating),0) a FROM product_reviews WHERE product_id=? AND status='approved'", [$p['id']])->fetch();
@@ -6413,6 +6522,7 @@ function admin_delete_demo_data() {
         foreach ($productIds as $pid) {
             q("DELETE FROM product_variants WHERE product_id=?", [$pid]);
             q("DELETE FROM product_images WHERE product_id=?", [$pid]);
+            try { q("DELETE FROM product_thumbs WHERE product_id=?", [$pid]); } catch (PDOException $e) { /* table creee a la premiere miniature */ }
             q("DELETE FROM product_digital_codes WHERE product_id=?", [$pid]);
             q("DELETE FROM product_reviews WHERE product_id=?", [$pid]);
         }

@@ -2,7 +2,7 @@ name: Tests
 
 on:
   push:
-    branches: [main]
+    branches: [main, "essai/**"]
   pull_request:
 
 permissions:
@@ -41,7 +41,7 @@ jobs:
       - uses: shivammathur/setup-php@v2
         with:
           php-version: "8.3"
-          extensions: pdo_pgsql, curl, mbstring
+          extensions: pdo_pgsql, curl, mbstring, gd
 
       - uses: actions/setup-node@v4
         with:
@@ -49,6 +49,11 @@ jobs:
 
       - name: Syntaxe PHP
         run: php -l index.php
+
+      - name: Image Docker de production
+        run: |
+          docker build -t myboutik-test .
+          docker run --rm myboutik-test php -r 'foreach (["pdo_pgsql","curl","gd"] as $e) if (!extension_loaded($e)) { echo "manque $e\n"; exit(1); } if (!function_exists("imagecreatefromjpeg") || !function_exists("imagecreatefromwebp")) { echo "formats manquants\n"; exit(1); }'
 
       - name: Controle des pages
         run: node tests/check_pages.js

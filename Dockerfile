@@ -5,11 +5,13 @@
 # qui reste reserve au developpement local (voir router.php et Procfile).
 FROM php:8.3-apache
 
+# ext-gd et ses bibliotheques d'images : miniatures des photos (make_thumbnail()).
 # libcurl4-openssl-dev + ext-curl : necessaires pour les appels sortants
 # vers l'API Brevo (email) - voir send_email() dans index.php.
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends libpq-dev libcurl4-openssl-dev \
-    && docker-php-ext-install pdo pdo_pgsql curl \
+    && apt-get install -y --no-install-recommends libpq-dev libcurl4-openssl-dev libjpeg62-turbo-dev libpng-dev libwebp-dev \
+    && docker-php-ext-configure gd --with-jpeg --with-webp \
+    && docker-php-ext-install pdo pdo_pgsql curl gd \
     && rm -rf /var/lib/apt/lists/* \
     && a2enmod rewrite \
     && echo "ServerName localhost" > /etc/apache2/conf-available/servername.conf \

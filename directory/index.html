@@ -540,7 +540,7 @@ function renderShops(rows, q) {
   area.innerHTML = '<div class="shops-grid">'+rows.map(b => `
     <a class="shop-card" href="../store/index.html?b=${encodeURIComponent(b.slug)}&utm_source=annuaire">
       <div class="top">
-        ${b.logo_url ? '<img class="logo" src="'+b.logo_url+'">' : '<div class="ph">🏬</div>'}
+        ${b.logo_url ? '<img class="logo" src="'+escapeHtml(b.logo_url)+'" alt="" loading="lazy">' : '<div class="ph">🏬</div>'}
         <div class="name">${escapeHtml(b.name)}</div>
       </div>
       ${(b.city || b.country) ? '<div class="desc">📍 '+[escapeHtml(b.city||''), (countryFlag(b.country)?countryFlag(b.country)+' ':'')+escapeHtml(b.country||'')].filter(Boolean).join(', ')+'</div>' : ''}

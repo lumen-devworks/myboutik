@@ -83,6 +83,43 @@ const reviews = async s => (await call('/shop?action=reviews&slug=' + s.shop.slu
   await setStatus(seller, manual.data.id, 'delivered');
   check('pas d\'avis sur une commande manuelle', (await review(seller, manual.data.ref, '+225 01 99 88 77 66')).status === 403);
 
+  console.log('Photos');
+  const zlib = require('zlib');
+  const crc32 = buf => { let c, r = -1; for (const b of buf) { c = (r ^ b) & 255; for (let k = 0; k < 8; k++) c = c & 1 ? (c >>> 1) ^ 0xedb88320 : c >>> 1; r = (r >>> 8) ^ c; } return (r ^ -1) >>> 0; };
+  const chunk = (type, data) => { const t = Buffer.concat([Buffer.from(type), data]); const l = Buffer.alloc(4); l.writeUInt32BE(data.length); const c = Buffer.alloc(4); c.writeUInt32BE(crc32(t)); return Buffer.concat([l, t, c]); };
+  const png = size => { // motif peu compressible, comme une vraie photo
+    const ihdr = Buffer.alloc(13); ihdr.writeUInt32BE(size, 0); ihdr.writeUInt32BE(size, 4); ihdr[8] = 8; ihdr[9] = 2;
+    const raw = Buffer.alloc((size * 3 + 1) * size); for (let i = 0; i < raw.length; i++) raw[i] = i % (size * 3 + 1) ? (i * 7919 >> 3) & 255 : 0;
+    return 'data:image/png;base64,' + Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), chunk('IHDR', ihdr), chunk('IDAT', zlib.deflateSync(raw)), chunk('IEND', Buffer.alloc(0))]).toString('base64');
+  };
+  const imageReq = async u => { const r = await fetch(u); const b = Buffer.from(await r.arrayBuffer()); return { status: r.status, type: r.headers.get('content-type'), cache: r.headers.get('cache-control'), size: b.length }; };
+  const withPhoto = await call('/products?action=create', { boutique_id: seller.shop.id, name: 'Produit photo', price: 1000, stock_qty: 5, status: 'active', is_physical: 1, image_url: png(800) }, seller.jwt);
+  check('produit avec photo cree', withPhoto.success, withPhoto);
+  await call('/products?action=image_add', { boutique_id: seller.shop.id, product_id: withPhoto.data.id, data: png(600) }, seller.jwt);
+  await call('/boutiques?action=update', { id: seller.shop.id, logo_url: png(100) }, seller.jwt);
+  const listText = await (await fetch(API + '/shop?action=products&slug=' + seller.shop.slug)).text();
+  check('la liste ne contient plus aucune photo', !listText.includes('data:image') && listText.length < 20000, listText.length);
+  const listed1 = JSON.parse(listText).data.find(p => p.id === withPhoto.data.id);
+  check('la liste donne les adresses des photos', listed1.image_url.includes('/image?') && listed1.thumb_url.includes('product_thumb') && listed1.images.length >= 1 && listed1.images[0].data.includes('gallery'), listed1);
+  const full = await imageReq(listed1.images[0].data);
+  check('la photo complete s\'affiche', full.status === 200 && full.type.startsWith('image/') && full.size > 1000, full);
+  check('le navigateur peut la garder 30 jours', /max-age=2592000/.test(full.cache), full);
+  const thumb = await imageReq(listed1.thumb_url), thumbAgain = await imageReq(listed1.thumb_url);
+  check('la miniature est une image reduite', thumb.status === 200 && thumb.type === 'image/jpeg' && thumb.size < full.size, thumb);
+  check('la miniature reste identique', thumbAgain.size === thumb.size && thumbAgain.type === 'image/jpeg', thumbAgain);
+  const detail = await call('/shop?action=product&slug=' + seller.shop.slug + '&id=' + withPhoto.data.id);
+  check('la fiche produit ne contient pas de photo', detail.success && !JSON.stringify(detail.data).includes('data:image'), detail.message);
+  const shopInfo = await call('/shop?action=boutique&slug=' + seller.shop.slug);
+  check('le logo passe par une adresse', shopInfo.data.logo_url.includes('boutique_logo') && (await imageReq(shopInfo.data.logo_url)).status === 200, shopInfo.data.logo_url);
+  const ownView = await call('/products?action=get&boutique_id=' + seller.shop.id + '&id=' + withPhoto.data.id, null, seller.jwt);
+  check('le vendeur garde ses photos dans le tableau de bord', ownView.success && ownView.data.image_url.startsWith('data:image'), ownView.message);
+  await call('/products?action=update', { boutique_id: seller.shop.id, id: withPhoto.data.id, image_url: png(700) }, seller.jwt);
+  const changed = JSON.parse(await (await fetch(API + '/shop?action=products&slug=' + seller.shop.slug)).text()).data.find(p => p.id === withPhoto.data.id);
+  check('une nouvelle photo change d\'adresse', changed.thumb_url !== listed1.thumb_url, changed.thumb_url);
+  check('la nouvelle miniature s\'affiche', (await imageReq(changed.thumb_url)).type === 'image/jpeg');
+  const dir = await (await fetch(API + '/directory?action=boutiques')).text();
+  check('l\'annuaire ne contient pas de photo', !dir.includes('data:image'), dir.length);
+
   console.log('Plan du site pour Google');
   const sitemap = async () => (await fetch(API + '/sitemap')).text();
   const shopLoc = 'b=' + seller.shop.slug;
@@ -106,6 +143,9 @@ const reviews = async s => (await call('/shop?action=reviews&slug=' + s.shop.slu
   const victim = await newSeller('asupprimer');
   const other = await newSeller('autre');
   const victimOrder = await order(victim, '+225 07 44 55 66 77', 'Client Test');
+  const victimPhoto = await call('/products?action=create', { boutique_id: victim.shop.id, name: 'Photo supprimee', price: 1000, status: 'active', image_url: png(500) }, victim.jwt);
+  const victimThumb = JSON.parse(await (await fetch(API + '/shop?action=products&slug=' + victim.shop.slug)).text()).data.find(p => p.id === victimPhoto.data.id).thumb_url;
+  check('photo disponible avant la suppression', (await imageReq(victimThumb)).status === 200);
   check('mot de confirmation exige', !(await call('/auth?action=delete_account', { password: victim.password, confirm: 'non' }, victim.jwt)).success);
   check('mot de passe exige', (await call('/auth?action=delete_account', { password: 'faux', confirm: 'SUPPRIMER' }, victim.jwt)).status === 403);
   check('rien ne change apres un refus', (await call('/shop?action=boutique&slug=' + victim.shop.slug)).success);
@@ -127,10 +167,12 @@ const reviews = async s => (await call('/shop?action=reviews&slug=' + s.shop.slu
   check('effacement sans le mot refuse', !(await admin('account_delete_now', { user_id: victim.userId, confirm: 'non' })).success);
   const erased = await admin('account_delete_now', { user_id: victim.userId, confirm: 'SUPPRIMER' });
   check('effacement definitif', erased.success, erased);
+  check('la photo n\'est plus servie', (await imageReq(victimThumb)).status === 404);
   check('le compte n\'existe plus', (await call('/auth?action=login', { email: victim.email, password: victim.password })).status === 401);
   check('la commande n\'est plus trouvable', !(await call('/shop?action=track_order', { slug: victim.shop.slug, ref: victimOrder.ref, phone: '+225 07 44 55 66 77' })).success);
   check('les autres boutiques restent intactes', (await call('/shop?action=boutique&slug=' + other.shop.slug)).success && (await call('/shop?action=boutique&slug=' + seller.shop.slug)).success);
   check('les avis des autres restent', (await reviews(seller)).length === 1);
+  check('les photos des autres restent', (await imageReq(changed.thumb_url)).status === 200);
 
   console.log('\n' + passed + ' reussis, ' + failed + ' en echec');
   process.exit(failed ? 1 : 0);
