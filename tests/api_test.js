@@ -95,7 +95,7 @@ const reviews = async s => (await call('/shop?action=reviews&slug=' + s.shop.slu
     const raw = Buffer.alloc((size * 3 + 1) * size); for (let i = 0; i < raw.length; i++) raw[i] = i % (size * 3 + 1) ? (i * 7919 >> 3) & 255 : 0;
     return 'data:image/png;base64,' + Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), chunk('IHDR', ihdr), chunk('IDAT', zlib.deflateSync(raw)), chunk('IEND', Buffer.alloc(0))]).toString('base64');
   };
-  const imageReq = async u => { const r = await fetch(u); const b = Buffer.from(await r.arrayBuffer()); return { status: r.status, type: r.headers.get('content-type'), cache: r.headers.get('cache-control'), size: b.length }; };
+  const imageReq = async u => { const r = await fetch(u); const b = Buffer.from(await r.arrayBuffer()); let longest = 0; for (let i = 2; i < b.length - 8 && b[i] === 0xff; i += 2 + b.readUInt16BE(i + 2)) if (b[i + 1] === 0xc0 || b[i + 1] === 0xc2) { longest = Math.max(b.readUInt16BE(i + 5), b.readUInt16BE(i + 7)); break; } return { status: r.status, type: r.headers.get('content-type'), cache: r.headers.get('cache-control'), size: b.length, longest }; };
   const withPhoto = await call('/products?action=create', { boutique_id: seller.shop.id, name: 'Produit photo', price: 1000, stock_qty: 5, status: 'active', is_physical: 1, image_url: png(800) }, seller.jwt);
   check('produit avec photo cree', withPhoto.success, withPhoto);
   await call('/products?action=image_add', { boutique_id: seller.shop.id, product_id: withPhoto.data.id, data: png(600) }, seller.jwt);
@@ -108,7 +108,7 @@ const reviews = async s => (await call('/shop?action=reviews&slug=' + s.shop.slu
   check('la photo complete s\'affiche', full.status === 200 && full.type.startsWith('image/') && full.size > 1000, full);
   check('le navigateur peut la garder 30 jours', /max-age=2592000/.test(full.cache), full);
   const thumb = await imageReq(listed1.thumb_url), thumbAgain = await imageReq(listed1.thumb_url);
-  check('la miniature est une image reduite', thumb.status === 200 && thumb.type === 'image/jpeg' && thumb.size < full.size, thumb);
+  check('la miniature est une image reduite', thumb.status === 200 && thumb.type === 'image/jpeg' && thumb.longest === 400, thumb);
   check('la miniature reste identique', thumbAgain.size === thumb.size && thumbAgain.type === 'image/jpeg', thumbAgain);
   const detail = await call('/shop?action=product&slug=' + seller.shop.slug + '&id=' + withPhoto.data.id);
   check('la fiche produit ne contient pas de photo', detail.success && !JSON.stringify(detail.data).includes('data:image'), detail.message);
