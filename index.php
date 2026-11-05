@@ -1897,7 +1897,7 @@ function auth_register() {
       [$id, $email, password_hash($password, PASSWORD_DEFAULT), $fullName, $token, $myReferralCode, $referredBy]);
 
     $verifyLink = auth_verify_link($token, $b['page_url'] ?? '');
-    send_email($email, 'Verifiez votre email MYBOUTIK', "Cliquez sur ce lien pour activer votre compte :\n".$verifyLink);
+    send_email($email, 'Vérifiez votre adresse e-mail MYBOUTIK', "Cliquez sur ce lien pour activer votre compte :\n".$verifyLink);
 
     $data = ['email' => $email];
     if (APP_ENV === 'development') $data['verify_link_dev_only'] = $verifyLink;
@@ -1937,7 +1937,7 @@ function auth_resend() {
     if ($user && !$user['email_verified_at']) {
         $token = bin2hex(random_bytes(24));
         q("UPDATE users SET verification_token=?, verification_sent_at=NOW() WHERE id=?", [$token, $user['id']]);
-        send_email($email, 'Verifiez votre email MYBOUTIK', "Cliquez sur ce lien pour activer votre compte :\n".auth_verify_link($token, bg('page_url','')));
+        send_email($email, 'Vérifiez votre adresse e-mail MYBOUTIK', "Cliquez sur ce lien pour activer votre compte :\n".auth_verify_link($token, bg('page_url','')));
     }
     ok(null, 'Si un compte existe avec cet email, un nouveau lien vient d\'etre envoye.');
 }
@@ -1977,9 +1977,9 @@ function auth_forgot_password() {
     if ($user) {
         $token = bin2hex(random_bytes(24));
         q("UPDATE users SET reset_token=?, reset_token_expires_at=NOW() + INTERVAL '1 hour' WHERE id=?", [$token, $user['id']]);
-        send_email($email, 'Reinitialisation de votre mot de passe MYBOUTIK',
+        send_email($email, 'Réinitialisation de votre mot de passe MYBOUTIK',
             "Cliquez sur ce lien pour choisir un nouveau mot de passe (valable 1 heure) :\n".auth_reset_link($token, bg('page_url','')).
-            "\n\nSi vous n'etes pas a l'origine de cette demande, ignorez simplement cet email.");
+            "\n\nSi vous n'êtes pas à l'origine de cette demande, ignorez simplement cet e-mail.");
     }
     ok(null, 'Si un compte existe avec cet email, un lien de reinitialisation vient d\'etre envoye.');
 }
@@ -3476,7 +3476,7 @@ function shop_checkout() {
 function notify_new_order($bt, $ref, $customerName, $total) {
     $settings = q("SELECT notify_order_email, notify_email FROM boutiques WHERE id=?", [$bt['id']])->fetch();
     if (!$settings) return;
-    $summary = "Client: $customerName\nTotal: $total ".($bt['currency'] ?: 'XOF')."\nReference: $ref\n\nOuvrez votre tableau de bord MYBOUTIK pour la traiter.";
+    $summary = "Client : $customerName\nTotal : $total ".($bt['currency'] ?: 'XOF')."\nRéférence : $ref\n\nOuvrez votre tableau de bord MYBOUTIK pour la traiter.";
     if ($settings['notify_order_email']) {
         $to = $settings['notify_email'] ?: null;
         if (!$to) {
@@ -3659,8 +3659,8 @@ function notify_new_dispute($bt, $ref, $customerName, $message) {
         $to = $owner['email'] ?? null;
     }
     if (!$to) return;
-    $summary = "Client: $customerName\nCommande: $ref\n\nMessage du client:\n$message\n\nOuvrez votre tableau de bord MYBOUTIK (Commandes) pour repondre.";
-    send_email($to, 'Reclamation sur la commande '.$ref.' - '.$bt['name'], $summary);
+    $summary = "Client : $customerName\nCommande : $ref\n\nMessage du client :\n$message\n\nOuvrez votre tableau de bord MYBOUTIK (Commandes) pour répondre.";
+    send_email($to, 'Réclamation sur la commande '.$ref.' - '.$bt['name'], $summary);
 }
 // Alerte qualite envoyee a l'operateur (ADMIN_NOTIFY_EMAIL, optionnelle) a
 // chaque nouvelle reclamation, avec un objet plus alarmant si la boutique
@@ -3670,10 +3670,10 @@ function notify_admin_new_dispute($bt, $ref, $message) {
     if (!ADMIN_NOTIFY_EMAIL) return;
     $openCount = (int)q("SELECT COUNT(*) c FROM orders WHERE boutique_id=? AND dispute_status='open'", [$bt['id']])->fetch()['c'];
     $subject = $openCount >= 3
-        ? 'ALERTE qualite : '.$bt['name'].' cumule '.$openCount.' reclamations en attente'
-        : 'Nouvelle reclamation - '.$bt['name'];
-    $body = "Boutique: {$bt['name']} ({$bt['slug']})\nCommande: $ref\n\nMessage du client:\n$message\n\n".
-            "Reclamations en attente pour cette boutique : $openCount\n\nPanneau admin : ".FRONTEND_BASE_URL."/admin.html";
+        ? 'ALERTE qualité : '.$bt['name'].' cumule '.$openCount.' réclamations en attente'
+        : 'Nouvelle réclamation - '.$bt['name'];
+    $body = "Boutique : {$bt['name']} ({$bt['slug']})\nCommande : $ref\n\nMessage du client :\n$message\n\n".
+            "Réclamations en attente pour cette boutique : $openCount\n\nPanneau admin : ".FRONTEND_BASE_URL."/admin.html";
     send_email(ADMIN_NOTIFY_EMAIL, $subject, $body);
 }
 
@@ -5197,9 +5197,9 @@ function team_invite($pl) {
     q("INSERT INTO boutique_members (id,boutique_id,email,role,invite_token,status,delivery_person_id) VALUES (?,?,?,?,?,'pending',?)",
       [$id, $bt['id'], $email, $role, $token, $deliveryPersonId]);
     $link = team_invite_link($token, $b['page_url'] ?? '');
-    send_email($email, 'Invitation a rejoindre '.$bt['name'].' sur MYBOUTIK',
-        "Vous avez ete invite(e) a gerer la boutique ".$bt['name']." avec le role \"$role\".\n".
-        "Connectez-vous (ou creez un compte avec cette meme adresse email) puis ouvrez ce lien :\n".$link);
+    send_email($email, 'Invitation à rejoindre '.$bt['name'].' sur MYBOUTIK',
+        "Vous recevez une invitation à gérer la boutique ".$bt['name']." avec le rôle \"$role\".\n".
+        "Connectez-vous (ou créez un compte avec cette même adresse e-mail) puis ouvrez ce lien :\n".$link);
     $data = ['id'=>$id];
     if (APP_ENV === 'development') $data['invite_link_dev_only'] = $link;
     ok($data, 'Invitation envoyee', 201);
@@ -5609,8 +5609,8 @@ function admin_boutique_warn() {
     q("UPDATE boutiques SET warning_count = warning_count + 1, last_warned_at = NOW() WHERE id=?", [$id]);
     admin_log($id, 'Avertissement envoye par l\'administration : '.$message);
     send_email($row['owner_email'], 'Avertissement concernant votre boutique '.$row['name'].' - MYBOUTIK',
-        "Bonjour,\n\nL'equipe MYBOUTIK vous adresse un avertissement concernant votre boutique ".$row['name'].".\n\n".$message.
-        "\n\nMerci de corriger la situation rapidement afin d'eviter une suspension de votre boutique.\n\nL'equipe MYBOUTIK");
+        "Bonjour,\n\nL'équipe MYBOUTIK vous adresse un avertissement concernant votre boutique ".$row['name'].".\n\n".$message.
+        "\n\nMerci de corriger la situation rapidement afin d'éviter une suspension de votre boutique.\n\nL'équipe MYBOUTIK");
     ok(null, 'Avertissement envoye');
 }
 // Trace des actions administratives (suspension/reactivation/avertissement)
@@ -6854,17 +6854,17 @@ function cron_stock_alerts() {
         $messageParts = [];
         if ($low) {
             $lines = array_map(fn($p) => '- '.$p['name'].' : '.$p['stock_qty'].' restant(s)', $low);
-            $messageParts[] = "Stock limite sur ".count($low)." produit(s) physique(s) :\n".implode("\n", $lines);
+            $messageParts[] = "Stock limité sur ".count($low)." produit(s) physique(s) :\n".implode("\n", $lines);
         }
         if ($lowCodes) {
             $lines = array_map(fn($p) => '- '.$p['name'].' : '.$p['available_codes'].' code(s) disponible(s)', $lowCodes);
-            $messageParts[] = "Stock de codes numeriques limite sur ".count($lowCodes)." produit(s) :\n".implode("\n", $lines);
+            $messageParts[] = "Stock de codes numériques limité sur ".count($lowCodes)." produit(s) :\n".implode("\n", $lines);
         }
         $message = implode("\n\n", $messageParts)."\n\nBoutique : ".$bt['name'];
         $settings = q("SELECT notify_order_email, notify_email FROM boutiques WHERE id=?", [$bt['id']])->fetch();
         if ($settings['notify_order_email']) {
             $to = $settings['notify_email'] ?: (q("SELECT email FROM users WHERE id=?", [$bt['owner_user_id']])->fetchColumn() ?: null);
-            if ($to) send_email($to, 'Alerte stock limite - '.$bt['name'], $message);
+            if ($to) send_email($to, 'Alerte stock limité - '.$bt['name'], $message);
         }
         q("UPDATE boutiques SET last_stock_alert_at=NOW() WHERE id=?", [$bt['id']]);
         $sent++;

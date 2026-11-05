@@ -4084,7 +4084,7 @@ function openPromoForm(prefillPhone) {
       <div class="field"><label>${t('label_expires_optional')}</label><input id="promoExpires" type="date"></div>
     </div>
     <div class="field"><label>${t('label_reserve_customers_optional')}</label>
-      <textarea id="promoTargets" rows="3" placeholder="+225 07 00 00 00 00&#10;+225 05 45 93 76 65">${escapeHtml(prefillPhone||'')}</textarea>
+      <textarea id="promoTargets" rows="3" placeholder="+225 07 00 00 00 00&#10;+225 05 00 00 00 00">${escapeHtml(prefillPhone||'')}</textarea>
       <div class="muted" style="font-size:12px;margin-top:4px">${t('promo_targets_hint')}</div>
     </div>
     <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal()">${t('btn_cancel')}</button><button class="btn btn-primary" onclick="submitPromoForm()">${t('btn_create')}</button></div>`);
