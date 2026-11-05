@@ -69,4 +69,6 @@ jobs:
 
       - name: Journal du serveur en cas d'echec
         if: failure()
-        run: grep -v "Email a envoyer" server.log | tail -60
+        run: |
+          grep -v "Email a envoyer" server.log | tail -60
+          grep -E "PHP (Fatal|Warning|Parse)|MYBOUTIK\] [a-z_]+:" server.log | tail -5 | cut -c1-400 | sed 's/^/::error::/' || true

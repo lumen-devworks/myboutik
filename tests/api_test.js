@@ -8,7 +8,10 @@ if (!/^http:\/\/(127\.0\.0\.1|localhost)(:|\/|$)/.test(API)) { console.error('Re
 let failed = 0, passed = 0;
 const check = (label, condition, detail) => {
   if (condition) { passed++; console.log('  ok  ' + label); return; }
-  failed++; console.error('  ECHEC  ' + label + (detail !== undefined ? ' -> ' + JSON.stringify(detail).slice(0, 300) : ''));
+  failed++;
+  const message = label + (detail !== undefined ? ' -> ' + JSON.stringify(detail).slice(0, 300) : '');
+  // Sur GitHub, "::error::" rend le message lisible sans se connecter.
+  console.error((process.env.GITHUB_ACTIONS ? '::error::' : '  ECHEC  ') + message);
 };
 const call = async (path, body, token) => {
   const r = await fetch(API + path, {
@@ -176,4 +179,4 @@ const reviews = async s => (await call('/shop?action=reviews&slug=' + s.shop.slu
 
   console.log('\n' + passed + ' reussis, ' + failed + ' en echec');
   process.exit(failed ? 1 : 0);
-})().catch(e => { console.error('Le test s\'est arrete : ' + e.stack); process.exit(1); });
+})().catch(e => { console.error((process.env.GITHUB_ACTIONS ? '::error::' : '') + 'Le test s\'est arrete : ' + String(e.stack).replace(/\n/g, ' | ').slice(0, 600)); process.exit(1); });
