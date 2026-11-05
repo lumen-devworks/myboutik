@@ -139,6 +139,9 @@ const EN_DICT = [
     'Action inconnue' => 'Unknown action',
     'Action non autorisee pour votre role' => 'Action not allowed for your role',
     'Action reservee au proprietaire ou a un administrateur de la boutique' => 'Action reserved for the shop owner or an administrator',
+    'Seul le proprietaire ou un administrateur peut corriger une commande terminee' => 'Only the owner or an administrator can correct a finished order',
+    'Indiquez le motif de la correction' => 'Please give the reason for the correction',
+    'Cette commande est terminee : corrigez son statut depuis la page Commandes' => 'This order is finished: correct its status from the Orders page',
     'Adresse email invalide' => 'Invalid email address',
     'Avis envoye. Merci pour votre retour !' => 'Feedback sent. Thank you for your input!',
     'Marque comme repondu' => 'Marked as replied',
@@ -549,6 +552,8 @@ function period_clause($period, $col='created_at') {
 // Statuts consideres comme "argent encaisse" (validee ou livree), par
 // opposition a pending (pas encore traitee)/refusee/annulee.
 const ENCAISSE_STATUSES = "('processing','shipped','delivered')";
+// Commande terminee : voir assert_order_correction_allowed().
+const ORDER_FINAL_STATUSES = ['delivered','refused','cancelled'];
 const ORDER_EVENTS_DDL = "CREATE TABLE IF NOT EXISTS order_events (
     id SERIAL PRIMARY KEY,
     order_id VARCHAR(36) NOT NULL,
@@ -3614,6 +3619,28 @@ function orders_create_manual($pl) {
     ok(q("SELECT * FROM orders WHERE id=?", [$orderId])->fetch(), 'Commande creee', 201);
 }
 
+// Livree, refusee ou annulee : la commande est terminee. La corriger reste possible
+// (erreur de clic) mais reservee au proprietaire ou a un admin, avec un motif garde
+// dans l'historique, car cela change les chiffres encaisses et le suivi du client.
+function assert_order_correction_allowed($bt, $reason) {
+    if (!in_array($bt['_member_role'] ?? '', ['owner','admin'], true)) {
+        fail('Seul le proprietaire ou un administrateur peut corriger une commande terminee', 403);
+    }
+    if ($reason === '') fail('Indiquez le motif de la correction');
+}
+// Garde la page Livraisons alignee sur le statut de la commande. Une commande
+// annulee garde sa ligne telle quelle : aucun statut de livraison ne l'exprime.
+function sync_delivery_with_order($orderId, $status) {
+    if ($status === 'delivered') {
+        q("UPDATE delivery_assignments SET status='delivered', delivered_at=NOW() WHERE order_id=?", [$orderId]);
+    } elseif ($status === 'refused') {
+        q("UPDATE delivery_assignments SET status='refused', delivered_at=NULL WHERE order_id=?", [$orderId]);
+    } elseif ($status === 'shipped') {
+        q("UPDATE delivery_assignments SET status='in_delivery', delivered_at=NULL WHERE order_id=?", [$orderId]);
+    } elseif ($status === 'pending' || $status === 'processing') {
+        q("UPDATE delivery_assignments SET status=CASE WHEN delivery_person_id IS NULL THEN 'to_assign' ELSE 'assigned' END, delivered_at=NULL WHERE order_id=?", [$orderId]);
+    }
+}
 function orders_update_status($pl) {
     $b = body();
     $bt = require_boutique_owned($b['boutique_id'] ?? '', $pl['sub']);
@@ -3621,15 +3648,23 @@ function orders_update_status($pl) {
     $status = $b['status'] ?? '';
     $allowed = ['pending','processing','shipped','delivered','refused','cancelled'];
     if (!in_array($status, $allowed, true)) fail('Statut invalide');
+    $isCorrection = in_array($o['status'], ORDER_FINAL_STATUSES, true) && $status !== $o['status'];
+    $reason = substr(trim((string)($b['reason'] ?? '')), 0, 300);
+    if ($isCorrection) assert_order_correction_allowed($bt, $reason);
     sync_order_stock($o, $status);
     if ($status === 'delivered') {
         q("UPDATE orders SET status=?, delivered_at=NOW() WHERE id=?", [$status, $o['id']]);
         maybe_send_digital_delivery($bt, $o);
     } else {
-        q("UPDATE orders SET status=? WHERE id=?", [$status, $o['id']]);
+        q("UPDATE orders SET status=?, delivered_at=NULL WHERE id=?", [$status, $o['id']]);
     }
-    if ($o['status'] !== $status) record_order_event($o['id'], $status);
-    log_activity($bt['id'], 'Commande '.$o['ref'].' -> '.$status, $pl['sub']);
+    if ($o['status'] !== $status) {
+        sync_delivery_with_order($o['id'], $status);
+        record_order_event($o['id'], $status);
+    }
+    log_activity($bt['id'], $isCorrection
+        ? 'Correction de la commande '.$o['ref'].' : '.$o['status'].' -> '.$status.'. Motif : '.$reason
+        : 'Commande '.$o['ref'].' -> '.$status, $pl['sub']);
     ok(q("SELECT * FROM orders WHERE id=?", [$o['id']])->fetch(), 'Statut mis a jour');
 }
 
@@ -3823,7 +3858,7 @@ function route_deliveries($action) {
 function deliveries_list($pl) {
     $bt = require_boutique_owned($_GET['boutique_id'] ?? '', $pl['sub']);
     $status = $_GET['status'] ?? '';
-    $sql = "SELECT da.*, o.ref, o.customer_name, o.customer_phone, o.customer_address, o.total,
+    $sql = "SELECT da.*, o.ref, o.status AS order_status, o.customer_name, o.customer_phone, o.customer_address, o.total,
                    dp.name AS delivery_person_name, dp.phone AS delivery_person_phone
             FROM delivery_assignments da
             JOIN orders o ON o.id = da.order_id
@@ -3893,6 +3928,7 @@ function delivery_assign($pl) {
     deny_roles($bt, ['livreur']);
     $o = order_owned($b['order_id'] ?? '', $bt['id']);
     delivery_person_owned($b['delivery_person_id'] ?? '', $bt['id']);
+    if (in_array($o['status'], ORDER_FINAL_STATUSES, true)) fail('Cette commande est terminee : corrigez son statut depuis la page Commandes', 409);
     q("UPDATE delivery_assignments SET delivery_person_id=?, status='assigned', assigned_at=NOW() WHERE order_id=?",
       [$b['delivery_person_id'], $o['id']]);
     if (q("UPDATE orders SET status='processing' WHERE id=? AND status='pending'", [$o['id']])->rowCount() > 0) record_order_event($o['id'], 'processing');
@@ -3916,6 +3952,7 @@ function delivery_update_status($pl) {
     $status = $b['status'] ?? '';
     $allowed = ['to_assign','assigned','in_delivery','delivered','refused'];
     if (!in_array($status, $allowed, true)) fail('Statut invalide');
+    if (in_array($o['status'], ORDER_FINAL_STATUSES, true)) fail('Cette commande est terminee : corrigez son statut depuis la page Commandes', 409);
     $newOrderStatus = ['delivered' => 'delivered', 'refused' => 'refused', 'in_delivery' => 'shipped'][$status] ?? null;
     if ($newOrderStatus) sync_order_stock($o, $newOrderStatus);
     if ($status === 'delivered') {

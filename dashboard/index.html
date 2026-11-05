@@ -1165,6 +1165,29 @@ const I18N = {
     order_status_shipped: 'En livraison',
     order_status_shipped_mail: 'Expédiée',
     order_status_sent_email: 'Envoyée par e-mail',
+    correction_title: 'Corriger une commande terminée',
+    correction_text: 'Cette commande est « {from} ». La passer à « {to} » modifie vos chiffres, votre stock et le suivi du client.',
+    correction_digital_warning: 'Le produit numérique a déjà été envoyé au client : cette correction ne le reprend pas.',
+    correction_reason_label: 'Motif de la correction',
+    correction_reason_required: 'Choisissez un motif.',
+    correction_reason_choose: 'Choisir un motif…',
+    correction_reason_other_placeholder: 'Précisez le motif',
+    reason_other: 'Autre motif…',
+    reason_wrong_click: 'Erreur de saisie du statut',
+    reason_customer_accepted: 'Le client a finalement accepté la commande',
+    reason_payment_received: 'Paiement finalement reçu',
+    reason_customer_refused: 'Le client a refusé à la livraison',
+    reason_customer_unreachable: 'Client injoignable',
+    reason_product_returned: 'Produit retourné par le client',
+    reason_customer_cancelled: 'Le client a annulé sa commande',
+    reason_out_of_stock: 'Produit indisponible',
+    reason_duplicate_order: 'Commande en double',
+    reason_payment_missing: 'Paiement non reçu',
+    reason_delivery_retry: 'Nouvelle tentative de livraison',
+    reason_customer_changed_mind: 'Le client souhaite finalement la commande',
+    correction_ok_btn: 'Confirmer la correction',
+    correction_locked_title: 'Seul le propriétaire ou un administrateur peut corriger une commande terminée.',
+    delivery_locked_title: 'Commande terminée : corrigez son statut depuis la page Commandes.',
     order_status_delivered: 'Livrée',
     order_status_refused: 'Refusée',
     order_status_cancelled: 'Annulée',
@@ -1855,6 +1878,29 @@ const I18N = {
     order_status_shipped: 'Out for delivery',
     order_status_shipped_mail: 'Shipped',
     order_status_sent_email: 'Sent by email',
+    correction_title: 'Correct a finished order',
+    correction_text: 'This order is "{from}". Changing it to "{to}" affects your figures, your stock and the customer\'s tracking.',
+    correction_digital_warning: 'The digital product has already been sent to the customer: this correction does not take it back.',
+    correction_reason_label: 'Reason for the correction',
+    correction_reason_required: 'Please choose a reason.',
+    correction_reason_choose: 'Choose a reason…',
+    correction_reason_other_placeholder: 'Specify the reason',
+    reason_other: 'Other reason…',
+    reason_wrong_click: 'Wrong status entered',
+    reason_customer_accepted: 'The customer finally accepted the order',
+    reason_payment_received: 'Payment finally received',
+    reason_customer_refused: 'The customer refused at delivery',
+    reason_customer_unreachable: 'Customer unreachable',
+    reason_product_returned: 'Product returned by the customer',
+    reason_customer_cancelled: 'The customer cancelled the order',
+    reason_out_of_stock: 'Product unavailable',
+    reason_duplicate_order: 'Duplicate order',
+    reason_payment_missing: 'Payment not received',
+    reason_delivery_retry: 'New delivery attempt',
+    reason_customer_changed_mind: 'The customer wants the order after all',
+    correction_ok_btn: 'Confirm the correction',
+    correction_locked_title: 'Only the owner or an administrator can correct a finished order.',
+    delivery_locked_title: 'Finished order: correct its status from the Orders page.',
     order_status_delivered: 'Delivered',
     order_status_refused: 'Refused',
     order_status_cancelled: 'Cancelled',
@@ -2403,14 +2449,78 @@ function renderOrdersTable(rows, bt, compact) {
 function toggleAllOrderChecks(master) {
   document.querySelectorAll('.order-check').forEach(el => { el.checked = master.checked; });
 }
+// Une commande livree, refusee ou annulee est terminee : seul le proprietaire ou
+// un administrateur peut la corriger, avec un motif. Le serveur applique la meme
+// regle (voir assert_order_correction_allowed()), ceci n'est que l'affichage.
+const ORDER_FINAL_STATUSES = ['delivered','refused','cancelled'];
+function canCorrectFinalOrder() { return ['owner','admin'].includes((CURRENT && CURRENT.my_role) || 'owner'); }
 function orderStatusSelect(o) {
   // Rien n'est transporte pour un produit numerique : pas d'etape de livraison.
   const opts = ['pending','processing','shipped','delivered','refused','cancelled'].filter(s => s !== 'shipped' || !orderIsDigitalOnly(o) || o.status === 'shipped');
-  return '<select onchange="updateOrderStatus(\''+o.id+'\',this.value)" style="padding:5px 8px;border:1px solid var(--border);border-radius:7px;font-size:12px">'
+  const locked = ORDER_FINAL_STATUSES.includes(o.status) && !canCorrectFinalOrder();
+  const digitalSent = o.digital_delivery_sent_at ? '1' : '';
+  return '<select onchange="updateOrderStatus(\''+o.id+'\',this.value,this)" data-prev="'+escapeHtml(o.status)+'" data-prev-label="'+escapeHtml(orderStatusLabel(o, o.status))+'" data-digital-sent="'+digitalSent+'"'
+    + (locked ? ' disabled title="'+escapeHtml(t('correction_locked_title'))+'"' : '')
+    + ' style="padding:5px 8px;border:1px solid var(--border);border-radius:7px;font-size:12px">'
     + opts.map(s => '<option value="'+s+'" '+(s===o.status?'selected':'')+'>'+orderStatusLabel(o, s)+'</option>').join('') + '</select>';
 }
-function updateOrderStatus(id, status) {
-  post('/orders?action=update_status', {boutique_id:CURRENT.id, id, status}).then(() => route());
+// Motifs proposes selon le nouveau statut ; "Autre" ouvre un champ libre. Le texte
+// choisi part tel quel au serveur, qui le garde dans l'historique.
+function correctionReasons(status) {
+  const keys = status === 'delivered' ? ['reason_customer_accepted','reason_payment_received','reason_wrong_click']
+    : status === 'refused' ? ['reason_customer_refused','reason_customer_unreachable','reason_product_returned','reason_wrong_click']
+    : status === 'cancelled' ? ['reason_customer_cancelled','reason_customer_unreachable','reason_product_returned','reason_out_of_stock','reason_duplicate_order','reason_payment_missing','reason_wrong_click']
+    : ['reason_delivery_retry','reason_customer_changed_mind','reason_wrong_click'];
+  return keys.map(k => t(k));
+}
+// Resout avec le motif choisi, ou null si la personne annule.
+function askOrderCorrection(fromLabel, toLabel, digitalSent, status) {
+  return new Promise(resolve => {
+    document.getElementById('confirmModalBody').innerHTML = `
+      <h3 style="margin-bottom:8px">${escapeHtml(t('correction_title'))}</h3>
+      <p style="font-size:14px;line-height:1.5;margin-bottom:10px">${escapeHtml(t('correction_text').split('{from}').join(fromLabel).split('{to}').join(toLabel))}</p>
+      ${digitalSent ? '<p style="font-size:13px;line-height:1.5;margin-bottom:10px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:8px 10px">'+escapeHtml(t('correction_digital_warning'))+'</p>' : ''}
+      <label for="correctionReason" style="display:block;font-size:13px;font-weight:600;margin-bottom:4px">${escapeHtml(t('correction_reason_label'))}</label>
+      <select id="correctionReason" style="width:100%;padding:9px 8px;border:1px solid var(--border);border-radius:8px;font-family:inherit;font-size:13px">
+        <option value="">${escapeHtml(t('correction_reason_choose'))}</option>
+        ${correctionReasons(status).map(r => '<option value="'+escapeHtml(r)+'">'+escapeHtml(r)+'</option>').join('')}
+        <option value="__other">${escapeHtml(t('reason_other'))}</option>
+      </select>
+      <textarea id="correctionReasonOther" rows="2" maxlength="300" placeholder="${escapeHtml(t('correction_reason_other_placeholder'))}" style="display:none;width:100%;margin-top:8px;padding:8px;border:1px solid var(--border);border-radius:8px;font-family:inherit;font-size:13px"></textarea>
+      <div id="correctionError" style="color:#b91c1c;font-size:12.5px;margin:4px 0 8px"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" id="confirmCancelBtn">${t('btn_cancel')}</button>
+        <button type="button" class="btn btn-danger" id="confirmOkBtn">${escapeHtml(t('correction_ok_btn'))}</button>
+      </div>
+    `;
+    document.getElementById('confirmOverlay').classList.add('open');
+    const choice = document.getElementById('correctionReason');
+    const other = document.getElementById('correctionReasonOther');
+    choice.onchange = () => {
+      other.style.display = choice.value === '__other' ? 'block' : 'none';
+      if (choice.value === '__other') other.focus();
+    };
+    const finish = (result) => { document.getElementById('confirmOverlay').classList.remove('open'); resolve(result); };
+    document.getElementById('confirmCancelBtn').onclick = () => finish(null);
+    document.getElementById('confirmOkBtn').onclick = () => {
+      const reason = choice.value === '__other' ? other.value.trim() : choice.value;
+      if (!reason) { document.getElementById('correctionError').textContent = t('correction_reason_required'); return; }
+      finish(reason);
+    };
+  });
+}
+function updateOrderStatus(id, status, select) {
+  const send = (reason) => post('/orders?action=update_status', {boutique_id:CURRENT.id, id, status, reason}).then(({data}) => {
+    if (!data.success) showToast(data.message, 'error');
+    route();
+  });
+  const prev = select ? select.dataset.prev : '';
+  if (!ORDER_FINAL_STATUSES.includes(prev) || prev === status) { send(''); return; }
+  const toLabel = select.selectedOptions[0] ? select.selectedOptions[0].textContent : status;
+  askOrderCorrection(select.dataset.prevLabel, toLabel, !!select.dataset.digitalSent, status).then(reason => {
+    if (reason === null) { select.value = prev; return; }
+    send(reason);
+  });
 }
 
 // Bordereau imprimable a remettre au livreur : recu dans une fenetre a part
@@ -2702,11 +2812,12 @@ function renderDeliveriesTable(rows, bt, persons) {
 }
 function deliveryStatusSelect(r) {
   const opts = ['to_assign','assigned','in_delivery','delivered','refused'];
-  return '<select onchange="updateDeliveryStatus(\''+r.order_id+'\',this.value)" style="padding:5px 8px;border:1px solid var(--border);border-radius:7px;font-size:12px">'
+  const finished = ORDER_FINAL_STATUSES.includes(r.order_status);
+  return '<select onchange="updateDeliveryStatus(\''+r.order_id+'\',this.value)"'+(finished ? ' disabled title="'+escapeHtml(t('delivery_locked_title'))+'"' : '')+' style="padding:5px 8px;border:1px solid var(--border);border-radius:7px;font-size:12px">'
     + opts.map(s=>'<option value="'+s+'" '+(s===r.status?'selected':'')+'>'+STATUS_LABELS_FN()[s]+'</option>').join('') + '</select>';
 }
-function assignDelivery(orderId, personId) { if(!personId) return; post('/deliveries?action=assign', {boutique_id:CURRENT.id, order_id:orderId, delivery_person_id:personId}).then(()=>route()); }
-function updateDeliveryStatus(orderId, status) { post('/deliveries?action=update_status', {boutique_id:CURRENT.id, order_id:orderId, status}).then(()=>route()); }
+function assignDelivery(orderId, personId) { if(!personId) return; post('/deliveries?action=assign', {boutique_id:CURRENT.id, order_id:orderId, delivery_person_id:personId}).then(({data})=>{ if(!data.success) showToast(data.message,'error'); route(); }); }
+function updateDeliveryStatus(orderId, status) { post('/deliveries?action=update_status', {boutique_id:CURRENT.id, order_id:orderId, status}).then(({data})=>{ if(!data.success) showToast(data.message,'error'); route(); }); }
 function VEHICLE_LABELS_FN() { return {moto:t('vehicle_moto'), voiture:t('vehicle_voiture'), velo:t('vehicle_velo'), a_pied:t('vehicle_a_pied'), autre:t('vehicle_autre')}; }
 function openDeliveryPersonForm(p) {
   p = p || {};
