@@ -251,6 +251,9 @@
       <div class="table-wrap" id="disputesBody"></div>
       <h4 id="h4LowReviews" style="margin:20px 0 8px">Avis ≤ 2 étoiles</h4>
       <div class="table-wrap" id="lowReviewsBody"></div>
+      <h4 id="h4SuspiciousReviews" style="margin:20px 0 8px">Avis à vérifier</h4>
+      <p class="muted" id="suspiciousReviewsNote" style="margin-bottom:8px"></p>
+      <div class="table-wrap" id="suspiciousReviewsBody"></div>
     </div>
     <div class="card" data-panel="overview">
       <h3 id="h3TopBoutiques">Top 10 des boutiques</h3>
@@ -510,6 +513,12 @@ const I18N = {
     status_open: 'En attente', status_resolved: 'Répondue',
     no_disputes: 'Aucune réclamation pour le moment.',
     no_low_reviews: 'Aucun avis à 2 étoiles ou moins pour le moment.',
+    h4_suspicious_reviews: 'Avis à vérifier',
+    suspicious_reviews_note: 'Ce sont des signaux à vérifier, pas des preuves : un bon client peut aussi laisser plusieurs avis.',
+    col_alert: 'Alerte', col_last_review: 'Dernier avis',
+    alert_same_phone: '{n} avis avec le même numéro (…{end}) en 90 jours',
+    alert_burst: '{n} avis 5 étoiles en 7 jours',
+    no_suspicious_reviews: 'Aucun avis à vérifier pour le moment.',
     col_pending_since: 'En attente depuis', badge_overdue_title: 'En attente depuis plus de 48h',
     hours_ago: '{h} h', days_ago: '{d} j',
     col_refusal_rate: 'Taux de refus/annulation', col_last_sale: 'Dernière vente',
@@ -705,6 +714,12 @@ const I18N = {
     status_open: 'Pending', status_resolved: 'Replied',
     no_disputes: 'No complaints at the moment.',
     no_low_reviews: 'No reviews at 2 stars or below at the moment.',
+    h4_suspicious_reviews: 'Reviews to check',
+    suspicious_reviews_note: 'These are signals to check, not proof: a good customer can also leave several reviews.',
+    col_alert: 'Alert', col_last_review: 'Latest review',
+    alert_same_phone: '{n} reviews from the same number (…{end}) in 90 days',
+    alert_burst: '{n} 5-star reviews in 7 days',
+    no_suspicious_reviews: 'No reviews to check at the moment.',
     col_pending_since: 'Pending since', badge_overdue_title: 'Pending for more than 48h',
     hours_ago: '{h}h', days_ago: '{d}d',
     col_refusal_rate: 'Refusal/cancel rate', col_last_sale: 'Last sale',
@@ -837,7 +852,7 @@ function setLang(lang) {
     renderStats(CLIENTS); renderClients(); renderHistoryFiltered();
     renderSubs(SUBS_ROWS); renderPayouts(PAYOUTS_ROWS); renderFeedback(FEEDBACK_ROWS);
     renderBoutiquesFiltered();
-    renderDisputes(DISPUTES_ROWS); renderLowReviews(LOW_REVIEWS_ROWS);
+    renderDisputes(DISPUTES_ROWS); renderLowReviews(LOW_REVIEWS_ROWS); renderSuspiciousReviews(SUSPICIOUS_REVIEWS);
     renderTopBoutiquesTable('topBoutiquesRevenueBody', TOP_BOUTIQUES.revenue, 'revenue');
     renderTopBoutiquesTable('topBoutiquesItemsBody', TOP_BOUTIQUES.items_sold, 'items_sold');
     renderTopBoutiquesTable('topBoutiquesOrdersBody', TOP_BOUTIQUES.orders_count, 'orders_count');
@@ -898,6 +913,8 @@ function applyStaticTranslations() {
   document.getElementById('h4Ranking').textContent = t('h4_ranking');
   document.getElementById('h4Disputes').textContent = t('h4_disputes');
   document.getElementById('h4LowReviews').textContent = t('h4_low_reviews');
+  document.getElementById('h4SuspiciousReviews').textContent = t('h4_suspicious_reviews');
+  document.getElementById('suspiciousReviewsNote').textContent = t('suspicious_reviews_note');
   document.getElementById('h3TopBoutiques').textContent = t('h3_top_boutiques');
   document.getElementById('topBoutiquesNote').textContent = t('top_boutiques_note');
   document.getElementById('h4TopRevenue').textContent = t('h4_top_revenue');
@@ -959,6 +976,7 @@ let FEEDBACK_ROWS = [];
 let BOUTIQUES_ROWS = [];
 let DISPUTES_ROWS = [];
 let LOW_REVIEWS_ROWS = [];
+let SUSPICIOUS_REVIEWS = {same_phone: [], burst: []};
 let TOP_BOUTIQUES = {revenue: [], items_sold: [], orders_count: []};
 let ACTIONS_LOG_ROWS = [];
 let BOUTIQUE_FILTER = 'all';
@@ -1057,7 +1075,7 @@ function refreshPeriodViews() {
   updatePeriodBar();
   loadPeriodData();
   renderBoutiquesFiltered();
-  renderDisputes(DISPUTES_ROWS); renderLowReviews(LOW_REVIEWS_ROWS); renderActionsLog(ACTIONS_LOG_ROWS);
+  renderDisputes(DISPUTES_ROWS); renderLowReviews(LOW_REVIEWS_ROWS); renderSuspiciousReviews(SUSPICIOUS_REVIEWS); renderActionsLog(ACTIONS_LOG_ROWS);
   renderHistoryFiltered(); renderClients(); renderFeedback(FEEDBACK_ROWS);
 }
 function loadPeriodData() {
@@ -1662,6 +1680,10 @@ function loadAll() {
       if (!d9.success) { document.getElementById('lowReviewsBody').innerHTML = '<p style="color:#b91c1c">'+d9.message+'</p>'; return; }
       LOW_REVIEWS_ROWS = d9.data || []; renderLowReviews(LOW_REVIEWS_ROWS);
     });
+    call('suspicious_reviews_list').then(d => {
+      if (!d.success) { document.getElementById('suspiciousReviewsBody').innerHTML = '<p style="color:#b91c1c">'+escapeAttr(d.message||'')+'</p>'; return; }
+      SUSPICIOUS_REVIEWS = d.data || {same_phone: [], burst: []}; renderSuspiciousReviews(SUSPICIOUS_REVIEWS);
+    });
     loadPeriodData();
     loadRates();
     loadAnnouncements();
@@ -2184,6 +2206,23 @@ function renderLowReviews(rows) {
       <td><button class="ghost" onclick="toggleBoutiqueStatus('${r.boutique_id}','suspended')">${t('btn_suspend')}</button></td>
     </tr>`).join('')}
     </tbody></table>` : '<p style="color:var(--gray)">'+t('no_low_reviews')+'</p>';
+}
+// Fenetres fixes (90 et 7 jours, voir admin_suspicious_reviews_list()) : le filtre
+// de periode de la page ne s'applique pas ici.
+function renderSuspiciousReviews(data) {
+  const rows = (data.same_phone||[]).map(r => Object.assign({alert: tf('alert_same_phone', {n: Number(r.review_count), end: escapeAttr(r.phone_end||'')})}, r))
+    .concat((data.burst||[]).map(r => Object.assign({alert: tf('alert_burst', {n: Number(r.review_count)})}, r)));
+  document.getElementById('suspiciousReviewsBody').innerHTML = rows.length ? `<table><thead><tr>
+      <th>${t('col_boutique')}</th><th>${t('col_alert')}</th><th>${t('col_last_review')}</th><th></th>
+    </tr></thead><tbody>
+    ${rows.map(r => `<tr>
+      <td>${nameCellHtml(r.boutique_name)}</td>
+      <td style="white-space:normal">${r.alert}</td>
+      <td>${fmtDate(r.last_at)}</td>
+      <td><button class="ghost" onclick="openWarnModal('${r.boutique_id}')">${t('btn_warn')}</button>
+        <button class="ghost" onclick="toggleBoutiqueStatus('${r.boutique_id}','suspended')">${t('btn_suspend')}</button></td>
+    </tr>`).join('')}
+    </tbody></table>` : '<p style="color:var(--gray)">'+t('no_suspicious_reviews')+'</p>';
 }
 // Classement derive cote client de BOUTIQUES_ROWS (deja porteur de
 // open_disputes_count/low_reviews_count, voir admin_boutiques_list()) -

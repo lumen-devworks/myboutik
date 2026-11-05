@@ -1407,7 +1407,7 @@ function renderTrackDetail() {
 }
 // Un seul lien par produit, meme s'il figure deux fois dans la commande (deux variantes).
 function trackReviewLink(o, it, i) {
-  if (o.status !== 'delivered' || !PRODUCTS.some(p => p.id === it.product_id)) return '';
+  if (o.status !== 'delivered' || o.can_review === false || !PRODUCTS.some(p => p.id === it.product_id)) return '';
   if (o.items.findIndex(x => x.product_id === it.product_id) !== i) return '';
   if ((o.reviewed_product_ids||[]).includes(it.product_id)) return '<span style="margin-left:6px;font-size:12px;font-weight:600;color:#16a34a">✓ '+t('review_sent')+'</span>';
   return '<a href="#" onclick="toggleTrackReview('+i+');return false" style="margin-left:6px;font-size:12px;font-weight:600;color:var(--blue)">⭐ '+t('leave_review_btn')+'</a><div id="trackReview'+i+'"></div>';

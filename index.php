@@ -283,6 +283,7 @@ const EN_DICT = [
     'Marque comme lu' => 'Marked as read',
     'Membre retire' => 'Member removed',
     'Merci pour votre avis !' => 'Thank you for your review!',
+    'Les avis ne sont pas ouverts pour cette commande' => 'Reviews are not open for this order',
     'Vous pourrez donner votre avis une fois la commande livree' => 'You can leave a review once the order has been delivered',
     'Ce produit ne fait pas partie de cette commande' => 'This product is not part of this order',
     'Vous avez deja donne votre avis sur ce produit' => 'You have already reviewed this product',
@@ -3321,12 +3322,17 @@ function shop_track_order() {
     $ref = trim($b['ref'] ?? '');
     $phone = trim($b['phone'] ?? '');
     if ($ref === '' || $phone === '') fail('Numero de commande et telephone requis');
-    $o = q("SELECT id,ref,status,total,subtotal,delivery_fee_charged,delivery_method,discount_amount,customer_name,customer_phone,created_at,delivered_at,
+    $o = q("SELECT id,ref,external_ref,status,total,subtotal,delivery_fee_charged,delivery_method,discount_amount,customer_name,customer_phone,created_at,delivered_at,
                    dispute_status,dispute_message,dispute_response,dispute_created_at,dispute_resolved_at
             FROM orders WHERE boutique_id=? AND ref=? AND RIGHT(regexp_replace(customer_phone,'\D','','g'),8)=?",
            [$bt['id'], $ref, phone_key($phone)])->fetch();
     if (!$o || !phones_match($o['customer_phone'], $phone)) fail('Aucune commande trouvee avec ces informations', 404);
-    unset($o['customer_phone']);
+    try {
+        $o['can_review'] = order_can_be_reviewed($bt['id'], $o);
+    } catch (PDOException $e) {
+        $o['can_review'] = true; // le suivi passe avant : shop_review_add() controle de toute facon
+    }
+    unset($o['customer_phone'], $o['external_ref']);
     $o['items'] = q("SELECT product_id,variant_id,product_name,qty,unit_price FROM order_items WHERE order_id=? ORDER BY id", [$o['id']])->fetchAll();
     // Produit supprime depuis : considere comme physique, le cas le plus courant.
     $o['has_physical'] = (int)q("SELECT COUNT(*) c FROM order_items oi LEFT JOIN products p ON p.id=oi.product_id
@@ -3521,6 +3527,25 @@ function review_display_name($fullName) {
     if (count($words) === 1) return $words[0];
     return preg_match('/^./u', end($words), $m) ? $words[0].' '.$m[0].'.' : $words[0];
 }
+function manual_order_log_message($ref) {
+    return 'Commande manuelle creee '.$ref;
+}
+// Commande saisie ou importee par le vendeur, ou passee avec un numero connu de
+// sa boutique : elle ne donne pas droit a un avis. Une commande manuelle se
+// reconnait a son entree dans l'historique, ce qui couvre aussi les anciennes.
+function order_can_be_reviewed($boutiqueId, $o) {
+    if (!empty($o['external_ref'])) return false;
+    if (q("SELECT 1 FROM activity_log WHERE boutique_id=? AND message=? LIMIT 1", [$boutiqueId, manual_order_log_message($o['ref'])])->fetch()) return false;
+    $sellerPhones = q("SELECT b.notify_whatsapp_number AS phone FROM boutiques b WHERE b.id=?
+                       UNION SELECT u.whatsapp_number FROM users u JOIN boutiques b ON b.owner_user_id=u.id WHERE b.id=?
+                       UNION SELECT u.whatsapp_number FROM users u JOIN boutique_members m ON m.user_id=u.id WHERE m.boutique_id=? AND m.status='active'
+                       UNION SELECT d.phone FROM delivery_persons d WHERE d.boutique_id=?",
+                      [$boutiqueId, $boutiqueId, $boutiqueId, $boutiqueId])->fetchAll(PDO::FETCH_COLUMN);
+    foreach ($sellerPhones as $sellerPhone) {
+        if (phones_match($sellerPhone, $o['customer_phone'])) return false;
+    }
+    return true;
+}
 // Avis reserve a l'acheteur : meme couple ref+telephone que shop_track_order(),
 // commande livree, produit present dans cette commande, un seul avis par produit
 // et par commande. Le nom publie vient de la commande, jamais du formulaire.
@@ -3535,10 +3560,11 @@ function shop_review_add() {
     if ($ref === '' || $phone === '') fail('Numero de commande et telephone requis');
     if ($rating < 1 || $rating > 5) fail('Note invalide (1 a 5)');
     if (strlen($comment) > 2000) fail('Votre commentaire est trop long');
-    $o = q("SELECT id,status,customer_name,customer_phone FROM orders WHERE boutique_id=? AND ref=? AND RIGHT(regexp_replace(customer_phone,'\D','','g'),8)=?",
+    $o = q("SELECT id,ref,external_ref,status,customer_name,customer_phone FROM orders WHERE boutique_id=? AND ref=? AND RIGHT(regexp_replace(customer_phone,'\D','','g'),8)=?",
            [$bt['id'], $ref, phone_key($phone)])->fetch();
     if (!$o || !phones_match($o['customer_phone'], $phone)) fail('Aucune commande trouvee avec ces informations', 404);
     if ($o['status'] !== 'delivered') fail('Vous pourrez donner votre avis une fois la commande livree');
+    if (!order_can_be_reviewed($bt['id'], $o)) fail('Les avis ne sont pas ouverts pour cette commande', 403);
     $product = product_owned($b['product_id'] ?? '', $bt['id']);
     if (!q("SELECT 1 FROM order_items WHERE order_id=? AND product_id=? LIMIT 1", [$o['id'], $product['id']])->fetch()) {
         fail('Ce produit ne fait pas partie de cette commande');
@@ -3654,7 +3680,7 @@ function orders_create_manual($pl) {
         q("UPDATE products SET stock_qty = stock_qty - ? WHERE id=?", [$l['qty'], $l['product']['id']]);
     }
     q("INSERT INTO delivery_assignments (id,order_id,boutique_id,status) VALUES (?,?,?,?)", [uid(), $orderId, $bt['id'], 'to_assign']);
-    log_activity($bt['id'], 'Commande manuelle creee '.$ref, $pl['sub']);
+    log_activity($bt['id'], manual_order_log_message($ref), $pl['sub']);
     ok(q("SELECT * FROM orders WHERE id=?", [$orderId])->fetch(), 'Commande creee', 201);
 }
 
@@ -5148,6 +5174,7 @@ function route_admin($action) {
         case 'actions_log':           admin_actions_log(); break;
         case 'disputes_list':         admin_disputes_list(); break;
         case 'low_reviews_list':      admin_low_reviews_list(); break;
+        case 'suspicious_reviews_list': admin_suspicious_reviews_list(); break;
         case 'top_boutiques':         admin_top_boutiques(); break;
         case 'period_stats':          admin_period_stats(); break;
         case 'rates_list':            admin_rates_list(); break;
@@ -5898,6 +5925,22 @@ function admin_low_reviews_list() {
           LEFT JOIN products p ON p.id = r.product_id
           WHERE r.rating <= 2
           ORDER BY r.created_at DESC LIMIT 200")->fetchAll());
+}
+// Signaux a verifier, jamais une preuve : aucune sanction automatique. Seuls les
+// 4 derniers chiffres du numero sont renvoyes, ils suffisent a la verification.
+function admin_suspicious_reviews_list() {
+    ensure_review_order_column();
+    $samePhone = q("SELECT b.id AS boutique_id, b.name AS boutique_name, RIGHT(regexp_replace(o.customer_phone,'\D','','g'),4) AS phone_end,
+                           COUNT(*) AS review_count, MAX(r.created_at) AS last_at
+                    FROM product_reviews r JOIN orders o ON o.id=r.order_id JOIN boutiques b ON b.id=r.boutique_id
+                    WHERE r.created_at > NOW() - INTERVAL '90 days'
+                    GROUP BY b.id, b.name, RIGHT(regexp_replace(o.customer_phone,'\D','','g'),8), RIGHT(regexp_replace(o.customer_phone,'\D','','g'),4)
+                    HAVING COUNT(*) >= 3 ORDER BY last_at DESC LIMIT 50")->fetchAll();
+    $burst = q("SELECT b.id AS boutique_id, b.name AS boutique_name, COUNT(*) AS review_count, MAX(r.created_at) AS last_at
+                FROM product_reviews r JOIN boutiques b ON b.id=r.boutique_id
+                WHERE r.rating=5 AND r.created_at > NOW() - INTERVAL '7 days'
+                GROUP BY b.id, b.name HAVING COUNT(*) >= 5 ORDER BY last_at DESC LIMIT 50")->fetchAll();
+    ok(['same_phone' => $samePhone, 'burst' => $burst]);
 }
 // Suspendre = status different de 'active' : toutes les routes publiques
 // (vitrine, apercus OG, annuaire, alertes de stock) filtrent deja sur
