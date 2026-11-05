@@ -3223,25 +3223,25 @@ function notify_customer_order_confirmation($bt, $ref, $email, $customerName, $l
     // n'a de sens que si la commande contient au moins un produit physique -
     // pour un panier 100% numerique, rien n'est jamais livre/expedie.
     $isShipping = $deliveryMethod === 'shipping';
-    $modeWord = $isShipping ? 'expedition' : 'livraison';
+    $modeWord = $isShipping ? 'expédition' : 'livraison';
     $hasPhysical = false; $hasDigital = false;
     foreach ($lineData as $l) {
         if (!empty($l['product']['is_physical'])) $hasPhysical = true;
         if (!empty($l['product']['is_digital'])) $hasDigital = true;
     }
-    $totalLabel = $hasPhysical ? 'Total a payer a la '.$modeWord : 'Total';
+    $totalLabel = $hasPhysical ? 'Total à payer à la '.$modeWord : 'Total';
     $footer = '';
     if ($hasPhysical) {
-        $footer .= ($isShipping ? "Adresse d'expedition : $address\n\n" : "Adresse de livraison : $address\n\n").
+        $footer .= ($isShipping ? "Adresse d'expédition : $address\n\n" : "Adresse de livraison : $address\n\n").
             ($isShipping && $customerCountry !== '' ? "Pays de destination : $customerCountry\n\n" : '').
-            "Vous serez contacte(e) pour la ".$modeWord.". Paiement a la reception (paiement a la ".$modeWord.").\n";
+            "Vous serez contacté(e) pour la ".$modeWord.". Paiement à la réception.\n";
     }
     if ($hasDigital) {
-        $footer .= "Votre produit numerique vous sera envoye par email des que ".$bt['name']." aura confirme votre paiement.\n";
+        $footer .= "Votre produit numérique vous sera envoyé par e-mail dès que ".$bt['name']." aura confirmé votre paiement.\n";
     }
     $body = "Bonjour $customerName,\n\n".
         "Merci pour votre commande chez ".$bt['name']." !\n\n".
-        "Reference : $ref\n\n".
+        "Référence : $ref\n\n".
         implode("\n", $lines)."\n\n".
         "Sous-total : ".money_fmt($subtotal, $currency).' '.money_label($currency)."\n".
         ($deliveryFee > 0 ? "Frais de ".$modeWord." : ".money_fmt($deliveryFee, $currency).' '.money_label($currency)."\n" : '').
@@ -3758,9 +3758,9 @@ function maybe_send_digital_delivery($bt, $o) {
     $parts = digital_delivery_parts($bt, $o, true);
     if (!$parts) return;
     $body = "Bonjour,\n\nMerci pour votre commande ".$o['ref']." chez ".$bt['name'].
-        " ! Voici votre/vos produit(s) numerique(s) :\n\n".implode("\n\n", $parts).
+        " ! Voici votre/vos produit(s) numérique(s) :\n\n".implode("\n\n", $parts).
         "\n\nBonne utilisation !";
-    send_email($email, 'Votre produit numerique - commande '.$o['ref'].' - '.$bt['name'], $body);
+    send_email($email, 'Votre produit numérique - commande '.$o['ref'].' - '.$bt['name'], $body);
     q("UPDATE orders SET digital_delivery_sent_at=NOW() WHERE id=?", [$o['id']]);
 }
 
@@ -3794,9 +3794,9 @@ function orders_resend_digital($pl) {
     if ($email === '') fail('Ce client n\'a pas d\'email enregistre');
     $parts = digital_delivery_parts($bt, $o, false);
     if (!$parts) fail('Aucun contenu numerique a renvoyer pour cette commande');
-    $body = "Bonjour,\n\nVoici a nouveau votre/vos produit(s) numerique(s) pour la commande ".$o['ref']." chez ".$bt['name'].
+    $body = "Bonjour,\n\nVoici à nouveau votre/vos produit(s) numérique(s) pour la commande ".$o['ref']." chez ".$bt['name'].
         " :\n\n".implode("\n\n", $parts)."\n\nBonne utilisation !";
-    send_email($email, 'Votre produit numerique - commande '.$o['ref'].' - '.$bt['name'], $body);
+    send_email($email, 'Votre produit numérique - commande '.$o['ref'].' - '.$bt['name'], $body);
     q("UPDATE orders SET digital_delivery_sent_at=NOW() WHERE id=?", [$o['id']]);
     log_activity($bt['id'], 'Livraison numerique renvoyee pour la commande '.$o['ref'], $pl['sub']);
     ok(null, 'Email renvoye a '.$email);
@@ -6432,7 +6432,7 @@ function cron_abandoned_reminders() {
     $sent = 0;
     foreach ($carts as $c) {
         $total = money_fmt($c['total'], $c['currency']).' '.money_label($c['currency'] ?: 'XOF');
-        $message = "Bonjour, vous avez laisse des articles dans votre panier chez ".$c['boutique_name']." (".$total."). Revenez finaliser votre commande : ".FRONTEND_BASE_URL."/store/index.html?b=".urlencode($c['slug']);
+        $message = "Bonjour, vous avez laissé des articles dans votre panier chez ".$c['boutique_name']." (".$total."). Revenez finaliser votre commande : ".FRONTEND_BASE_URL."/store/index.html?b=".urlencode($c['slug']);
         if ($c['email']) send_email($c['email'], 'Votre panier vous attend - '.$c['boutique_name'], $message);
         q("UPDATE abandoned_carts SET reminded_at=NOW() WHERE id=?", [$c['id']]);
         $sent++;
