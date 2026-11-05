@@ -1,0 +1,4 @@
+# Le serveur n'a besoin que de l'API (voir Dockerfile) : tout le reste est exclu.
+*
+!index.php
+!.htaccess

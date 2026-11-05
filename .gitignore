@@ -1,0 +1,17 @@
+# Secrets et reglages locaux
+.env
+.env.*
+.claude/
+
+# Dependances des tests
+node_modules/
+
+# Copies de base de donnees : jamais dans ce depot public
+*.dump
+*.sql
+*.gpg
+
+# Fichiers temporaires
+*.log
+.DS_Store
+Thumbs.db

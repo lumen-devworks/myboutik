@@ -1,0 +1,67 @@
+name: Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      # Base vide et temporaire, detruite a la fin : jamais la base reelle.
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_PASSWORD: test-local-seulement
+          POSTGRES_DB: myboutik_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      APP_ENV: development
+      JWT_SECRET: secret-de-test-seulement
+      ADMIN_PASSWORD: admin-de-test-seulement
+      DB_HOST: 127.0.0.1
+      DB_NAME: myboutik_test
+      DB_USER: postgres
+      DB_PASS: test-local-seulement
+      API_URL: http://127.0.0.1:8080
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.3"
+          extensions: pdo_pgsql, curl, mbstring
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Syntaxe PHP
+        run: php -l index.php
+
+      - name: Controle des pages
+        run: node tests/check_pages.js
+
+      - name: Demarrer le serveur
+        run: |
+          php -S 127.0.0.1:8080 router.php > server.log 2>&1 &
+          for i in $(seq 1 20); do curl -fs "$API_URL/health" > /dev/null && exit 0; sleep 1; done
+          cat server.log; exit 1
+
+      - name: Parcours principaux
+        run: node tests/api_test.js
+
+      - name: Journal du serveur en cas d'echec
+        if: failure()
+        run: grep -v "Email a envoyer" server.log | tail -60
