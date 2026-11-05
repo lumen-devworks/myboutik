@@ -123,6 +123,7 @@
 <footer id="footerText">MYBOUTIK — Paiement à la livraison · Multi-boutiques · Support en français · <a href="guide.html" style="color:var(--blue);font-weight:600" id="footerGuideLink">Guide d'utilisation</a></footer>
 
 <!-- ============ Auth modal ============ -->
+<div style="text-align:center;font-size:13px;padding:0 16px 24px;color:var(--gray)"><a href="mentions-legales.html" style="color:var(--gray)">Mentions légales</a> · <a href="confidentialite.html" style="color:var(--gray)">Confidentialité</a> · <a href="conditions.html" style="color:var(--gray)">Conditions</a></div>
 
 <div class="overlay" id="authOverlay">
   <div class="modal">
@@ -152,6 +153,7 @@
         <div class="password-wrap"><input type="password" id="regPassword" autocomplete="new-password">
           <button type="button" class="pw-toggle" onclick="togglePasswordVisibility('regPassword', this)">🙈</button></div>
       </div>
+      <div style="font-size:12px;color:var(--gray);margin-bottom:12px">En créant un compte, vous acceptez les <a href="conditions.html" target="_blank" rel="noopener">conditions d'utilisation</a> et la <a href="confidentialite.html" target="_blank" rel="noopener">politique de confidentialité</a>.</div>
       <button class="btn btn-primary btn-block" onclick="doRegister()" id="registerSubmitBtn">Créer mon compte</button>
       <div class="switch" id="registerSwitch">Déjà un compte ? <a onclick="openAuth('login')">Se connecter</a></div>
     </div>

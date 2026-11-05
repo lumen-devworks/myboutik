@@ -226,7 +226,7 @@ const EN_DICT = [
     'Contact supprime' => 'Contact deleted',
     'Demande de retrait envoyee. Vous serez paye(e) apres verification.' => 'Withdrawal request sent. You will be paid after verification.',
     'Demande deja en attente de verification' => 'Request already pending verification',
-    'Demande enregistree. Envoyez le montant via Orange Money, Wave ou Djomo au +225 07 78 79 83 19 (MYBOUTIK) - votre plan sera active des verification du paiement par l\'equipe MYBOUTIK (generalement sous 24h).' => 'Request recorded. Send the amount via Orange Money, Wave or Djomo to +225 07 78 79 83 19 (MYBOUTIK) - your plan will be activated once the MYBOUTIK team verifies the payment (usually within 24h).',
+    'Demande enregistree. Envoyez le montant via Orange Money, Wave ou Djamo au +225 07 78 79 83 19 (MYBOUTIK) - votre plan sera active des verification du paiement par l\'equipe MYBOUTIK (generalement sous 24h).' => 'Request recorded. Send the amount via Orange Money, Wave or Djamo to +225 07 78 79 83 19 (MYBOUTIK) - your plan will be activated once the MYBOUTIK team verifies the payment (usually within 24h).',
     'Demande introuvable' => 'Request not found',
     'Demande rejetee' => 'Request rejected',
     'Depense enregistree' => 'Expense recorded',
@@ -4923,7 +4923,7 @@ function billing_plans($pl) {
         'free_trial_eligible' => !user_ever_had_approved_subscription($pl['sub']),
         'payment_phone' => PAYMENT_PHONE_DISPLAY,
         'merchant_whatsapp' => $user['whatsapp_number'],
-        'payment_instructions' => 'Envoyez le montant du plan choisi via Orange Money, Wave ou Djomo au '.PAYMENT_PHONE_DISPLAY.' (MYBOUTIK). Votre plan sera active des verification manuelle du paiement par l\'equipe MYBOUTIK (generalement sous 24h).',
+        'payment_instructions' => 'Envoyez le montant du plan choisi via Orange Money, Wave ou Djamo au '.PAYMENT_PHONE_DISPLAY.' (MYBOUTIK). Votre plan sera active des verification manuelle du paiement par l\'equipe MYBOUTIK (generalement sous 24h).',
     ]);
 }
 
@@ -4956,7 +4956,7 @@ function billing_subscribe($pl) {
     $amountLabel = number_format($amount, 0, ',', ' ').' FCFA'.($annual ? ' (12 mois, 1 mois offert = 13 mois d\'acces)' : '');
     $id = uid();
     q("INSERT INTO subscription_requests (id,user_id,plan,billing_cycle) VALUES (?,?,?,?)", [$id, $pl['sub'], $plan, $cycle]);
-    ok(null, 'Demande enregistree. Envoyez '.$amountLabel.' via Orange Money, Wave ou Djomo au '.PAYMENT_PHONE_DISPLAY.' (MYBOUTIK) - votre plan sera active des verification du paiement par l\'equipe MYBOUTIK (generalement sous 24h).', 201);
+    ok(null, 'Demande enregistree. Envoyez '.$amountLabel.' via Orange Money, Wave ou Djamo au '.PAYMENT_PHONE_DISPLAY.' (MYBOUTIK) - votre plan sera active des verification du paiement par l\'equipe MYBOUTIK (generalement sous 24h).', 201);
 }
 
 function billing_affiliate_info($pl) {

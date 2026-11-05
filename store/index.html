@@ -730,6 +730,7 @@ function renderShop() {
         <button class="btn btn-primary" onclick="sendContactMessage()">${t('contact_send_btn')}</button>
       </div>
     </div></footer>
+    <div style="text-align:center;font-size:12px;padding:0 12px 14px"><a href="../mentions-legales.html" style="color:var(--gray)">Mentions légales</a> · <a href="../confidentialite.html" style="color:var(--gray)">Confidentialité</a> · <a href="../conditions.html" style="color:var(--gray)">Conditions</a></div>
     ${Object.keys(FX_RATES).length ? '<div style="text-align:center;font-size:11px;color:var(--gray);padding:0 12px 18px"><a href="https://www.exchangerate-api.com" target="_blank" rel="noopener" style="text-decoration:underline">'+t('rates_credit')+'</a></div>' : ''}
   `;
   renderCartCount();
