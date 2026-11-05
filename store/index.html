@@ -499,10 +499,8 @@ const I18N = {
     cart_empty_error: 'Votre panier est vide',
     order_number_phone_required: 'Nom et téléphone requis',
     server_unreachable: 'Impossible de contacter le serveur.',
-    status_pending: 'En attente', status_processing: 'Validée', status_shipped: 'Expédiée',
+    status_pending: 'Commande reçue', status_processing: 'Confirmée', status_shipped: 'En livraison',
     status_delivered: 'Livrée', status_refused: 'Refusée', status_cancelled: 'Annulée',
-    delivery_to_assign: "En attente d'un livreur", delivery_assigned: 'Livreur assigné',
-    delivery_in_delivery: 'En cours de livraison', delivery_delivered: 'Livrée', delivery_refused: 'Refusée',
     install_btn: 'Installer l\'appli', installed_toast: 'MYBOUTIK est maintenant installé sur votre appareil !',
   },
   en: {
@@ -622,10 +620,8 @@ const I18N = {
     cart_empty_error: 'Your cart is empty',
     order_number_phone_required: 'Name and phone required',
     server_unreachable: 'Unable to reach the server.',
-    status_pending: 'Pending', status_processing: 'Confirmed', status_shipped: 'Shipped',
+    status_pending: 'Order received', status_processing: 'Confirmed', status_shipped: 'Out for delivery',
     status_delivered: 'Delivered', status_refused: 'Refused', status_cancelled: 'Cancelled',
-    delivery_to_assign: 'Awaiting a delivery person', delivery_assigned: 'Delivery person assigned',
-    delivery_in_delivery: 'Out for delivery', delivery_delivered: 'Delivered', delivery_refused: 'Refused',
     install_btn: 'Install app', installed_toast: 'MYBOUTIK is now installed on your device!',
   },
 };
@@ -1271,8 +1267,11 @@ function submitCheckout() {
 function trackStatusLabels() {
   return {pending:t('status_pending'), processing:t('status_processing'), shipped:t('status_shipped'), delivered:t('status_delivered'), refused:t('status_refused'), cancelled:t('status_cancelled')};
 }
-function trackDeliveryLabels() {
-  return {to_assign:t('delivery_to_assign'), assigned:t('delivery_assigned'), in_delivery:t('delivery_in_delivery'), delivered:t('delivery_delivered'), refused:t('delivery_refused')};
+// Memes mots que le tableau de bord du marchand (voir orderStatusLabel() la-bas).
+function trackRowStatus(o) {
+  if (o.status === 'shipped' && o.delivery_method === 'shipping') return t('step_shipped');
+  if (o.status === 'delivered' && Number(o.has_physical) !== 1) return t('step_sent_by_email');
+  return trackStatusLabels()[o.status] || escapeHtml(o.status);
 }
 function openTrackOrder() {
   const saved = loadCustomerProfile(); // deja connu sur cet appareil apres une commande : rien a retaper
@@ -1351,7 +1350,7 @@ function renderTrackList() {
         <div style="flex:1;min-width:0">
           <div style="font-size:13.5px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(o.first_item_name||o.ref)}${more}</div>
           <div style="font-size:12px;color:var(--gray)">${escapeHtml(fmtDateTime(o.created_at))} · ${fmtMoney(o.total, BOUTIQUE.currency)}</div>
-          <div style="font-size:12px;font-weight:700;color:${trackStatusColor(o.status)}">${o.status === 'shipped' ? t(o.delivery_method === 'shipping' ? 'step_shipped' : 'step_in_delivery') : (trackStatusLabels()[o.status]||escapeHtml(o.status))}</div>
+          <div style="font-size:12px;font-weight:700;color:${trackStatusColor(o.status)}">${trackRowStatus(o)}</div>
         </div>
         <span style="color:var(--gray)">›</span>
       </div>`;
@@ -1366,7 +1365,7 @@ function showTrackedOrder(ref) {
     renderTrackDetail();
   });
 }
-// Etapes du suivi : un produit numerique n'a que "recue" puis "envoyee" ; une
+// Etapes du suivi : un produit numerique n'a pas d'etape de livraison ; une
 // commande annulee ou refusee s'arrete sur une etape rouge, apres les etapes
 // qu'elle a reellement franchies.
 function trackSteps(o) {
@@ -1376,7 +1375,7 @@ function trackSteps(o) {
     shipped: o.delivery_method === 'shipping' ? t('step_shipped') : t('step_in_delivery'),
     delivered: o.has_physical ? t('step_delivered') : t('step_sent_by_email'),
   };
-  const keys = o.has_physical ? ['pending','processing','shipped','delivered'] : ['pending','delivered'];
+  const keys = o.has_physical ? ['pending','processing','shipped','delivered'] : ['pending','processing','delivered'];
   const at = k => k === 'pending' ? o.created_at : (events[k] || null);
   if (o.status === 'refused' || o.status === 'cancelled') {
     const passed = keys.filter(k => k === 'pending' || (k !== 'delivered' && events[k]));

@@ -248,10 +248,11 @@ const I18N = {
     my_orders_show_btn: 'Voir mes commandes',
     my_orders_not_you: 'Changer',
     my_orders_required: 'Nom et téléphone requis',
-    status_pending: 'En attente',
+    status_pending: 'Commande reçue',
     status_processing: 'Confirmée',
     status_shipped: 'En livraison',
     status_shipped_mail: 'Expédiée',
+    status_sent_email: 'Envoyée par e-mail',
     status_delivered: 'Livrée',
     status_refused: 'Refusée',
     status_cancelled: 'Annulée',
@@ -305,10 +306,11 @@ const I18N = {
     my_orders_show_btn: 'Show my orders',
     my_orders_not_you: 'Change',
     my_orders_required: 'Name and phone required',
-    status_pending: 'Pending',
+    status_pending: 'Order received',
     status_processing: 'Confirmed',
     status_shipped: 'Out for delivery',
     status_shipped_mail: 'Shipped',
+    status_sent_email: 'Sent by email',
     status_delivered: 'Delivered',
     status_refused: 'Refused',
     status_cancelled: 'Cancelled',
@@ -460,7 +462,7 @@ function submitMyOrders(silent) {
           <div style="font-size:12px;font-weight:700;color:var(--gray)">${escapeHtml(o.boutique_name)}</div>
           <div style="font-size:13.5px;font-weight:700;margin:2px 0">${escapeHtml(o.first_item_name||o.ref)}${more}</div>
           <div style="font-size:12px;color:var(--gray)">${escapeHtml(new Date(o.created_at).toLocaleDateString(LANG === 'en' ? 'en-US' : 'fr-FR'))} · ${fmtMoney(o.total, o.currency)}</div>
-          <div style="font-size:12px;font-weight:700;color:${color}">${o.status === 'shipped' && o.delivery_method === 'shipping' ? t('status_shipped_mail') : (statusLabels[o.status]||escapeHtml(o.status))}</div>
+          <div style="font-size:12px;font-weight:700;color:${color}">${o.status === 'shipped' && o.delivery_method === 'shipping' ? t('status_shipped_mail') : (o.status === 'delivered' && Number(o.has_physical) !== 1 ? t('status_sent_email') : (statusLabels[o.status]||escapeHtml(o.status)))}</div>
         </a>`;
       }).join('');
   });

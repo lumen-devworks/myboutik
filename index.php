@@ -3424,6 +3424,7 @@ function customer_orders_lookup($boutiqueId) {
     $params = [$key];
     $sql = "SELECT o.ref, o.status, o.total, o.created_at, o.delivery_method, o.customer_phone, o.customer_name,
                    b.slug AS boutique_slug, b.name AS boutique_name, b.currency,
+                   CAST(EXISTS(SELECT 1 FROM order_items oi LEFT JOIN products p ON p.id=oi.product_id WHERE oi.order_id=o.id AND (p.id IS NULL OR p.is_physical=1)) AS INT) AS has_physical,
                    (SELECT COALESCE(SUM(oi.qty),0) FROM order_items oi WHERE oi.order_id=o.id) AS item_count,
                    (SELECT oi.product_name FROM order_items oi WHERE oi.order_id=o.id ORDER BY oi.id LIMIT 1) AS first_item_name,
                    (SELECT oi.product_id FROM order_items oi WHERE oi.order_id=o.id ORDER BY oi.id LIMIT 1) AS first_product_id,
