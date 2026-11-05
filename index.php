@@ -38,6 +38,9 @@ define('INSTALL_KEY', getenv('INSTALL_KEY') ?: JWT_SECRET);
 // un service de cron externe (cron-job.org, etc.) appelle /cron?key=...&
 // action=... a intervalle regulier. Repli sur INSTALL_KEY, meme logique.
 define('CRON_KEY', getenv('CRON_KEY') ?: INSTALL_KEY);
+// Delai pendant lequel un compte dont la suppression est demandee reste
+// recuperable, avant l'effacement definitif (voir account_purge()).
+define('ACCOUNT_DELETION_DAYS', 30);
 // Aucune valeur de repli codee en dur pour ce secret : un secret visible
 // dans le code source n'est plus un secret. Si JWT_SECRET n'est pas
 // configuree sur l'hebergeur, l'app s'arrete plutot que de tourner avec
@@ -283,6 +286,17 @@ const EN_DICT = [
     'Marque comme lu' => 'Marked as read',
     'Membre retire' => 'Member removed',
     'Merci pour votre avis !' => 'Thank you for your review!',
+    'Ce compte est en cours de suppression. Ecrivez a contact@myboutik.online pour le recuperer.' => 'This account is being deleted. Write to contact@myboutik.online to recover it.',
+    'Tapez SUPPRIMER pour confirmer' => 'Type SUPPRIMER to confirm',
+    'Indiquez la raison de la suppression' => 'Give the reason for the deletion',
+    'Votre compte sera supprime dans 30 jours. Un e-mail de confirmation vous a ete envoye.' => 'Your account will be deleted in 30 days. A confirmation email has been sent to you.',
+    'Ce compte est deja en cours de suppression' => 'This account is already being deleted',
+    'Aucune suppression en cours pour ce compte' => 'No deletion in progress for this account',
+    'Suppression programmee dans 30 jours. Le titulaire a ete prevenu par e-mail.' => 'Deletion scheduled in 30 days. The account holder has been notified by email.',
+    'Compte restaure' => 'Account restored',
+    'Suppression impossible, rien n\'a ete efface.' => 'Deletion failed, nothing was erased.',
+    'Compte efface definitivement' => 'Account permanently erased',
+    'Cette boutique est en cours de suppression : restaurez d\'abord le compte' => 'This shop is being deleted: restore the account first',
     'Les avis ne sont pas ouverts pour cette commande' => 'Reviews are not open for this order',
     'Vous pourrez donner votre avis une fois la commande livree' => 'You can leave a review once the order has been delivered',
     'Ce produit ne fait pas partie de cette commande' => 'This product is not part of this order',
@@ -396,6 +410,7 @@ function owner_auth() {
     if(!$pl || ($pl['typ']??'')!=='owner') fail('Token invalide ou expire',401);
     $row = q("SELECT status, token_version FROM users WHERE id=?",[$pl['sub']])->fetch();
     if($row === false) fail('Compte introuvable',401);
+    if($row['status'] === 'deletion_pending') fail('Ce compte est en cours de suppression. Ecrivez a contact@myboutik.online pour le recuperer.', 403);
     if($row['status'] !== 'active') fail('Compte suspendu ou bloque', 403);
     // La session de 30 jours (voir JWT_EXPIRY) reste valide tout ce temps
     // SAUF si le compte a demande une deconnexion a distance entre-temps
@@ -858,7 +873,7 @@ function require_boutique_owned($boutiqueId, $userId) {
     // que de retoucher chaque module un par un.
     $member = q("SELECT role FROM boutique_members WHERE boutique_id=? AND user_id=? AND status='active'", [$boutiqueId, $userId])->fetch();
     if ($member) {
-        $row = q("SELECT * FROM boutiques WHERE id=?", [$boutiqueId])->fetch();
+        $row = q("SELECT * FROM boutiques WHERE id=? AND status<>'deletion_pending'", [$boutiqueId])->fetch();
         if ($row) { $row['_member_role'] = $member['role']; assert_owner_plan_active($row['owner_user_id']); return $row; }
     }
     fail('Boutique introuvable', 404);
@@ -1130,6 +1145,10 @@ function route_install() {
     // l'acces a qui utilisait deja une session, potentiel signe de compte
     // compromis).
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS token_version INT DEFAULT 0",
+    "ALTER TABLE users ADD COLUMN IF NOT EXISTS deletion_requested_at TIMESTAMP",
+    "ALTER TABLE users ADD COLUMN IF NOT EXISTS deletion_requested_by VARCHAR(10)",
+    "ALTER TABLE users ADD COLUMN IF NOT EXISTS deletion_reason VARCHAR(300)",
+    "ALTER TABLE users ADD COLUMN IF NOT EXISTS status_before_deletion VARCHAR(20)",
     // Un retrait couvre toujours la totalite du solde "disponible" au
     // moment de la demande (les commissions couvertes passent en
     // status='requested' pour ne pas etre comptees deux fois dans une
@@ -1198,6 +1217,7 @@ function route_install() {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )",
     "CREATE INDEX IF NOT EXISTS idx_boutiques_owner ON boutiques(owner_user_id)",
+    "ALTER TABLE boutiques ADD COLUMN IF NOT EXISTS status_before_deletion VARCHAR(20)",
     // Ajoutee apres le premier lancement - frais de livraison applique
     // automatiquement au panier du client sur la vitrine (voir shop_boutique()
     // et store/index.html). ALTER...IF NOT EXISTS : sans danger a rejouer
@@ -1814,6 +1834,7 @@ function route_auth($action) {
         case 'forgot_password': auth_forgot_password(); break;
         case 'reset_password':  auth_reset_password(); break;
         case 'logout_other_devices': auth_logout_other_devices(); break;
+        case 'delete_account': auth_delete_account(); break;
         default: fail('Action inconnue', 404);
     }
 }
@@ -1908,11 +1929,15 @@ function auth_resend() {
 
 function auth_login() {
     rate_limit_check('auth_login', 20, 300);
+    // Aucune tache de fond sur cet hebergement : une connexion sur 20 sert aussi
+    // a effacer les comptes arrives au bout de leur delai (voir purge_due_accounts()).
+    if (mt_rand(1, 20) === 1) purge_due_accounts();
     $b = body();
     $email = strtolower(trim($b['email'] ?? ''));
     $password = (string)($b['password'] ?? '');
     $user = q("SELECT * FROM users WHERE email=?", [$email])->fetch();
     if (!$user || !password_verify($password, $user['password_hash'])) fail('Email ou mot de passe incorrect', 401);
+    if ($user['status'] === 'deletion_pending') fail('Ce compte est en cours de suppression. Ecrivez a contact@myboutik.online pour le recuperer.', 403);
     if ($user['status'] !== 'active') fail('Compte suspendu ou bloque', 403);
     if (!$user['email_verified_at']) fail('Veuillez verifier votre email avant de vous connecter', 403);
 
@@ -2004,6 +2029,120 @@ function auth_profile_update() {
 }
 
 // ============================================================
+// SUPPRESSION DE COMPTE — demande (vendeur ou administration), compte et
+// boutiques masques aussitot, recuperables pendant ACCOUNT_DELETION_DAYS,
+// puis effacement definitif par purge_due_accounts().
+// ============================================================
+function ensure_account_deletion_columns() {
+    q("ALTER TABLE users ADD COLUMN IF NOT EXISTS deletion_requested_at TIMESTAMP");
+    q("ALTER TABLE users ADD COLUMN IF NOT EXISTS deletion_requested_by VARCHAR(10)");
+    q("ALTER TABLE users ADD COLUMN IF NOT EXISTS deletion_reason VARCHAR(300)");
+    q("ALTER TABLE users ADD COLUMN IF NOT EXISTS status_before_deletion VARCHAR(20)");
+    q("ALTER TABLE boutiques ADD COLUMN IF NOT EXISTS status_before_deletion VARCHAR(20)");
+}
+function auth_delete_account() {
+    rate_limit_check('auth_delete_account', 10, 600);
+    $pl = owner_auth();
+    $b = body();
+    if (strtoupper(trim((string)($b['confirm'] ?? ''))) !== 'SUPPRIMER') fail('Tapez SUPPRIMER pour confirmer');
+    $hash = q("SELECT password_hash FROM users WHERE id=?", [$pl['sub']])->fetchColumn();
+    if (!password_verify((string)($b['password'] ?? ''), (string)$hash)) fail('Mot de passe incorrect', 403);
+    account_deletion_start($pl['sub'], 'user');
+    ok(null, 'Votre compte sera supprime dans '.ACCOUNT_DELETION_DAYS.' jours. Un e-mail de confirmation vous a ete envoye.');
+}
+// Le statut d'origine est garde : un compte ou une boutique suspendu le redevient
+// en cas de restauration, une demande de suppression n'efface pas une sanction.
+function account_deletion_start($userId, $by, $reason = null) {
+    ensure_account_deletion_columns();
+    $email = null;
+    db_transaction(function () use ($userId, $by, $reason, &$email) {
+        $email = q("UPDATE users SET status_before_deletion=status, status='deletion_pending', deletion_requested_at=NOW(), deletion_requested_by=?, deletion_reason=?, token_version=token_version+1
+                    WHERE id=? AND status<>'deletion_pending' RETURNING email", [$by, $reason, $userId])->fetchColumn();
+        if (!$email) return;
+        q("UPDATE boutiques SET status_before_deletion=status, status='deletion_pending' WHERE owner_user_id=? AND status<>'deletion_pending'", [$userId]);
+    });
+    if (!$email) fail('Ce compte est deja en cours de suppression', 409);
+    $intro = $by === 'admin' ? "L'administration de MYBOUTIK a demandé la suppression de votre compte.\nRaison : ".$reason : "Vous avez demandé la suppression de votre compte MYBOUTIK.";
+    send_email($email, 'Suppression de votre compte MYBOUTIK',
+        $intro."\n\nVos boutiques ne sont plus visibles et vous ne pouvez plus vous connecter. Tout sera effacé définitivement dans ".ACCOUNT_DELETION_DAYS." jours.\n\nPour récupérer votre compte avant cette date, écrivez à contact@myboutik.online.");
+}
+function account_deletion_cancel($userId) {
+    ensure_account_deletion_columns();
+    $email = null;
+    db_transaction(function () use ($userId, &$email) {
+        $email = q("UPDATE users SET status=COALESCE(status_before_deletion,'active'), status_before_deletion=NULL, deletion_requested_at=NULL, deletion_requested_by=NULL, deletion_reason=NULL
+                    WHERE id=? AND status='deletion_pending' RETURNING email", [$userId])->fetchColumn();
+        if (!$email) return;
+        q("UPDATE boutiques SET status=COALESCE(status_before_deletion,'active'), status_before_deletion=NULL WHERE owner_user_id=? AND status='deletion_pending'", [$userId]);
+    });
+    if (!$email) fail('Aucune suppression en cours pour ce compte', 404);
+    send_email($email, 'Votre compte MYBOUTIK est restauré', "La suppression de votre compte a été annulée. Vos boutiques et vos données sont intactes, et vous pouvez vous reconnecter.");
+}
+// Toutes les requetes prennent uniquement l'id du compte, repete pour chaque "?".
+// Les paiements d'abonnement restent pour la comptabilite : ils ne contiennent
+// qu'un identifiant, qui ne renvoie plus a personne une fois le compte efface.
+function account_purge_statements() {
+    $in = "(SELECT id FROM boutiques WHERE owner_user_id=?)";
+    $sql = [
+        "DELETE FROM order_items WHERE order_id IN (SELECT id FROM orders WHERE boutique_id IN $in)",
+        "DELETE FROM order_events WHERE order_id IN (SELECT id FROM orders WHERE boutique_id IN $in)",
+        "DELETE FROM product_digital_codes WHERE product_id IN (SELECT id FROM products WHERE boutique_id IN $in)",
+        "DELETE FROM product_variants WHERE product_id IN (SELECT id FROM products WHERE boutique_id IN $in)",
+        "DELETE FROM product_images WHERE product_id IN (SELECT id FROM products WHERE boutique_id IN $in)",
+        "DELETE FROM product_promotion_items WHERE promotion_id IN (SELECT id FROM product_promotions WHERE boutique_id IN $in)",
+        "DELETE FROM promo_code_customers WHERE promo_code_id IN (SELECT id FROM promo_codes WHERE boutique_id IN $in)",
+        "DELETE FROM ad_expense_products WHERE ad_expense_id IN (SELECT id FROM ad_expenses WHERE boutique_id IN $in)",
+    ];
+    foreach (['product_images', 'product_reviews', 'product_categories', 'products', 'suppliers', 'supplier_orders', 'customers', 'delivery_assignments', 'delivery_fees_paid',
+              'delivery_persons', 'orders', 'abandoned_carts', 'abandoned_settings', 'contacts', 'contact_roles', 'account_transactions', 'accounts', 'expenses', 'ad_expenses',
+              'promo_codes', 'product_promotions', 'newsletter_subscribers', 'contact_messages', 'visits', 'activity_log', 'boutique_members'] as $table) {
+        $sql[] = "DELETE FROM $table WHERE boutique_id IN $in";
+    }
+    return array_merge($sql, [
+        "DELETE FROM boutiques WHERE owner_user_id=?",
+        "DELETE FROM boutique_members WHERE user_id=? OR email=(SELECT email FROM users WHERE id=?)",
+        "UPDATE activity_log SET actor_email='Ancien membre' WHERE actor_email=(SELECT email FROM users WHERE id=?)",
+        "DELETE FROM platform_feedback WHERE user_id=?",
+        "DELETE FROM announcement_dismissals WHERE user_id=?",
+        "DELETE FROM announcement_stats WHERE user_id=?",
+        "UPDATE referral_commissions SET status='cancelled' WHERE referrer_user_id=? AND status IN ('pending','requested')",
+        "UPDATE referral_payouts SET status=CASE WHEN status='requested' THEN 'cancelled' ELSE status END, phone='' WHERE user_id=?",
+        "UPDATE users SET referred_by=NULL WHERE referred_by=?",
+        "DELETE FROM users WHERE id=?",
+    ]);
+}
+// Tout ou rien : une erreur annule l'ensemble et le compte reste en attente.
+function account_purge($userId) {
+    $email = q("SELECT email FROM users WHERE id=? AND status='deletion_pending'", [$userId])->fetchColumn();
+    if (!$email) return false;
+    $pdo = db();
+    $pdo->beginTransaction();
+    try {
+        foreach (account_purge_statements() as $sql) {
+            q($sql, array_fill(0, substr_count($sql, '?'), $userId));
+        }
+        $pdo->commit();
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        error_log('[MYBOUTIK] account_purge: '.$e->getMessage());
+        return false;
+    }
+    send_email($email, 'Votre compte MYBOUTIK a été supprimé', "Votre compte, vos boutiques et leurs données ont été effacés. Merci d'avoir utilisé MYBOUTIK.");
+    return true;
+}
+// Par petits lots pour ne jamais ralentir la requete qui la declenche. Colonne
+// absente tant que personne n'a demande de suppression : rien a faire.
+function purge_due_accounts() {
+    try {
+        $due = q("SELECT id FROM users WHERE status='deletion_pending' AND deletion_requested_at < NOW() - (?::text || ' days')::interval ORDER BY deletion_requested_at LIMIT 3",
+                 [ACCOUNT_DELETION_DAYS])->fetchAll(PDO::FETCH_COLUMN);
+    } catch (PDOException $e) {
+        return 0;
+    }
+    return count(array_filter(array_map('account_purge', $due)));
+}
+
+// ============================================================
 // BOUTIQUES — creation et gestion multi-boutiques d'un proprietaire
 // ============================================================
 function route_boutiques($action) {
@@ -2065,7 +2204,7 @@ function boutiques_list($pl) {
                UNION
                SELECT b.*, bm.role AS my_role FROM boutiques b
                JOIN boutique_members bm ON bm.boutique_id=b.id
-               WHERE bm.user_id=? AND bm.status='active'
+               WHERE bm.user_id=? AND bm.status='active' AND b.status<>'deletion_pending'
                ORDER BY created_at ASC", [$pl['sub'], $pl['sub']])->fetchAll();
     foreach ($rows as &$r) {
         $r['stats'] = boutique_quick_stats($r['id']);
@@ -5173,6 +5312,10 @@ function route_admin($action) {
         case 'boutique_warn':         admin_boutique_warn(); break;
         case 'actions_log':           admin_actions_log(); break;
         case 'disputes_list':         admin_disputes_list(); break;
+        case 'account_deletion_list':   admin_account_deletion_list(); break;
+        case 'account_delete_start':    admin_account_delete_start(); break;
+        case 'account_delete_cancel':   admin_account_delete_cancel(); break;
+        case 'account_delete_now':      admin_account_delete_now(); break;
         case 'low_reviews_list':      admin_low_reviews_list(); break;
         case 'suspicious_reviews_list': admin_suspicious_reviews_list(); break;
         case 'top_boutiques':         admin_top_boutiques(); break;
@@ -5203,8 +5346,35 @@ function admin_subscription_requests() {
 // demandes approuvees x prix du plan au moment de l'approbation - PLANS
 // peut changer de prix ensuite, mais l'historique reste calcule sur le prix
 // ACTUEL du plan concerne, faute de stocker un prix fige par demande).
+// Chaque chargement du panneau efface aussi les comptes arrives au bout du delai.
+function admin_account_deletion_list() {
+    ensure_account_deletion_columns();
+    purge_due_accounts();
+    ok(q("SELECT u.id, u.email, u.full_name, u.deletion_requested_at, u.deletion_requested_by, u.deletion_reason,
+                 u.deletion_requested_at + (?::text || ' days')::interval AS delete_on,
+                 (SELECT COUNT(*) FROM boutiques b WHERE b.owner_user_id=u.id) AS boutique_count
+          FROM users u WHERE u.status='deletion_pending' ORDER BY u.deletion_requested_at", [ACCOUNT_DELETION_DAYS])->fetchAll());
+}
+function admin_account_delete_start() {
+    $b = body();
+    $reason = substr(trim((string)($b['reason'] ?? '')), 0, 300);
+    if ($reason === '') fail('Indiquez la raison de la suppression');
+    account_deletion_start($b['user_id'] ?? '', 'admin', $reason);
+    ok(null, 'Suppression programmee dans '.ACCOUNT_DELETION_DAYS.' jours. Le titulaire a ete prevenu par e-mail.');
+}
+function admin_account_delete_cancel() {
+    account_deletion_cancel(body()['user_id'] ?? '');
+    ok(null, 'Compte restaure');
+}
+function admin_account_delete_now() {
+    $b = body();
+    if (strtoupper(trim((string)($b['confirm'] ?? ''))) !== 'SUPPRIMER') fail('Tapez SUPPRIMER pour confirmer');
+    if (!account_purge($b['user_id'] ?? '')) fail('Suppression impossible, rien n\'a ete efface.', 500);
+    ok(null, 'Compte efface definitivement');
+}
 function admin_clients_list() {
-    $users = q("SELECT id, email, full_name, plan, plan_status, plan_valid_until, whatsapp_number, created_at FROM users ORDER BY created_at DESC")->fetchAll();
+    ensure_account_deletion_columns();
+    $users = q("SELECT id, email, full_name, plan, plan_status, plan_valid_until, whatsapp_number, created_at, status FROM users ORDER BY created_at DESC")->fetchAll();
     foreach ($users as &$u) {
         $owned = q("SELECT name FROM boutiques WHERE owner_user_id=? ORDER BY created_at", [$u['id']])->fetchAll();
         $u['boutique_count'] = count($owned);
@@ -5952,8 +6122,9 @@ function admin_boutique_set_status() {
     $id = $b['id'] ?? '';
     $status = $b['status'] ?? '';
     if (!in_array($status, ['active', 'suspended'], true)) fail('Statut invalide');
-    $row = q("SELECT id FROM boutiques WHERE id=?", [$id])->fetch();
+    $row = q("SELECT id, status FROM boutiques WHERE id=?", [$id])->fetch();
     if (!$row) fail('Boutique introuvable', 404);
+    if ($row['status'] === 'deletion_pending') fail('Cette boutique est en cours de suppression : restaurez d\'abord le compte');
     q("UPDATE boutiques SET status=? WHERE id=?", [$status, $id]);
     admin_log($id, $status === 'suspended' ? 'Boutique suspendue par l\'administration' : 'Boutique reactivee par l\'administration');
     ok(null, $status === 'suspended' ? 'Boutique suspendue' : 'Boutique reactivee');
@@ -6496,6 +6667,7 @@ function route_cron($action) {
         case 'abandoned_reminders': cron_abandoned_reminders(); break;
         case 'stock_alerts':        cron_stock_alerts(); break;
         case 'sheet_sync':          cron_sheet_sync(); break;
+        case 'account_purge':       ok(['purged' => purge_due_accounts()]); break;
         default: fail('Action inconnue', 404);
     }
 }

@@ -401,6 +401,8 @@
         </div>
       </div>
       <div class="table-wrap" id="clientsBody"></div>
+      <h4 id="h4AccountDeletions" style="margin:20px 0 8px">Comptes en cours de suppression</h4>
+      <div class="table-wrap" id="accountDeletionsBody"></div>
     </div>
     <div class="card" data-panel="subs">
       <h3 id="h3History">Historique des paiements (300 derniers)</h3>
@@ -513,6 +515,19 @@ const I18N = {
     status_open: 'En attente', status_resolved: 'Répondue',
     no_disputes: 'Aucune réclamation pour le moment.',
     no_low_reviews: 'Aucun avis à 2 étoiles ou moins pour le moment.',
+    h4_account_deletions: 'Comptes en cours de suppression',
+    no_account_deletions: 'Aucun compte en cours de suppression.',
+    status_deleting: 'Suppression en cours', btn_delete_account: 'Supprimer',
+    col_requested_by: 'Demandé par', col_delete_on: 'Effacé le', col_email: 'E-mail',
+    requested_by_user: 'Le vendeur', requested_by_admin: 'Administration',
+    btn_restore_account: 'Restaurer', btn_erase_now: 'Effacer maintenant',
+    confirm_delete_account: 'Supprimer le compte {email} ?\n\nAttention : ses {n} boutique(s) disparaissent tout de suite et plus aucune connexion n\'est possible. Le titulaire est prévenu par e-mail. Vous pourrez restaurer le compte pendant 30 jours ; ensuite, tout est effacé définitivement.',
+    col_deletion_reason: 'Raison', deletion_reason_label: 'Raison de la suppression (obligatoire, envoyée au titulaire)',
+    deletion_reason_choose: 'Choisir une raison…', deletion_reason_other: 'Autre motif…', deletion_reason_other_label: 'Précisez la raison',
+    deletion_reason_required: 'Indiquez la raison de la suppression.',
+    deletion_reasons: ['Demande du titulaire du compte', 'Arnaque ou fraude', 'Produits ou contenus interdits', 'Faux avis', 'Compte de test ou inutilisé', 'Non-respect répété des conditions d\'utilisation'],
+    confirm_restore_account: 'Restaurer le compte {email} et ses boutiques ?',
+    confirm_erase_now: 'Effacer définitivement {email} maintenant ?\n\nAttention : boutiques, produits, commandes et clients seront perdus, sans restauration possible depuis ce panneau. Tapez SUPPRIMER pour confirmer.',
     h4_suspicious_reviews: 'Avis à vérifier',
     suspicious_reviews_note: 'Ce sont des signaux à vérifier, pas des preuves : un bon client peut aussi laisser plusieurs avis.',
     col_alert: 'Alerte', col_last_review: 'Dernier avis',
@@ -714,6 +729,19 @@ const I18N = {
     status_open: 'Pending', status_resolved: 'Replied',
     no_disputes: 'No complaints at the moment.',
     no_low_reviews: 'No reviews at 2 stars or below at the moment.',
+    h4_account_deletions: 'Accounts being deleted',
+    no_account_deletions: 'No accounts being deleted.',
+    status_deleting: 'Deletion in progress', btn_delete_account: 'Delete',
+    col_requested_by: 'Requested by', col_delete_on: 'Erased on', col_email: 'Email',
+    requested_by_user: 'The seller', requested_by_admin: 'Administration',
+    btn_restore_account: 'Restore', btn_erase_now: 'Erase now',
+    confirm_delete_account: 'Delete the account {email}?\n\nWarning: its {n} shop(s) disappear right away and the holder can no longer log in. They are notified by email. You can restore the account for 30 days; after that, everything is permanently erased.',
+    col_deletion_reason: 'Reason', deletion_reason_label: 'Reason for deletion (required, sent to the account holder)',
+    deletion_reason_choose: 'Choose a reason…', deletion_reason_other: 'Other reason…', deletion_reason_other_label: 'Specify the reason',
+    deletion_reason_required: 'Give the reason for the deletion.',
+    deletion_reasons: ['Request from the account holder', 'Scam or fraud', 'Prohibited products or content', 'Fake reviews', 'Test or unused account', 'Repeated breach of the terms of use'],
+    confirm_restore_account: 'Restore the account {email} and its shops?',
+    confirm_erase_now: 'Permanently erase {email} now?\n\nWarning: shops, products, orders and customers will be lost, with no restore from this panel. Type SUPPRIMER to confirm.',
     h4_suspicious_reviews: 'Reviews to check',
     suspicious_reviews_note: 'These are signals to check, not proof: a good customer can also leave several reviews.',
     col_alert: 'Alert', col_last_review: 'Latest review',
@@ -913,6 +941,7 @@ function applyStaticTranslations() {
   document.getElementById('h4Ranking').textContent = t('h4_ranking');
   document.getElementById('h4Disputes').textContent = t('h4_disputes');
   document.getElementById('h4LowReviews').textContent = t('h4_low_reviews');
+  document.getElementById('h4AccountDeletions').textContent = t('h4_account_deletions');
   document.getElementById('h4SuspiciousReviews').textContent = t('h4_suspicious_reviews');
   document.getElementById('suspiciousReviewsNote').textContent = t('suspicious_reviews_note');
   document.getElementById('h3TopBoutiques').textContent = t('h3_top_boutiques');
@@ -977,6 +1006,7 @@ let BOUTIQUES_ROWS = [];
 let DISPUTES_ROWS = [];
 let LOW_REVIEWS_ROWS = [];
 let SUSPICIOUS_REVIEWS = {same_phone: [], burst: []};
+let ACCOUNT_DELETIONS = [];
 let TOP_BOUTIQUES = {revenue: [], items_sold: [], orders_count: []};
 let ACTIONS_LOG_ROWS = [];
 let BOUTIQUE_FILTER = 'all';
@@ -1075,7 +1105,7 @@ function refreshPeriodViews() {
   updatePeriodBar();
   loadPeriodData();
   renderBoutiquesFiltered();
-  renderDisputes(DISPUTES_ROWS); renderLowReviews(LOW_REVIEWS_ROWS); renderSuspiciousReviews(SUSPICIOUS_REVIEWS); renderActionsLog(ACTIONS_LOG_ROWS);
+  renderDisputes(DISPUTES_ROWS); renderLowReviews(LOW_REVIEWS_ROWS); renderSuspiciousReviews(SUSPICIOUS_REVIEWS); renderAccountDeletions(); renderActionsLog(ACTIONS_LOG_ROWS);
   renderHistoryFiltered(); renderClients(); renderFeedback(FEEDBACK_ROWS);
 }
 function loadPeriodData() {
@@ -1680,6 +1710,7 @@ function loadAll() {
       if (!d9.success) { document.getElementById('lowReviewsBody').innerHTML = '<p style="color:#b91c1c">'+d9.message+'</p>'; return; }
       LOW_REVIEWS_ROWS = d9.data || []; renderLowReviews(LOW_REVIEWS_ROWS);
     });
+    loadAccountDeletions();
     call('suspicious_reviews_list').then(d => {
       if (!d.success) { document.getElementById('suspiciousReviewsBody').innerHTML = '<p style="color:#b91c1c">'+escapeAttr(d.message||'')+'</p>'; return; }
       SUSPICIOUS_REVIEWS = d.data || {same_phone: [], burst: []}; renderSuspiciousReviews(SUSPICIOUS_REVIEWS);
@@ -1720,6 +1751,7 @@ function clientStatusKey(c) {
 }
 function clientStatusPill(c) {
   const key = clientStatusKey(c);
+  if (c.status === 'deletion_pending') return '<span class="pill pill-bad">'+t('status_deleting')+'</span>';
   if (key === 'bad') return '<span class="pill pill-bad">'+t('status_expired')+'</span>';
   if (key === 'warn') return '<span class="pill pill-warn">'+t('status_expiring')+'</span>';
   return '<span class="pill pill-ok">'+t('status_active')+'</span>';
@@ -1800,7 +1832,7 @@ function renderClients() {
     return `<th style="cursor:pointer;user-select:none" onclick="sortClients('${key}')">${t(CLIENT_COLUMNS[key][0])}${arrow}</th>`;
   };
   document.getElementById('clientsBody').innerHTML = rows.length ? `<table><thead><tr>
-      ${Object.keys(CLIENT_COLUMNS).map(th).join('')}<th>${t('col_whatsapp')}</th>
+      ${Object.keys(CLIENT_COLUMNS).map(th).join('')}<th>${t('col_whatsapp')}</th><th></th>
     </tr></thead><tbody>
     ${rows.map(c => `<tr>
       <td>${escapeAttr(c.email)} <button class="copy-btn" title="${t('copy_email_title')}" onclick="copyClientEmail(${jsArg(c.email)})">📋</button></td>
@@ -1808,9 +1840,96 @@ function renderClients() {
       <td>${fmtDate(c.plan_valid_until)}</td><td>${boutiqueCell(c)}</td><td>${c.payments_count}</td>
       <td>${fmtMoney(c.total_paid)}</td><td>${fmtDate(c.created_at)}</td>
       <td>${clientWhatsappCell(c)}</td>
+      <td>${c.status === 'deletion_pending' ? '' : '<button class="ghost" onclick="startAccountDeletion('+jsArg(c.id)+')">'+t('btn_delete_account')+'</button>'}</td>
     </tr>`).join('')}
     </tbody></table>` : '<p style="color:var(--gray)">'+t('no_clients_match')+'</p>';
   updateClientsMailBtn();
+}
+function loadAccountDeletions() {
+  call('account_deletion_list').then(d => {
+    if (!d.success) { document.getElementById('accountDeletionsBody').innerHTML = '<p style="color:#b91c1c">'+escapeAttr(d.message||'')+'</p>'; return; }
+    ACCOUNT_DELETIONS = d.data || []; renderAccountDeletions();
+  });
+}
+function renderAccountDeletions() {
+  document.getElementById('accountDeletionsBody').innerHTML = ACCOUNT_DELETIONS.length ? `<table><thead><tr>
+      <th>${t('col_email')}</th><th>${t('col_requested_by')}</th><th>${t('col_deletion_reason')}</th><th>${t('col_delete_on')}</th><th></th>
+    </tr></thead><tbody>
+    ${ACCOUNT_DELETIONS.map(a => `<tr>
+      <td>${escapeAttr(a.email)}</td>
+      <td>${t(a.deletion_requested_by === 'admin' ? 'requested_by_admin' : 'requested_by_user')}</td>
+      <td style="max-width:260px;white-space:normal">${escapeAttr(a.deletion_reason||'—')}</td>
+      <td>${fmtDate(a.delete_on)}</td>
+      <td style="white-space:nowrap"><button onclick="restoreAccount(${jsArg(a.id)})">${t('btn_restore_account')}</button>
+        <button class="ghost" onclick="eraseAccountNow(${jsArg(a.id)})">${t('btn_erase_now')}</button></td>
+    </tr>`).join('')}
+    </tbody></table>` : '<p style="color:var(--gray)">'+t('no_account_deletions')+'</p>';
+}
+function accountActionDone(data, client) {
+  showToast(data.message || (data.success ? t('toast_done') : t('toast_error')), data.success ? 'success' : 'error');
+  if (!data.success) return;
+  if (client) { client.status = data.newStatus; renderClients(); }
+  loadAccountDeletions();
+}
+function startAccountDeletion(id) {
+  const c = CLIENTS.find(x => x.id === id);
+  if (!c) return;
+  document.getElementById('confirmModalBody').innerHTML = `
+    <p style="font-size:14.5px;line-height:1.5;white-space:pre-line;margin-bottom:10px">${escapeAttr(tf('confirm_delete_account', {email: c.email, n: Number(c.boutique_count)||0}))}</p>
+    <label for="deletionReasonSelect" style="display:block;font-size:13px;margin-bottom:4px">${t('deletion_reason_label')}</label>
+    <select id="deletionReasonSelect">
+      <option value="">${t('deletion_reason_choose')}</option>
+      ${t('deletion_reasons').map(r => '<option>'+escapeAttr(r)+'</option>').join('')}
+      <option value="__other">${t('deletion_reason_other')}</option>
+    </select>
+    <input id="deletionReasonOther" maxlength="300" placeholder="${t('deletion_reason_other_label')}" style="display:none;margin-top:8px">
+    <p id="deletionReasonError" style="color:#b91c1c;font-size:13px;margin-top:6px"></p>
+    <div class="modal-actions">
+      <button type="button" class="ghost" id="confirmCancelBtn">${t('confirm_cancel_btn')}</button>
+      <button type="button" class="danger" id="confirmOkBtn">${t('confirm_ok_btn')}</button>
+    </div>`;
+  const overlay = document.getElementById('confirmOverlay');
+  const select = document.getElementById('deletionReasonSelect');
+  const other = document.getElementById('deletionReasonOther');
+  overlay.classList.add('open');
+  select.onchange = () => { other.style.display = select.value === '__other' ? 'block' : 'none'; };
+  document.getElementById('confirmCancelBtn').onclick = () => overlay.classList.remove('open');
+  document.getElementById('confirmOkBtn').onclick = () => {
+    const reason = select.value === '__other' ? other.value.trim() : select.value;
+    if (!reason) { document.getElementById('deletionReasonError').textContent = t('deletion_reason_required'); return; }
+    overlay.classList.remove('open');
+    call('account_delete_start', {user_id: id, reason}).then(data => accountActionDone(Object.assign(data, {newStatus: 'deletion_pending'}), c));
+  };
+}
+function restoreAccount(id) {
+  const a = ACCOUNT_DELETIONS.find(x => x.id === id);
+  customConfirm(tf('confirm_restore_account', {email: a ? a.email : ''})).then(ok => {
+    if (!ok) return;
+    call('account_delete_cancel', {user_id: id}).then(data => accountActionDone(Object.assign(data, {newStatus: 'active'}), CLIENTS.find(x => x.id === id)));
+  });
+}
+// Irreversible depuis ce panneau : le mot SUPPRIMER doit etre tape, un clic ne suffit pas.
+function eraseAccountNow(id) {
+  const a = ACCOUNT_DELETIONS.find(x => x.id === id);
+  document.getElementById('confirmModalBody').innerHTML = `
+    <p style="font-size:14.5px;line-height:1.5;white-space:pre-line;margin-bottom:10px">${escapeAttr(tf('confirm_erase_now', {email: a ? a.email : ''}))}</p>
+    <input id="eraseConfirmInput" autocomplete="off">
+    <div class="modal-actions">
+      <button type="button" class="ghost" id="confirmCancelBtn">${t('confirm_cancel_btn')}</button>
+      <button type="button" class="danger" id="confirmOkBtn">${t('confirm_ok_btn')}</button>
+    </div>`;
+  const overlay = document.getElementById('confirmOverlay');
+  overlay.classList.add('open');
+  document.getElementById('confirmCancelBtn').onclick = () => overlay.classList.remove('open');
+  document.getElementById('confirmOkBtn').onclick = () => {
+    const confirm = document.getElementById('eraseConfirmInput').value.trim();
+    if (confirm.toUpperCase() !== 'SUPPRIMER') return;
+    overlay.classList.remove('open');
+    call('account_delete_now', {user_id: id, confirm}).then(data => {
+      if (data.success) { CLIENTS = CLIENTS.filter(x => x.id !== id); renderClients(); }
+      accountActionDone(data);
+    });
+  };
 }
 // ------------------------------------------------------------
 // Contacter les marchands : WhatsApp (un marchand a la fois) et email au

@@ -1086,6 +1086,13 @@ const I18N = {
     security_title: 'Sécurité',
     logout_other_devices_note: 'Utile en cas de perte ou de vol de votre téléphone : ceci déconnecte immédiatement toute autre session ouverte avec votre compte, tout en gardant celle-ci active.',
     btn_logout_other_devices: 'Se déconnecter de tous les autres appareils',
+    delete_account_title: 'Supprimer mon compte',
+    delete_account_note: 'Vos boutiques ne seront plus visibles et vous ne pourrez plus vous connecter. Pendant 30 jours, vous pouvez récupérer votre compte en écrivant à contact@myboutik.online. Ensuite, vos boutiques, produits, commandes, clients et votre équipe seront effacés définitivement.\n\nVotre abonnement en cours ne sera pas remboursé et vos commissions non payées seront annulées. Pensez à télécharger la sauvegarde de vos boutiques avant de continuer.',
+    delete_account_password_label: 'Votre mot de passe',
+    delete_account_confirm_label: 'Tapez SUPPRIMER pour confirmer',
+    delete_account_btn: 'Supprimer mon compte',
+    delete_account_required: 'Entrez votre mot de passe et tapez SUPPRIMER.',
+    delete_account_final_confirm: 'Supprimer votre compte et toutes vos boutiques dans 30 jours ?\n\nLa déconnexion sera immédiate.',
     confirm_logout_other_devices: 'Déconnecter tous les autres appareils connectés à votre compte ?\n\nCette session-ci restera active.',
     feedback_title: 'Donner mon avis sur MYBOUTIK',
     feedback_intro: 'Une suggestion, un problème, un mot gentil ? Dites-le-nous — nous répondons directement à votre adresse email.',
@@ -1799,6 +1806,13 @@ const I18N = {
     security_title: 'Security',
     logout_other_devices_note: 'Useful if your phone is lost or stolen: this immediately signs out any other session logged into your account, while keeping this one active.',
     btn_logout_other_devices: 'Log out of all other devices',
+    delete_account_title: 'Delete my account',
+    delete_account_note: 'Your shops will no longer be visible and you will no longer be able to log in. For 30 days, you can recover your account by writing to contact@myboutik.online. After that, your shops, products, orders, customers and team will be permanently erased.\n\nYour current subscription will not be refunded and your unpaid commissions will be cancelled. Remember to download your shops\' backup before continuing.',
+    delete_account_password_label: 'Your password',
+    delete_account_confirm_label: 'Type SUPPRIMER to confirm',
+    delete_account_btn: 'Delete my account',
+    delete_account_required: 'Enter your password and type SUPPRIMER.',
+    delete_account_final_confirm: 'Delete your account and all your shops in 30 days?\n\nYou will be logged out right away.',
     confirm_logout_other_devices: 'Log out all other devices connected to your account?\n\nThis session will stay active.',
     feedback_title: 'Give feedback on MYBOUTIK',
     feedback_intro: 'A suggestion, an issue, a kind word? Let us know — we reply directly to your email address.',
@@ -4410,7 +4424,30 @@ function renderProfile() {
         <div class="field"><label>${t('feedback_message_label')}</label><textarea id="fbMessage" rows="4" placeholder="${t('feedback_message_placeholder')}"></textarea></div>
         <button class="btn btn-primary" onclick="submitFeedback()">${t('feedback_submit_btn')}</button>
       </div>
+      <div class="card">
+        <h3 style="margin:0 0 4px">${t('delete_account_title')}</h3>
+        <p class="muted" style="margin-bottom:14px;white-space:pre-line">${t('delete_account_note')}</p>
+        <div id="deleteAccountMsg"></div>
+        <div class="field"><label>${t('delete_account_password_label')}</label><input id="delAccPassword" type="password" autocomplete="current-password"></div>
+        <div class="field"><label>${t('delete_account_confirm_label')}</label><input id="delAccConfirm" autocomplete="off"></div>
+        <button class="btn btn-danger" onclick="requestAccountDeletion()">${t('delete_account_btn')}</button>
+      </div>
     `;
+  });
+}
+function requestAccountDeletion() {
+  const password = document.getElementById('delAccPassword').value;
+  const confirm = document.getElementById('delAccConfirm').value.trim();
+  const msg = document.getElementById('deleteAccountMsg');
+  if (!password || confirm.toUpperCase() !== 'SUPPRIMER') { msg.innerHTML = '<div class="msg error">'+t('delete_account_required')+'</div>'; return; }
+  customConfirm(t('delete_account_final_confirm'), {danger: true}).then(ok => {
+    if (!ok) return;
+    post('/auth?action=delete_account', {password, confirm}).then(({data}) => {
+      if (!data.success) { msg.innerHTML = '<div class="msg error">'+escapeHtml(data.message||'')+'</div>'; return; }
+      msg.innerHTML = '<div class="msg success">'+escapeHtml(data.message||'')+'</div>';
+      localStorage.removeItem('myboutik_token'); localStorage.removeItem('myboutik_user');
+      setTimeout(() => { window.location.href = '../index.html'; }, 3500);
+    });
   });
 }
 function submitFeedback() {
