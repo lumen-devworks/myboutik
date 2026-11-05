@@ -2,3 +2,4 @@ User-agent: *
 Allow: /
 
 Sitemap: https://myboutik.online/sitemap.xml
+Sitemap: https://myboutik-backend.onrender.com/sitemap

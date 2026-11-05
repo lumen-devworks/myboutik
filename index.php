@@ -1066,6 +1066,7 @@ try {
         case 'integrations': route_integrations($action); break;
         case 'cron':      route_cron($action); break;
         case 'health':    ok(['status'=>'up','time'=>date('c')]); break;
+        case 'sitemap':   route_sitemap(); break;
         default: fail('Module inconnu', 404);
     }
 } catch (PDOException $e) {
@@ -2886,6 +2887,29 @@ function image_product_photo() {
     output_data_uri_image($row['image_url'] ?? null);
 }
 
+// Plan du site pour Google, annonce dans le robots.txt de myboutik.online : seules
+// les boutiques ayant choisi d'etre publiques (public_listed, comme l'annuaire) y
+// figurent. Jamais de photo dans cette requete, pour ne rien transferer d'inutile.
+function route_sitemap() {
+    $rows = q("SELECT b.slug, p.slug AS product_slug
+               FROM boutiques b JOIN users u ON u.id=b.owner_user_id
+               LEFT JOIN products p ON p.boutique_id=b.id AND p.status='active' AND p.slug<>''
+               WHERE b.status='active' AND b.public_listed=1 AND (u.plan_valid_until IS NULL OR u.plan_valid_until >= NOW())
+               ORDER BY b.slug, p.slug LIMIT 50000")->fetchAll();
+    $urls = [];
+    foreach ($rows as $r) {
+        $shopUrl = FRONTEND_BASE_URL.'/store/index.html?b='.urlencode($r['slug']);
+        $urls[$shopUrl] = true;
+        if ($r['product_slug'] !== null) $urls[$shopUrl.'&p='.urlencode($r['product_slug'])] = true;
+    }
+    header('Content-Type: application/xml; charset=utf-8');
+    header('Cache-Control: public, max-age=86400');
+    echo '<?xml version="1.0" encoding="UTF-8"?>'."\n".'<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'."\n";
+    foreach (array_keys($urls) as $url) echo '  <url><loc>'.htmlspecialchars($url, ENT_QUOTES | ENT_XML1, 'UTF-8').'</loc></url>'."\n";
+    echo '</urlset>'."\n";
+    exit;
+}
+
 // ============================================================
 // PAGES D'APERCU POUR LE PARTAGE (preview?action=...) - le frontend est un
 // site 100% statique dont le contenu se charge en JavaScript ; les robots
@@ -2979,7 +3003,7 @@ function preview_product() {
 // l'annuaire (public_listed reste tel quel) : des qu'il se reabonne, elle
 // redevient visible automatiquement, aucune reactivation manuelle requise.
 function public_boutique_by_slug($slug) {
-    $row = q("SELECT b.id,b.slug,b.name,b.description,b.logo_url,b.currency,b.cod_enabled,b.default_delivery_fee,b.default_shipping_fee,b.default_shipping_fee_other_country,b.status,b.city,b.country, u.plan_valid_until
+    $row = q("SELECT b.id,b.slug,b.name,b.description,b.logo_url,b.currency,b.cod_enabled,b.default_delivery_fee,b.default_shipping_fee,b.default_shipping_fee_other_country,b.status,b.city,b.country,b.public_listed, u.plan_valid_until
               FROM boutiques b JOIN users u ON u.id=b.owner_user_id WHERE b.slug=?", [$slug])->fetch();
     if (!$row || $row['status'] !== 'active') fail('Boutique introuvable', 404);
     if ($row['plan_valid_until'] !== null && strtotime($row['plan_valid_until']) < time()) fail('Boutique introuvable', 404);

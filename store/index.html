@@ -673,6 +673,7 @@ if (!SLUG) {
     if (BUYER_CURRENCY && (!FX_RATES[BUYER_CURRENCY] || BUYER_CURRENCY === BOUTIQUE.currency)) BUYER_CURRENCY = '';
     if (!BUYER_CHOSEN && !BUYER_CURRENCY) BUYER_CURRENCY = guessBuyerCurrency();
     document.title = BOUTIQUE.name;
+    applySearchInfo();
     renderShop();
     post('/shop?action=track_visit', {slug:SLUG, session_id:sessionId(), path:window.location.pathname, referrer:document.referrer});
     // Lien direct vers une fiche produit (ex: partage sur WhatsApp) :
@@ -686,6 +687,45 @@ if (!SLUG) {
   });
 }
 
+// Ce que Google lit apres le chargement de la page : titre, description, adresse
+// officielle et fiche structuree (prix, disponibilite, note). Une boutique qui n'a
+// pas choisi d'etre publique demande a ne pas etre referencee.
+function setHeadTag(tag, attr, name, valueAttr, value) {
+  let el = document.head.querySelector(tag+'['+attr+'="'+name+'"]');
+  if (!el) { el = document.createElement(tag); el.setAttribute(attr, name); document.head.appendChild(el); }
+  el.setAttribute(valueAttr, value);
+}
+function searchText(text, fallback) {
+  const clean = String(text||'').replace(/\s+/g, ' ').trim() || fallback;
+  return clean.length > 160 ? clean.slice(0, 157).trimEnd()+'…' : clean;
+}
+function applySearchInfo() {
+  const b = BOUTIQUE;
+  const shopUrl = 'https://myboutik.online/store/index.html?b='+encodeURIComponent(b.slug);
+  const p = PRODUCTS.find(x => x.slug && x.slug === new URLSearchParams(window.location.search).get('p'));
+  const place = [b.city, b.country].filter(Boolean).join(', ');
+  const shopFallback = b.name+' : boutique en ligne'+(place ? ' à '+place : '')+'.'+(Number(b.cod_enabled) ? ' Paiement à la livraison.' : '');
+  if (b.public_listed !== undefined && !Number(b.public_listed)) setHeadTag('meta', 'name', 'robots', 'content', 'noindex');
+  const url = p ? shopUrl+'&p='+encodeURIComponent(p.slug) : shopUrl;
+  document.title = p ? p.name+' — '+b.name : b.name+' — Boutique en ligne';
+  setHeadTag('meta', 'name', 'description', 'content', searchText(p ? p.description : b.description, p ? p.name+' chez '+b.name+'.' : shopFallback));
+  setHeadTag('link', 'rel', 'canonical', 'href', url);
+  const data = p ? {
+    '@context': 'https://schema.org', '@type': 'Product', name: p.name, url,
+    description: searchText(p.description, p.name),
+    brand: {'@type': 'Brand', name: b.name},
+    offers: {
+      '@type': 'Offer', url, price: Number(p.price), priceCurrency: b.currency,
+      availability: 'https://schema.org/'+(Number(p.track_inventory) && Number(p.stock_qty) <= 0 && !Number(p.allow_backorder) ? 'OutOfStock' : 'InStock'),
+    },
+  } : {'@context': 'https://schema.org', '@type': 'Store', name: b.name, url, description: searchText(b.description, shopFallback)};
+  if (p && p.image_url) data.image = API_URL+'/image?action=product_photo&slug='+encodeURIComponent(b.slug)+'&p='+encodeURIComponent(p.slug);
+  if (!p && place) data.address = {'@type': 'PostalAddress', addressLocality: b.city||undefined, addressCountry: b.country||undefined};
+  const script = document.createElement('script');
+  script.type = 'application/ld+json';
+  script.textContent = JSON.stringify(data);
+  document.head.appendChild(script);
+}
 function renderShop() {
   document.getElementById('root').innerHTML = `
     <header><div class="wrap bar">

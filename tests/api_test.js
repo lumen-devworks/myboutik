@@ -83,6 +83,16 @@ const reviews = async s => (await call('/shop?action=reviews&slug=' + s.shop.slu
   await setStatus(seller, manual.data.id, 'delivered');
   check('pas d\'avis sur une commande manuelle', (await review(seller, manual.data.ref, '+225 01 99 88 77 66')).status === 403);
 
+  console.log('Plan du site pour Google');
+  const sitemap = async () => (await fetch(API + '/sitemap')).text();
+  const shopLoc = 'b=' + seller.shop.slug;
+  check('une boutique non publique n\'y figure pas', !(await sitemap()).includes(shopLoc));
+  await call('/boutiques?action=update', { id: seller.shop.id, public_listed: 1 }, seller.jwt);
+  const listed = await sitemap();
+  check('une boutique publique y figure', listed.includes(shopLoc), listed.slice(0, 300));
+  check('ses produits y figurent, sans erreur XML', listed.includes(shopLoc + '&amp;p=') && !/&p=/.test(listed), listed.slice(0, 300));
+  check('la boutique indique son choix', (await call('/shop?action=boutique&slug=' + seller.shop.slug)).data.public_listed === 1);
+
   console.log('Commandes terminees');
   check('correction refusee sans motif', !(await setStatus(seller, o1.id, 'cancelled')).success);
 
