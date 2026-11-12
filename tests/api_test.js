@@ -126,7 +126,9 @@ const reviews = async s => (await call('/shop?action=reviews&slug=' + s.shop.slu
   console.log('Plan du site pour Google');
   const sitemap = async () => (await fetch(API + '/sitemap')).text();
   const shopLoc = 'b=' + seller.shop.slug;
-  check('une boutique non publique n\'y figure pas', !(await sitemap()).includes(shopLoc));
+  check('une nouvelle boutique est publique par defaut', (await sitemap()).includes(shopLoc));
+  await call('/boutiques?action=update', { id: seller.shop.id, public_listed: 0 }, seller.jwt);
+  check('une boutique decochee n\'y figure plus', !(await sitemap()).includes(shopLoc));
   await call('/boutiques?action=update', { id: seller.shop.id, public_listed: 1 }, seller.jwt);
   const listed = await sitemap();
   check('une boutique publique y figure', listed.includes(shopLoc), listed.slice(0, 300));

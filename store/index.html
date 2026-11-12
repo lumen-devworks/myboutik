@@ -117,6 +117,7 @@
 <div id="toastContainer"></div>
 
 <script src="../config.js"></script>
+<script src="../install.js"></script>
 <script>
 const API_URL = window.MYBOUTIK_API_URL || 'https://myboutik-backend.onrender.com';
 // Le slug de la boutique se lit soit dans le chemin /store/{slug}, soit dans
@@ -783,8 +784,7 @@ function renderShop() {
   // renderShop() reconstruit tout le header (langue, header dynamique par
   // boutique...) - on reapplique l'etat d'installation deja connu plutot
   // que de laisser le bouton reapparaitre a display:none par defaut.
-  const installBtnEl = document.getElementById('installBtn');
-  if (installBtnEl) installBtnEl.style.display = deferredInstallPrompt ? 'inline-flex' : 'none';
+  if (window.mbInstallSync) mbInstallSync();
 }
 function renderCategoryPills() {
   const el = document.getElementById('categoryPills');
@@ -1590,33 +1590,7 @@ function submitPlatformFeedback() {
   });
 }
 
-// Installation PWA : Chrome/Edge/Android declenchent beforeinstallprompt
-// quand les criteres (manifest + service worker + https) sont remplis - on
-// garde l'evenement pour le rejouer au clic sur notre propre bouton plutot
-// que de compter sur le mini-infobar natif du navigateur. Le bouton vit
-// dans le header genere par renderShop() (voir la synchro d'affichage a la
-// fin de cette fonction), pas dans le HTML statique de la page.
-let deferredInstallPrompt = null;
-window.addEventListener('beforeinstallprompt', (e) => {
-  e.preventDefault();
-  deferredInstallPrompt = e;
-  const btn = document.getElementById('installBtn');
-  if (btn) btn.style.display = 'inline-flex';
-});
-function installApp() {
-  if (!deferredInstallPrompt) return;
-  deferredInstallPrompt.prompt();
-  deferredInstallPrompt.userChoice.then((choice) => {
-    if (choice.outcome === 'accepted') showToast(t('installed_toast'), 'info');
-    deferredInstallPrompt = null;
-    const btn = document.getElementById('installBtn');
-    if (btn) btn.style.display = 'none';
-  });
-}
-window.addEventListener('appinstalled', () => {
-  const btn = document.getElementById('installBtn');
-  if (btn) btn.style.display = 'none';
-});
+// Bouton "Installer l'appli" : voir install.js.
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => { navigator.serviceWorker.register('sw.js').catch(() => {}); });
 }

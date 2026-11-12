@@ -2255,7 +2255,8 @@ function boutiques_create($pl) {
     $slug = unique_boutique_slug(slugify($name));
     $id = uid();
     // Devise deduite du pays choisi (modifiable ensuite dans Parametres > General).
-    q("INSERT INTO boutiques (id,owner_user_id,slug,name,city,country,currency) VALUES (?,?,?,?,?,?,?)", [$id, $pl['sub'], $slug, $name, $city, $country, currency_for_country($country)]);
+    // Annuaire public active d'office : le vendeur peut le decocher dans Parametres.
+    q("INSERT INTO boutiques (id,owner_user_id,slug,name,city,country,currency,public_listed) VALUES (?,?,?,?,?,?,?,1)", [$id, $pl['sub'], $slug, $name, $city, $country, currency_for_country($country)]);
     // Compte caisse par defaut, pour que le Livre de Compte ne soit pas vide
     // des la creation (l'utilisateur peut le renommer/en ajouter d'autres).
     q("INSERT INTO accounts (id,boutique_id,name,type) VALUES (?,?,?,?)", [uid(), $id, 'Caisse', 'caisse']);

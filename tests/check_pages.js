@@ -13,6 +13,14 @@ for (const page of pages) {
   const scripts = [...html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi)]
     .filter(m => !/src=/.test(m[1]) && !/type=["']application\/(ld\+)?json/.test(m[1]));
   let js = '';
+  // Scripts partages du site (ex. install.js) : leurs fonctions comptent aussi pour les boutons.
+  for (const m of html.matchAll(/<script\b[^>]*\bsrc=["']([^"':]+\.js)["']/gi)) {
+    const file = path.join(root, path.dirname(page), m[1]);
+    if (!fs.existsSync(file)) { report(page, 'script introuvable : ' + m[1]); continue; }
+    const code = fs.readFileSync(file, 'utf8');
+    try { new vm.Script(code, { filename: m[1] }); } catch (e) { report(page, m[1] + ' invalide : ' + e.message); }
+    js += code + '\n';
+  }
   for (const m of scripts) {
     js += m[2] + '\n';
     try { new vm.Script(m[2], { filename: page }); } catch (e) { report(page, 'JavaScript invalide : ' + e.message); }

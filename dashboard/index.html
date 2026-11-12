@@ -263,6 +263,7 @@
 <div id="toastContainer"></div>
 
 <script src="../config.js"></script>
+<script src="../install.js"></script>
 <script>
 const API_URL = window.MYBOUTIK_API_URL || 'http://localhost:8000';
 // let (pas const) : logoutOtherDevices() remplace ce jeton par un nouveau
@@ -1031,7 +1032,7 @@ const I18N = {
     checkbox_cod_enabled: 'Paiement à la livraison activé',
     cod_enabled_note: 'Ne concerne que les commandes avec au moins un produit physique — désactiver ceci n\'empêche pas de vendre des produits numériques.',
     checkbox_public_listed: 'Lister ma boutique dans l\'annuaire public MYBOUTIK',
-    public_listed_note: 'Désactivé par défaut. Si activé, votre boutique et vos produits actifs deviennent visibles par tout visiteur de l\'annuaire MYBOUTIK (recherche incluse) et peuvent apparaître sur Google —pas seulement les personnes à qui vous partagez votre lien.',
+    public_listed_note: 'Activé à la création de la boutique. Votre boutique et vos produits actifs sont alors visibles par tout visiteur de l\'annuaire MYBOUTIK (recherche incluse) et peuvent apparaître sur Google, pas seulement les personnes à qui vous partagez votre lien. Décochez pour ne plus y apparaître.',
     label_directory_category: 'Catégorie (annuaire)',
     label_directory_city: 'Ville (annuaire)',
     placeholder_directory_city: 'Ex : Abidjan, Cocody…',
@@ -1751,7 +1752,7 @@ const I18N = {
     checkbox_cod_enabled: 'Cash on delivery enabled',
     cod_enabled_note: 'Only applies to orders with at least one physical product — turning this off doesn\'t stop you from selling digital products.',
     checkbox_public_listed: 'List my shop in the public MYBOUTIK directory',
-    public_listed_note: 'Off by default. If enabled, your shop and active products become visible to any visitor of the MYBOUTIK directory (search included) and may appear on Google -not just people you share your link with.',
+    public_listed_note: 'On when the shop is created. Your shop and active products are then visible to any visitor of the MYBOUTIK directory (search included) and may appear on Google, not just people you share your link with. Untick to stop appearing there.',
     label_directory_category: 'Category (directory)',
     label_directory_city: 'City (directory)',
     placeholder_directory_city: 'E.g.: Abidjan, Cocody…',
@@ -4824,26 +4825,7 @@ function loadAnnouncements() {
 loadAnnouncements();
 setInterval(loadAnnouncements, 300000);
 
-// Installation PWA : Chrome/Edge/Android declenchent beforeinstallprompt
-// quand les criteres (manifest + service worker + https) sont remplis - on
-// garde l'evenement pour le rejouer au clic sur notre propre bouton plutot
-// que de compter sur le mini-infobar natif du navigateur.
-let deferredInstallPrompt = null;
-window.addEventListener('beforeinstallprompt', (e) => {
-  e.preventDefault();
-  deferredInstallPrompt = e;
-  document.getElementById('installBtn').style.display = 'inline-flex';
-});
-function installApp() {
-  if (!deferredInstallPrompt) return;
-  deferredInstallPrompt.prompt();
-  deferredInstallPrompt.userChoice.then((choice) => {
-    if (choice.outcome === 'accepted') showToast(t('installed_toast'), 'info');
-    deferredInstallPrompt = null;
-    document.getElementById('installBtn').style.display = 'none';
-  });
-}
-window.addEventListener('appinstalled', () => { document.getElementById('installBtn').style.display = 'none'; });
+// Bouton "Installer l'appli" : voir install.js.
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => { navigator.serviceWorker.register('sw.js').catch(() => {}); });
 }
