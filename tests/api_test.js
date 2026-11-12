@@ -100,6 +100,14 @@ const reviews = async s => (await call('/shop?action=reviews&slug=' + s.shop.slu
   check('produit avec photo cree', withPhoto.success, withPhoto);
   await call('/products?action=image_add', { boutique_id: seller.shop.id, product_id: withPhoto.data.id, data: png(600) }, seller.jwt);
   await call('/boutiques?action=update', { id: seller.shop.id, logo_url: png(100) }, seller.jwt);
+  const ownShops = await call('/boutiques?action=list', null, seller.jwt);
+  const ownShop = (ownShops.data || []).find(b => b.id === seller.shop.id) || {};
+  check('la liste des boutiques du vendeur ne contient pas le logo', ownShops.success && !JSON.stringify(ownShops.data).includes('data:image') && ownShop.has_logo === true && ownShop.slug === seller.shop.slug && ownShop.my_role === 'owner' && ownShop.stats, ownShop);
+  const fullShop = await call('/boutiques?action=get&id=' + seller.shop.id, null, seller.jwt);
+  check('Parametres recoit le logo complet', fullShop.success && String(fullShop.data.logo_url).startsWith('data:image'), fullShop.message);
+  const live = await call('/analytics?action=live&boutique_id=' + seller.shop.id, null, seller.jwt);
+  const onb = (live.data || {}).onboarding || {};
+  check('le guide de demarrage voit logo, produits et commandes', Number(onb.has_logo) === 1 && Number(onb.produits) >= 1 && Number(onb.commandes) >= 1, onb);
   const listText = await (await fetch(API + '/shop?action=products&slug=' + seller.shop.slug)).text();
   check('la liste ne contient plus aucune photo', !listText.includes('data:image') && listText.length < 20000, listText.length);
   const listed1 = JSON.parse(listText).data.find(p => p.id === withPhoto.data.id);
@@ -141,6 +149,7 @@ const reviews = async s => (await call('/shop?action=reviews&slug=' + s.shop.slu
   console.log('Administration');
   check('mauvais mot de passe refuse', (await call('/admin?action=clients_list', { password: 'faux' })).status === 403);
   check('liste des clients', (await admin('clients_list')).success);
+  check('bouton de test de l\'alerte', (await admin('test_error_alert')).success);
   const alerts = await admin('suspicious_reviews_list');
   check('liste des avis a verifier', alerts.success && Array.isArray(alerts.data.same_phone), alerts);
 

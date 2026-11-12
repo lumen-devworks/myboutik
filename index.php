@@ -289,6 +289,7 @@ const EN_DICT = [
     'Marque comme lu' => 'Marked as read',
     'Membre retire' => 'Member removed',
     'Merci pour votre avis !' => 'Thank you for your review!',
+    'Alerte de test envoyee' => 'Test alert sent',
     'Ce compte est en cours de suppression. Ecrivez a contact@myboutik.online pour le recuperer.' => 'This account is being deleted. Write to contact@myboutik.online to recover it.',
     'Tapez SUPPRIMER pour confirmer' => 'Type SUPPRIMER to confirm',
     'Indiquez la raison de la suppression' => 'Give the reason for the deletion',
@@ -374,6 +375,28 @@ function fail($msg, $code = 400) {
     http_response_code($code);
     echo json_encode(['success'=>false,'message'=>t($msg)], JSON_UNESCAPED_UNICODE);
     exit;
+}
+// Alerte par e-mail sur une erreur inattendue : une par heure et par type au plus,
+// sans aucune donnee de client (type d'erreur, fichier, page et heure seulement).
+function alert_admin_error($kind, $detail) {
+    if (APP_ENV === 'development') return;
+    $flag = sys_get_temp_dir().'/myboutik_alert_'.md5($kind);
+    if (is_file($flag) && filemtime($flag) > time() - 3600) return;
+    @touch($flag);
+    $page = (string)parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH);
+    if (!empty($_GET['action'])) $page .= '?action='.preg_replace('/[^a-z_]/i', '', (string)$_GET['action']);
+    send_email(ADMIN_NOTIFY_EMAIL ?: 'contact@myboutik.online', '[MYBOUTIK] Alerte : '.$kind,
+        "Le serveur MYBOUTIK a rencontré une erreur.\n\nType : $kind\nDétail : $detail\nPage : $page\nHeure : ".date('d/m/Y H:i:s').
+        " (UTC)\n\nLes détails complets sont dans les journaux de Render. Pendant une heure, les erreurs suivantes du même type n'envoient pas d'autre alerte.");
+}
+function error_summary(Throwable $e) {
+    $code = $e instanceof PDOException ? ' (code SQL '.$e->getCode().')' : '';
+    return get_class($e).$code.' - '.basename($e->getFile()).' ligne '.$e->getLine();
+}
+function admin_test_error_alert() {
+    @unlink(sys_get_temp_dir().'/myboutik_alert_'.md5('Test'));
+    alert_admin_error('Test', 'Alerte de test envoyée depuis le panneau admin');
+    ok(null, 'Alerte de test envoyee');
 }
 function log_and_fail($e, $userMsg, $code = 500) {
     error_log('[MYBOUTIK] '.$userMsg.' :: '.$e->getMessage());
@@ -510,6 +533,7 @@ function db(): PDO {
             );
         } catch(PDOException $e) {
             error_log('[MYBOUTIK] Erreur serveur :: BDD: '.$e->getMessage());
+            alert_admin_error('Base de données injoignable', 'Connexion impossible (code '.$e->getCode().')');
             fail(APP_DEBUG ? 'BDD: '.$e->getMessage() : 'Erreur serveur', 500);
         }
     }
@@ -1054,6 +1078,13 @@ if ($bodyBoutiqueId !== null && $urlBoutiqueId !== null
     fail('Requete incoherente : plusieurs boutiques indiquees', 400);
 }
 
+// Erreur fatale de PHP (memoire, code invalide) : elle echappe au try ci-dessous.
+register_shutdown_function(function () {
+    $e = error_get_last();
+    if ($e && in_array($e['type'], [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR], true)) {
+        alert_admin_error('Erreur fatale PHP', basename($e['file']).' ligne '.$e['line']);
+    }
+});
 try {
     switch ($module) {
         case 'install':   route_install(); break;
@@ -1083,8 +1114,10 @@ try {
         default: fail('Module inconnu', 404);
     }
 } catch (PDOException $e) {
+    alert_admin_error('Erreur base de données', error_summary($e));
     log_and_fail($e, 'Erreur base de donnees');
 } catch (Throwable $e) {
+    alert_admin_error('Erreur serveur', error_summary($e));
     log_and_fail($e, 'Erreur serveur');
 }
 
@@ -2219,14 +2252,22 @@ function boutiques_export_backup($pl) {
 function boutiques_list($pl) {
     // Les boutiques dont l'utilisateur est proprietaire ET celles ou il a
     // ete ajoute comme membre d'equipe actif (voir require_boutique_owned).
-    $rows = q("SELECT b.*, 'owner' AS my_role FROM boutiques b WHERE b.owner_user_id=?
-               UNION
-               SELECT b.*, bm.role AS my_role FROM boutiques b
-               JOIN boutique_members bm ON bm.boutique_id=b.id
+    // Le logo (photo en base64) reste chez Neon : seule l'indication has_logo est
+    // lue. La page Parametres charge la boutique complete via boutiques_get().
+    $raw = q("SELECT to_jsonb(b) - 'logo_url' AS data, (b.logo_url IS NOT NULL AND b.logo_url<>'') AS has_logo, 'owner' AS my_role, b.created_at
+               FROM boutiques b WHERE b.owner_user_id=?
+               UNION ALL
+               SELECT to_jsonb(b) - 'logo_url', (b.logo_url IS NOT NULL AND b.logo_url<>''), bm.role, b.created_at
+               FROM boutiques b JOIN boutique_members bm ON bm.boutique_id=b.id
                WHERE bm.user_id=? AND bm.status='active' AND b.status<>'deletion_pending'
                ORDER BY created_at ASC", [$pl['sub'], $pl['sub']])->fetchAll();
-    foreach ($rows as &$r) {
+    $rows = [];
+    foreach ($raw as $row) {
+        $r = json_decode($row['data'], true);
+        $r['has_logo'] = (bool)$row['has_logo'];
+        $r['my_role'] = $row['my_role'];
         $r['stats'] = boutique_quick_stats($r['id']);
+        $rows[] = $r;
     }
     ok($rows);
 }
@@ -4910,7 +4951,12 @@ function analytics_live($pl) {
     $panierMoyen = $cmdToday > 0 ? round($revToday / $cmdToday, 2) : 0;
     $recent = q("SELECT * FROM orders WHERE boutique_id=? ORDER BY created_at DESC LIMIT 10", [$bt['id']])->fetchAll();
     $activity = q("SELECT * FROM activity_log WHERE boutique_id=? ORDER BY created_at DESC LIMIT 20", [$bt['id']])->fetchAll();
-    ok(['commandes_aujourdhui'=>$cmdToday, 'revenus_aujourdhui'=>$revToday, 'panier_moyen'=>$panierMoyen,
+    // Guide de demarrage du tableau de bord (voir onboardingCardHtml()).
+    $onboarding = q("SELECT CAST(b.logo_url IS NOT NULL AND b.logo_url<>'' AS INT) AS has_logo, b.default_delivery_fee, b.default_shipping_fee,
+                            (SELECT COUNT(*) FROM products p WHERE p.boutique_id=b.id AND p.status='active') AS produits,
+                            (SELECT COUNT(*) FROM orders o WHERE o.boutique_id=b.id) AS commandes
+                     FROM boutiques b WHERE b.id=?", [$bt['id']])->fetch();
+    ok(['onboarding'=>$onboarding, 'commandes_aujourdhui'=>$cmdToday, 'revenus_aujourdhui'=>$revToday, 'panier_moyen'=>$panierMoyen,
         'commandes_recentes'=>$recent, 'activite'=>$activity, 'server_time'=>date('c')]);
 }
 
@@ -5452,6 +5498,7 @@ function route_admin($action) {
         case 'account_delete_now':      admin_account_delete_now(); break;
         case 'low_reviews_list':      admin_low_reviews_list(); break;
         case 'suspicious_reviews_list': admin_suspicious_reviews_list(); break;
+        case 'test_error_alert':        admin_test_error_alert(); break;
         case 'top_boutiques':         admin_top_boutiques(); break;
         case 'period_stats':          admin_period_stats(); break;
         case 'rates_list':            admin_rates_list(); break;

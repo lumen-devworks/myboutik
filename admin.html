@@ -245,6 +245,7 @@
     <div class="card" data-panel="quality">
       <h3 id="h3Quality">Surveillance qualité</h3>
       <p class="muted" id="qualityNote" style="margin-bottom:14px"></p>
+      <button type="button" class="ghost" id="btnTestAlert" onclick="testErrorAlert()" style="margin-bottom:14px">📧 Tester l'alerte e-mail</button>
       <h4 id="h4Ranking" style="margin:0 0 8px">Boutiques à surveiller</h4>
       <div class="table-wrap" id="boutiqueRankingBody"></div>
       <h4 id="h4Disputes" style="margin:20px 0 8px">Réclamations</h4>
@@ -530,6 +531,7 @@ const I18N = {
     confirm_restore_account: 'Restaurer le compte {email} et ses boutiques ?',
     confirm_erase_now: 'Effacer définitivement {email} maintenant ?\n\nAttention : boutiques, produits, commandes et clients seront perdus, sans restauration possible depuis ce panneau. Tapez SUPPRIMER pour confirmer.',
     h4_suspicious_reviews: 'Avis à vérifier',
+    btn_test_alert: 'Tester l\'alerte e-mail',
     suspicious_reviews_note: 'Ce sont des signaux à vérifier, pas des preuves : un bon client peut aussi laisser plusieurs avis.',
     col_alert: 'Alerte', col_last_review: 'Dernier avis',
     alert_same_phone: '{n} avis avec le même numéro (…{end}) en 90 jours',
@@ -744,6 +746,7 @@ const I18N = {
     confirm_restore_account: 'Restore the account {email} and its shops?',
     confirm_erase_now: 'Permanently erase {email} now?\n\nWarning: shops, products, orders and customers will be lost, with no restore from this panel. Type SUPPRIMER to confirm.',
     h4_suspicious_reviews: 'Reviews to check',
+    btn_test_alert: 'Test the email alert',
     suspicious_reviews_note: 'These are signals to check, not proof: a good customer can also leave several reviews.',
     col_alert: 'Alert', col_last_review: 'Latest review',
     alert_same_phone: '{n} reviews from the same number (…{end}) in 90 days',
@@ -939,6 +942,7 @@ function applyStaticTranslations() {
   document.getElementById('filterSuspended').textContent = t('filter_suspended');
   document.getElementById('h3Quality').textContent = t('h3_quality');
   document.getElementById('qualityNote').textContent = t('quality_note');
+  document.getElementById('btnTestAlert').textContent = '📧 ' + t('btn_test_alert');
   document.getElementById('h4Ranking').textContent = t('h4_ranking');
   document.getElementById('h4Disputes').textContent = t('h4_disputes');
   document.getElementById('h4LowReviews').textContent = t('h4_low_reviews');
@@ -1845,6 +1849,10 @@ function renderClients() {
     </tr>`).join('')}
     </tbody></table>` : '<p style="color:var(--gray)">'+t('no_clients_match')+'</p>';
   updateClientsMailBtn();
+}
+// Envoie une fausse alerte d'erreur a l'adresse de contact, pour verifier qu'elle arrive.
+function testErrorAlert() {
+  call('test_error_alert').then(data => showToast(data.message || t('toast_error'), data.success ? 'success' : 'error'));
 }
 function loadAccountDeletions() {
   call('account_deletion_list').then(d => {

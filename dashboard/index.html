@@ -605,6 +605,19 @@ const I18N = {
     col_status: 'Statut',
     col_date: 'Date',
     btn_bordereau: '🖨️ Bordereau',
+    onb_title: 'Vos premiers pas', onb_progress: '{done} étape(s) sur {total} terminée(s)', onb_hide: 'Masquer', onb_go: 'Y aller',
+    onb_logo: 'Ajouter le logo de votre boutique', onb_product: 'Ajouter votre premier produit',
+    onb_delivery: 'Vérifier vos frais de livraison et enregistrer', onb_share: 'Partager le lien de votre boutique',
+    onb_first_order: 'Recevoir votre première commande',
+    btn_whatsapp_customer: '💬 WhatsApp', wa_no_phone: "Ce client n'a pas de numéro de téléphone",
+    wa_msg_pending: 'Bonjour {name}, nous avons bien reçu votre commande {ref} chez {shop} ({total}). Nous vous contactons très vite pour la confirmer.',
+    wa_msg_processing: 'Bonjour {name}, votre commande {ref} chez {shop} est confirmée. Nous préparons sa livraison.',
+    wa_msg_shipped: 'Bonjour {name}, votre commande {ref} chez {shop} est en route. Le livreur vous contactera à son arrivée.',
+    wa_msg_shipped_post: 'Bonjour {name}, votre commande {ref} chez {shop} a été expédiée.',
+    wa_msg_delivered: 'Bonjour {name}, votre commande {ref} chez {shop} a été livrée. Merci pour votre confiance !',
+    wa_msg_refused: "Bonjour {name}, votre commande {ref} chez {shop} a été annulée. N'hésitez pas à nous écrire si vous avez une question.",
+    wa_msg_cancelled: "Bonjour {name}, votre commande {ref} chez {shop} a été annulée. N'hésitez pas à nous écrire si vous avez une question.",
+    wa_track_link: 'Suivre ma commande :', wa_review_link: 'Votre avis compte, vous pouvez le laisser ici :',
     btn_resend_digital: '✉️ Renvoyer',
     confirm_resend_digital: 'Renvoyer le contenu numérique (même code) au client pour la commande {ref} ?',
     btn_print_selected: '🖨️ Imprimer les bordereaux sélectionnés',
@@ -1325,6 +1338,19 @@ const I18N = {
     col_status: 'Status',
     col_date: 'Date',
     btn_bordereau: '🖨️ Waybill',
+    onb_title: 'Your first steps', onb_progress: '{done} of {total} steps done', onb_hide: 'Hide', onb_go: 'Go',
+    onb_logo: 'Add your shop logo', onb_product: 'Add your first product',
+    onb_delivery: 'Check your delivery fees and save', onb_share: 'Share your shop link',
+    onb_first_order: 'Receive your first order',
+    btn_whatsapp_customer: '💬 WhatsApp', wa_no_phone: 'This customer has no phone number',
+    wa_msg_pending: 'Hello {name}, we have received your order {ref} at {shop} ({total}). We will contact you very soon to confirm it.',
+    wa_msg_processing: 'Hello {name}, your order {ref} at {shop} is confirmed. We are preparing its delivery.',
+    wa_msg_shipped: 'Hello {name}, your order {ref} at {shop} is on its way. The driver will contact you on arrival.',
+    wa_msg_shipped_post: 'Hello {name}, your order {ref} at {shop} has been shipped.',
+    wa_msg_delivered: 'Hello {name}, your order {ref} at {shop} has been delivered. Thank you for your trust!',
+    wa_msg_refused: 'Hello {name}, your order {ref} at {shop} has been cancelled. Feel free to write to us if you have any question.',
+    wa_msg_cancelled: 'Hello {name}, your order {ref} at {shop} has been cancelled. Feel free to write to us if you have any question.',
+    wa_track_link: 'Track my order:', wa_review_link: 'Your opinion matters, you can leave it here:',
     btn_resend_digital: '✉️ Resend',
     confirm_resend_digital: 'Resend the digital content (same code) to the customer for order {ref}?',
     btn_print_selected: '🖨️ Print selected waybills',
@@ -2374,6 +2400,7 @@ function renderHome(bt) {
         <h2 class="page-title">${t('home_title_prefix')}<span class="home-boutique-name">${escapeHtml(bt.name)}</span></h2>
         <div class="page-sub" style="margin-bottom:0">${t('home_subtitle')}</div>
       </div>
+      ${onboardingCardHtml(bt, L.onboarding)}
       <div class="kpi-grid">
         <div class="kpi"><div class="lbl">${t('kpi_sales_30d')}</div><div class="val">${fmtMoney(R.ventes_brutes, bt.currency)}</div></div>
         <div class="kpi"><div class="lbl">${t('kpi_orders_30d')}</div><div class="val">${R.commandes||0}</div></div>
@@ -2452,14 +2479,73 @@ function submitDisputeResponse(orderId) {
 }
 function renderOrdersTable(rows, bt, compact) {
   if (!rows.length) return '<div class="empty"><div class="big">🛍️</div>'+t('no_orders_yet')+'</div>';
+  rows.forEach(o => { ORDERS_BY_ID[o.id] = o; });
   return `<table><thead><tr>${compact?'':'<th><input type="checkbox" id="ordersSelectAll" onchange="toggleAllOrderChecks(this)"></th>'}<th>${t('col_ref')}</th><th>${t('col_client')}</th><th>${t('col_total')}</th><th>${t('col_status')}</th>${compact?'':'<th>'+t('col_date')+'</th><th></th><th></th>'}</tr></thead><tbody>
     ${rows.map(o => `<tr>
       ${compact?'':'<td><input type="checkbox" class="order-check" value="'+o.id+'"></td>'}
       <td>${escapeHtml(o.ref)}${orderTypeBadge(o)}</td><td>${escapeHtml(o.customer_name)}<br><span class="muted">${escapeHtml(o.customer_phone)}</span></td>
       <td>${fmtMoney(o.total, bt.currency)}</td><td>${pill(o.status, orderStatusLabel(o, o.status))}</td>
-      ${compact?'':'<td>'+fmtDate(o.created_at)+'</td><td>'+orderStatusSelect(o)+'</td><td style="white-space:nowrap"><button class="btn btn-ghost btn-sm" onclick="printOrderBordereau(\''+o.id+'\')">'+t('btn_bordereau')+'</button>'+(Number(o.has_digital)===1 && o.status==='delivered' ? ' <button class="btn btn-ghost btn-sm" onclick="resendDigitalDelivery(\''+o.id+'\',\''+escapeHtml(o.ref)+'\')">'+t('btn_resend_digital')+'</button>' : '')+'</td>'}
+      ${compact?'':'<td>'+fmtDate(o.created_at)+'</td><td>'+orderStatusSelect(o)+'</td><td style="white-space:nowrap"><button class="btn btn-ghost btn-sm" onclick="whatsappCustomer(\''+o.id+'\')">'+t('btn_whatsapp_customer')+'</button> <button class="btn btn-ghost btn-sm" onclick="printOrderBordereau(\''+o.id+'\')">'+t('btn_bordereau')+'</button>'+(Number(o.has_digital)===1 && o.status==='delivered' ? ' <button class="btn btn-ghost btn-sm" onclick="resendDigitalDelivery(\''+o.id+'\',\''+escapeHtml(o.ref)+'\')">'+t('btn_resend_digital')+'</button>' : '')+'</td>'}
     </tr>`).join('')}
   </tbody></table>`;
+}
+// Guide de demarrage : etapes cochees d'apres les donnees de la boutique (voir
+// analytics_live() cote serveur). Partage et frais verifies : memorises sur cet appareil.
+function onboardingFlag(name, id) { try { return localStorage.getItem('myboutik_onb_'+name+'_'+id) === '1'; } catch (e) { return false; } }
+function setOnboardingFlag(name, id) { try { localStorage.setItem('myboutik_onb_'+name+'_'+id, '1'); } catch (e) { /* stockage indisponible */ } }
+function hideOnboarding(id) { setOnboardingFlag('hidden', id); route(); }
+function onboardingCardHtml(bt, o) {
+  if (!o || onboardingFlag('hidden', bt.id)) return '';
+  const steps = [
+    [Number(o.has_logo) === 1, t('onb_logo'), 'settings'],
+    [Number(o.produits) > 0, t('onb_product'), 'products'],
+    [Number(o.default_delivery_fee) > 0 || Number(o.default_shipping_fee) > 0 || onboardingFlag('delivery', bt.id), t('onb_delivery'), 'settings'],
+    [onboardingFlag('shared', bt.id), t('onb_share'), 'settings'],
+    [Number(o.commandes) > 0, t('onb_first_order'), 'settings'],
+  ];
+  const done = steps.filter(s => s[0]).length;
+  if (done === steps.length) return '';
+  return `<div class="card" style="border:2px solid var(--blue)">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px">
+      <div><h3 style="margin:0 0 4px">${t('onb_title')}</h3><div class="muted" style="font-size:13px">${tf('onb_progress', {done, total: steps.length})}</div></div>
+      <button class="btn btn-ghost btn-sm" onclick="hideOnboarding('${bt.id}')">${t('onb_hide')}</button>
+    </div>
+    <div style="margin-top:12px">${steps.map((s, i) => `<div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-top:1px solid var(--border)">
+      <span style="font-size:18px;width:24px;text-align:center">${s[0] ? '✅' : (i + 1)}</span>
+      <span style="flex:1;${s[0] ? 'color:var(--gray);text-decoration:line-through' : 'font-weight:600'}">${escapeHtml(s[1])}</span>
+      ${s[0] ? '' : `<button class="btn btn-primary btn-sm" onclick="window.location.hash='#/${encodeURIComponent(bt.slug)}/${s[2]}'">${t('onb_go')}</button>`}
+    </div>`).join('')}</div>
+  </div>`;
+}
+// Message WhatsApp pret a envoyer au client, adapte au statut de la commande.
+// Le vendeur peut le modifier dans WhatsApp avant de l'envoyer.
+const WA_DIAL_CODES = {"Côte d'Ivoire":'225', 'Sénégal':'221', 'Mali':'223', 'Burkina Faso':'226', 'Niger':'227', 'Togo':'228', 'Bénin':'229', 'Guinée':'224', 'Cameroun':'237', 'Gabon':'241', 'Congo':'242', 'République démocratique du Congo':'243', 'Ghana':'233', 'Nigeria':'234', 'Maroc':'212', 'Algérie':'213', 'Tunisie':'216', 'France':'33', 'Belgique':'32', 'Suisse':'41', 'Canada':'1', 'États-Unis':'1'};
+function whatsappNumber(phone, country) {
+  const raw = String(phone || '').trim();
+  const digits = raw.replace(/\D/g, '');
+  if (!digits) return '';
+  if (raw.startsWith('+')) return digits;
+  if (digits.startsWith('00')) return digits.slice(2);
+  const code = WA_DIAL_CODES[country] || '';
+  if (!code) return digits;
+  if (digits.startsWith(code) && digits.length > code.length + 7) return digits;
+  // En Cote d'Ivoire, le 0 fait partie du numero a 10 chiffres ; ailleurs il disparait.
+  return code + (code === '225' ? digits : digits.replace(/^0+/, ''));
+}
+let ORDERS_BY_ID = {};
+function orderWhatsappText(o) {
+  const name = String(o.customer_name || '').trim().split(/\s+/)[0] || '';
+  const track = window.location.origin + window.location.pathname.replace(/dashboard\/.*/, '') + 'store/index.html?b=' + encodeURIComponent(CURRENT.slug) + '&orders=1&ref=' + encodeURIComponent(o.ref);
+  const key = (o.status === 'shipped' && o.delivery_method === 'shipping') ? 'wa_msg_shipped_post' : 'wa_msg_' + o.status;
+  return tf(key, {name, ref: o.ref, shop: CURRENT.name, total: fmtMoney(o.total, CURRENT.currency)})
+    + '\n\n' + t(o.status === 'delivered' ? 'wa_review_link' : 'wa_track_link') + ' ' + track;
+}
+function whatsappCustomer(orderId) {
+  const o = ORDERS_BY_ID[orderId];
+  if (!o) return;
+  const number = whatsappNumber(o.customer_phone, o.customer_country || CURRENT.country);
+  if (!number) { showToast(t('wa_no_phone'), 'error'); return; }
+  window.open('https://wa.me/' + number + '?text=' + encodeURIComponent(orderWhatsappText(o)), '_blank');
 }
 function toggleAllOrderChecks(master) {
   document.querySelectorAll('.order-check').forEach(el => { el.checked = master.checked; });
@@ -4173,7 +4259,16 @@ function deleteReview(id) { customConfirm(t('confirm_delete_review'), {danger:tr
 // ============================================================
 // Paramètres
 // ============================================================
+// Le logo n'est pas dans la liste des boutiques (trop lourd) : Parametres charge la
+// boutique complete, sinon un enregistrement effacerait le logo.
 function renderSettings(bt) {
+  document.getElementById('content').innerHTML = `<div class="empty">${t('loading')}</div>`;
+  api('/boutiques?action=get&id='+encodeURIComponent(bt.id)).then(({data}) => {
+    if (!data.success) { document.getElementById('content').innerHTML = '<div class="card">'+escapeHtml(data.message||'')+'</div>'; return; }
+    renderSettingsForm(Object.assign({}, bt, data.data));
+  });
+}
+function renderSettingsForm(bt) {
   document.getElementById('content').innerHTML = `
     <h2 class="page-title">${t('settings_title')}</h2>
     <div class="card">
@@ -4309,6 +4404,7 @@ function saveSettings(targetMsgId) {
   }).then(({data}) => {
     if (!data.success) { msgEl.innerHTML = '<div class="msg error">'+data.message+'</div>'; return; }
     msgEl.innerHTML = '<div class="msg success">'+t('saved_word')+'</div>';
+    setOnboardingFlag('delivery', CURRENT.id);
     // CURRENT est un objet a part, pas relu par loadBoutiques() : on le
     // rafraichit pour que devise/pays/frais affiches soient ceux qu'on vient
     // d'enregistrer sans avoir a changer de page.
@@ -4650,6 +4746,7 @@ function togglePasswordVisibility(inputId, btn) {
   btn.textContent = reveal ? '👁️' : '🙈';
 }
 function copyInput(id) {
+  if (id === 'storeLinkInput' || id === 'previewLinkInput') setOnboardingFlag('shared', CURRENT.id);
   const input = document.getElementById(id);
   input.select();
   navigator.clipboard && navigator.clipboard.writeText(input.value);
@@ -4668,6 +4765,7 @@ function storeLink() {
 // pre-remplir le message avec le lien de la boutique. Instagram n'a pas
 // d'equivalent web, d'ou l'absence de bouton pour ce reseau.
 function shareStoreOn(network) {
+  setOnboardingFlag('shared', CURRENT.id);
   const link = storeLink();
   const text = (LANG === 'en' ? 'Check out ' : 'Découvrez ') + CURRENT.name + (LANG === 'en' ? '!' : ' !');
   const urls = {
