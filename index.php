@@ -300,6 +300,14 @@ const EN_DICT = [
     'Compte restaure' => 'Account restored',
     'Suppression impossible, rien n\'a ete efface.' => 'Deletion failed, nothing was erased.',
     'Compte efface definitivement' => 'Account permanently erased',
+    'Seul le proprietaire peut supprimer la boutique' => 'Only the owner can delete the shop',
+    'La boutique sera supprimee dans 30 jours. Un e-mail de confirmation vous a ete envoye.' => 'The shop will be deleted in 30 days. A confirmation email has been sent to you.',
+    'Cette boutique est deja en cours de suppression' => 'This shop is already being deleted',
+    'Aucune suppression en cours pour cette boutique' => 'No deletion in progress for this shop',
+    'Restaurez d\'abord le compte de cette boutique' => 'First restore the account of this shop',
+    'Suppression de la boutique programmee dans 30 jours. Le proprietaire a ete prevenu par e-mail.' => 'Shop deletion scheduled in 30 days. The owner has been notified by email.',
+    'Boutique restauree' => 'Shop restored',
+    'Boutique effacee definitivement' => 'Shop permanently erased',
     'Cette boutique est en cours de suppression : restaurez d\'abord le compte' => 'This shop is being deleted: restore the account first',
     'Les avis ne sont pas ouverts pour cette commande' => 'Reviews are not open for this order',
     'Vous pourrez donner votre avis une fois la commande livree' => 'You can leave a review once the order has been delivered',
@@ -903,7 +911,7 @@ function currency_rates() {
 
 function require_boutique_owned($boutiqueId, $userId) {
     if (!$boutiqueId) fail('boutique_id manquant', 400);
-    $row = q("SELECT * FROM boutiques WHERE id=? AND owner_user_id=?", [$boutiqueId, $userId])->fetch();
+    $row = q("SELECT * FROM boutiques WHERE id=? AND owner_user_id=? AND status<>'deletion_pending'", [$boutiqueId, $userId])->fetch();
     if ($row) { $row['_member_role'] = 'owner'; assert_owner_plan_active($row['owner_user_id']); return $row; }
     // Pas proprietaire : autorise si membre actif de l'equipe de cette
     // boutique (voir route_team()). Meme fonction reutilisee partout plutot
@@ -2115,13 +2123,13 @@ function account_deletion_start($userId, $by, $reason = null) {
         $intro."\n\nVos boutiques ne sont plus visibles et vous ne pouvez plus vous connecter. Tout sera effacé définitivement dans ".ACCOUNT_DELETION_DAYS." jours.\n\nPour récupérer votre compte avant cette date, écrivez à contact@myboutik.online.");
 }
 function account_deletion_cancel($userId) {
-    ensure_account_deletion_columns();
+    ensure_boutique_deletion_columns();
     $email = null;
     db_transaction(function () use ($userId, &$email) {
         $email = q("UPDATE users SET status=COALESCE(status_before_deletion,'active'), status_before_deletion=NULL, deletion_requested_at=NULL, deletion_requested_by=NULL, deletion_reason=NULL
                     WHERE id=? AND status='deletion_pending' RETURNING email", [$userId])->fetchColumn();
         if (!$email) return;
-        q("UPDATE boutiques SET status=COALESCE(status_before_deletion,'active'), status_before_deletion=NULL WHERE owner_user_id=? AND status='deletion_pending'", [$userId]);
+        q("UPDATE boutiques SET status=COALESCE(status_before_deletion,'active'), status_before_deletion=NULL WHERE owner_user_id=? AND status='deletion_pending' AND deletion_requested_at IS NULL", [$userId]);
     });
     if (!$email) fail('Aucune suppression en cours pour ce compte', 404);
     send_email($email, 'Votre compte MYBOUTIK est restauré', "La suppression de votre compte a été annulée. Vos boutiques et vos données sont intactes, et vous pouvez vous reconnecter.");
@@ -2129,8 +2137,8 @@ function account_deletion_cancel($userId) {
 // Toutes les requetes prennent uniquement l'id du compte, repete pour chaque "?".
 // Les paiements d'abonnement restent pour la comptabilite : ils ne contiennent
 // qu'un identifiant, qui ne renvoie plus a personne une fois le compte efface.
-function account_purge_statements() {
-    $in = "(SELECT id FROM boutiques WHERE owner_user_id=?)";
+// Donnees d'une ou de plusieurs boutiques ; $in est la sous-requete qui les designe.
+function shop_purge_statements($in) {
     $sql = [
         "DELETE FROM order_items WHERE order_id IN (SELECT id FROM orders WHERE boutique_id IN $in)",
         "DELETE FROM order_events WHERE order_id IN (SELECT id FROM orders WHERE boutique_id IN $in)",
@@ -2147,7 +2155,10 @@ function account_purge_statements() {
               'promo_codes', 'product_promotions', 'newsletter_subscribers', 'contact_messages', 'visits', 'activity_log', 'boutique_members'] as $table) {
         $sql[] = "DELETE FROM $table WHERE boutique_id IN $in";
     }
-    return array_merge($sql, [
+    return $sql;
+}
+function account_purge_statements() {
+    return array_merge(shop_purge_statements("(SELECT id FROM boutiques WHERE owner_user_id=?)"), [
         "DELETE FROM boutiques WHERE owner_user_id=?",
         "DELETE FROM boutique_members WHERE user_id=? OR email=(SELECT email FROM users WHERE id=?)",
         "UPDATE activity_log SET actor_email='Ancien membre' WHERE actor_email=(SELECT email FROM users WHERE id=?)",
@@ -2191,7 +2202,123 @@ function purge_due_accounts() {
     } catch (PDOException $e) {
         return 0;
     }
-    return count(array_filter(array_map('account_purge', $due)));
+    return count(array_filter(array_map('account_purge', $due))) + purge_due_boutiques();
+}
+
+// ============================================================
+// SUPPRESSION D'UNE SEULE BOUTIQUE — meme principe que pour un compte : masquee
+// aussitot, restaurable pendant ACCOUNT_DELETION_DAYS jours, puis effacee. Le
+// compte et les autres boutiques restent intacts. Proprietaire ou administration.
+// deletion_requested_at n'est rempli que pour ce cas : une boutique masquee par la
+// suppression de tout le compte ne l'a pas, et suit le compte.
+// ============================================================
+function ensure_boutique_deletion_columns() {
+    ensure_account_deletion_columns();
+    q("ALTER TABLE boutiques ADD COLUMN IF NOT EXISTS deletion_requested_at TIMESTAMP");
+    q("ALTER TABLE boutiques ADD COLUMN IF NOT EXISTS deletion_requested_by VARCHAR(10)");
+    q("ALTER TABLE boutiques ADD COLUMN IF NOT EXISTS deletion_reason VARCHAR(300)");
+}
+function required_deletion_reason($b) {
+    $reason = substr(trim((string)($b['reason'] ?? '')), 0, 300);
+    if ($reason === '') fail('Indiquez la raison de la suppression');
+    return $reason;
+}
+function boutique_owner_email($ownerId) {
+    return q("SELECT email FROM users WHERE id=?", [$ownerId])->fetchColumn() ?: null;
+}
+function boutiques_delete($pl) {
+    rate_limit_check('boutiques_delete', 10, 600);
+    $b = body();
+    $bt = require_boutique_owned($b['id'] ?? '', $pl['sub']);
+    if (($bt['_member_role'] ?? '') !== 'owner') fail('Seul le proprietaire peut supprimer la boutique', 403);
+    $reason = required_deletion_reason($b);
+    if (strtoupper(trim((string)($b['confirm'] ?? ''))) !== 'SUPPRIMER') fail('Tapez SUPPRIMER pour confirmer');
+    $hash = q("SELECT password_hash FROM users WHERE id=?", [$pl['sub']])->fetchColumn();
+    if (!password_verify((string)($b['password'] ?? ''), (string)$hash)) fail('Mot de passe incorrect', 403);
+    boutique_deletion_start($bt['id'], 'user', $reason);
+    ok(null, 'La boutique sera supprimee dans '.ACCOUNT_DELETION_DAYS.' jours. Un e-mail de confirmation vous a ete envoye.');
+}
+function boutique_deletion_start($boutiqueId, $by, $reason) {
+    ensure_boutique_deletion_columns();
+    $row = q("UPDATE boutiques SET status_before_deletion=status, status='deletion_pending', deletion_requested_at=NOW(), deletion_requested_by=?, deletion_reason=?
+              WHERE id=? AND status<>'deletion_pending' RETURNING name, owner_user_id", [$by, $reason, $boutiqueId])->fetch();
+    if (!$row) fail('Cette boutique est deja en cours de suppression', 409);
+    $who = $by === 'admin' ? "L'administration de MYBOUTIK a demandé" : "Vous avez demandé";
+    $email = boutique_owner_email($row['owner_user_id']);
+    if ($email) send_email($email, 'Suppression de votre boutique '.$row['name'].' - MYBOUTIK',
+        $who." la suppression de votre boutique ".$row['name'].".\nRaison : ".$reason.
+        "\n\nLa boutique n'est plus visible. Elle sera effacée définitivement dans ".ACCOUNT_DELETION_DAYS." jours, avec ses produits, commandes et clients. Votre compte et vos autres boutiques ne changent pas.".
+        "\n\nPour la récupérer avant cette date, écrivez à contact@myboutik.online.");
+}
+function boutique_deletion_cancel($boutiqueId) {
+    ensure_boutique_deletion_columns();
+    $ownerStatus = q("SELECT u.status FROM boutiques b JOIN users u ON u.id=b.owner_user_id WHERE b.id=?", [$boutiqueId])->fetchColumn();
+    if ($ownerStatus === 'deletion_pending') fail('Restaurez d\'abord le compte de cette boutique');
+    $row = q("UPDATE boutiques SET status=COALESCE(status_before_deletion,'active'), status_before_deletion=NULL, deletion_requested_at=NULL, deletion_requested_by=NULL, deletion_reason=NULL
+              WHERE id=? AND status='deletion_pending' AND deletion_requested_at IS NOT NULL RETURNING name, owner_user_id", [$boutiqueId])->fetch();
+    if (!$row) fail('Aucune suppression en cours pour cette boutique', 404);
+    $email = boutique_owner_email($row['owner_user_id']);
+    if ($email) send_email($email, 'Votre boutique '.$row['name'].' est restaurée - MYBOUTIK',
+        "La suppression de votre boutique ".$row['name']." a été annulée. Elle est de nouveau en ligne avec toutes ses données.");
+}
+function boutique_purge_statements() {
+    return array_merge(shop_purge_statements("(?)"), ["DELETE FROM boutiques WHERE id=?"]);
+}
+// Tout ou rien : une erreur annule l'ensemble et la boutique reste en attente.
+function boutique_purge($boutiqueId) {
+    $row = q("SELECT name, owner_user_id FROM boutiques WHERE id=? AND status='deletion_pending' AND deletion_requested_at IS NOT NULL", [$boutiqueId])->fetch();
+    if (!$row) return false;
+    q(PRODUCT_THUMBS_DDL);
+    q(ORDER_EVENTS_DDL);
+    $pdo = db();
+    $pdo->beginTransaction();
+    try {
+        foreach (boutique_purge_statements() as $sql) {
+            q($sql, array_fill(0, substr_count($sql, '?'), $boutiqueId));
+        }
+        $pdo->commit();
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        error_log('[MYBOUTIK] boutique_purge: '.$e->getMessage());
+        return false;
+    }
+    $email = boutique_owner_email($row['owner_user_id']);
+    if ($email) send_email($email, 'Votre boutique '.$row['name'].' a été supprimée - MYBOUTIK',
+        "La boutique ".$row['name']." et ses données ont été effacées. Votre compte MYBOUTIK reste actif.");
+    return true;
+}
+function purge_due_boutiques() {
+    try {
+        $due = q("SELECT id FROM boutiques WHERE status='deletion_pending' AND deletion_requested_at IS NOT NULL
+                  AND deletion_requested_at < NOW() - (?::text || ' days')::interval ORDER BY deletion_requested_at LIMIT 3",
+                 [ACCOUNT_DELETION_DAYS])->fetchAll(PDO::FETCH_COLUMN);
+    } catch (PDOException $e) {
+        return 0;
+    }
+    return count(array_filter(array_map('boutique_purge', $due)));
+}
+function admin_boutique_deletion_list() {
+    ensure_boutique_deletion_columns();
+    purge_due_accounts();
+    ok(q("SELECT b.id, b.name, b.slug, u.email AS owner_email, b.deletion_requested_by, b.deletion_reason,
+                 b.deletion_requested_at + (?::text || ' days')::interval AS delete_on
+          FROM boutiques b JOIN users u ON u.id=b.owner_user_id
+          WHERE b.status='deletion_pending' AND b.deletion_requested_at IS NOT NULL ORDER BY b.deletion_requested_at", [ACCOUNT_DELETION_DAYS])->fetchAll());
+}
+function admin_boutique_delete_start() {
+    $b = body();
+    boutique_deletion_start($b['id'] ?? '', 'admin', required_deletion_reason($b));
+    ok(null, 'Suppression de la boutique programmee dans '.ACCOUNT_DELETION_DAYS.' jours. Le proprietaire a ete prevenu par e-mail.');
+}
+function admin_boutique_delete_cancel() {
+    boutique_deletion_cancel(body()['id'] ?? '');
+    ok(null, 'Boutique restauree');
+}
+function admin_boutique_delete_now() {
+    $b = body();
+    if (strtoupper(trim((string)($b['confirm'] ?? ''))) !== 'SUPPRIMER') fail('Tapez SUPPRIMER pour confirmer');
+    if (!boutique_purge($b['id'] ?? '')) fail('Suppression impossible, rien n\'a ete efface.', 500);
+    ok(null, 'Boutique effacee definitivement');
 }
 
 // ============================================================
@@ -2206,6 +2333,7 @@ function route_boutiques($action) {
         case 'get':    boutiques_get($pl); break;
         case 'grade':  boutiques_grade($pl); break;
         case 'export_backup': boutiques_export_backup($pl); break;
+        case 'delete': boutiques_delete($pl); break;
         default: fail('Action inconnue', 404);
     }
 }
@@ -2255,7 +2383,7 @@ function boutiques_list($pl) {
     // Le logo (photo en base64) reste chez Neon : seule l'indication has_logo est
     // lue. La page Parametres charge la boutique complete via boutiques_get().
     $raw = q("SELECT to_jsonb(b) - 'logo_url' AS data, (b.logo_url IS NOT NULL AND b.logo_url<>'') AS has_logo, 'owner' AS my_role, b.created_at
-               FROM boutiques b WHERE b.owner_user_id=?
+               FROM boutiques b WHERE b.owner_user_id=? AND b.status<>'deletion_pending'
                UNION ALL
                SELECT to_jsonb(b) - 'logo_url', (b.logo_url IS NOT NULL AND b.logo_url<>''), bm.role, b.created_at
                FROM boutiques b JOIN boutique_members bm ON bm.boutique_id=b.id
@@ -2289,7 +2417,7 @@ function boutiques_create($pl) {
     if ($country === '') fail('Le pays de la boutique est requis');
     $user = q("SELECT plan FROM users WHERE id=?", [$pl['sub']])->fetch();
     $limit = PLANS[$user['plan']]['boutique_limit'] ?? 1;
-    $count = (int)q("SELECT COUNT(*) c FROM boutiques WHERE owner_user_id=?", [$pl['sub']])->fetch()['c'];
+    $count = (int)q("SELECT COUNT(*) c FROM boutiques WHERE owner_user_id=? AND status<>'deletion_pending'", [$pl['sub']])->fetch()['c'];
     if ($count >= $limit) {
         fail('Limite de '.$limit.' boutique(s) atteinte pour votre plan '.PLANS[$user['plan']]['name'].'. Passez a un plan superieur pour en creer davantage.', 403);
     }
@@ -5496,6 +5624,10 @@ function route_admin($action) {
         case 'account_delete_start':    admin_account_delete_start(); break;
         case 'account_delete_cancel':   admin_account_delete_cancel(); break;
         case 'account_delete_now':      admin_account_delete_now(); break;
+        case 'boutique_deletion_list':  admin_boutique_deletion_list(); break;
+        case 'boutique_delete_start':   admin_boutique_delete_start(); break;
+        case 'boutique_delete_cancel':  admin_boutique_delete_cancel(); break;
+        case 'boutique_delete_now':     admin_boutique_delete_now(); break;
         case 'low_reviews_list':      admin_low_reviews_list(); break;
         case 'suspicious_reviews_list': admin_suspicious_reviews_list(); break;
         case 'test_error_alert':        admin_test_error_alert(); break;

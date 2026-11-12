@@ -1105,6 +1105,14 @@ const I18N = {
     delete_account_password_label: 'Votre mot de passe',
     delete_account_confirm_label: 'Tapez SUPPRIMER pour confirmer',
     delete_account_btn: 'Supprimer mon compte',
+    delete_shop_title: 'Supprimer cette boutique',
+    delete_shop_note: "La boutique disparaît tout de suite pour vos clients. Pendant 30 jours, vous pouvez la récupérer en écrivant à contact@myboutik.online. Ensuite, ses produits, commandes, clients et son équipe sont effacés définitivement.\n\nVotre compte et vos autres boutiques ne changent pas. Pensez à télécharger la sauvegarde ci-dessus avant de continuer.",
+    delete_shop_reason_label: 'Raison de la suppression', delete_shop_reason_choose: 'Choisir une raison…',
+    delete_shop_reason_other: 'Autre motif…', delete_shop_reason_other_label: 'Précisez la raison',
+    delete_shop_reason_required: 'Choisissez la raison de la suppression.',
+    delete_shop_reasons: ['Je ferme cette activité', 'Je regroupe mes produits dans une autre boutique', 'Boutique créée pour essayer', "Je n'utilise plus cette boutique"],
+    delete_shop_btn: 'Supprimer cette boutique',
+    delete_shop_final_confirm: 'Supprimer la boutique « {name} » dans 30 jours ?\n\nElle ne sera plus visible tout de suite.',
     delete_account_required: 'Entrez votre mot de passe et tapez SUPPRIMER.',
     delete_account_final_confirm: 'Supprimer votre compte et toutes vos boutiques dans 30 jours ?\n\nLa déconnexion sera immédiate.',
     confirm_logout_other_devices: 'Déconnecter tous les autres appareils connectés à votre compte ?\n\nCette session-ci restera active.',
@@ -1838,6 +1846,14 @@ const I18N = {
     delete_account_password_label: 'Your password',
     delete_account_confirm_label: 'Type SUPPRIMER to confirm',
     delete_account_btn: 'Delete my account',
+    delete_shop_title: 'Delete this shop',
+    delete_shop_note: 'The shop disappears right away for your customers. For 30 days, you can recover it by writing to contact@myboutik.online. After that, its products, orders, customers and team are permanently erased.\n\nYour account and your other shops do not change. Remember to download the backup above before continuing.',
+    delete_shop_reason_label: 'Reason for deletion', delete_shop_reason_choose: 'Choose a reason…',
+    delete_shop_reason_other: 'Other reason…', delete_shop_reason_other_label: 'Specify the reason',
+    delete_shop_reason_required: 'Choose the reason for the deletion.',
+    delete_shop_reasons: ['I am closing this business', 'I am moving my products to another shop', 'Shop created to try things out', 'I no longer use this shop'],
+    delete_shop_btn: 'Delete this shop',
+    delete_shop_final_confirm: 'Delete the shop "{name}" in 30 days?\n\nIt will stop being visible right away.',
     delete_account_required: 'Enter your password and type SUPPRIMER.',
     delete_account_final_confirm: 'Delete your account and all your shops in 30 days?\n\nYou will be logged out right away.',
     confirm_logout_other_devices: 'Log out all other devices connected to your account?\n\nThis session will stay active.',
@@ -4259,6 +4275,45 @@ function deleteReview(id) { customConfirm(t('confirm_delete_review'), {danger:tr
 // ============================================================
 // Paramètres
 // ============================================================
+// Suppression de la boutique ouverte (proprietaire seulement) : raison choisie dans
+// une liste, mot de passe et mot SUPPRIMER. Le compte et les autres boutiques restent.
+function deleteShopCardHtml(bt) {
+  // _member_role vient du serveur (boutiques_get) ; my_role de la liste des boutiques.
+  if ((bt._member_role || bt.my_role || 'owner') !== 'owner') return '';
+  return `<div class="card">
+      <h3 style="margin:0 0 4px">${t('delete_shop_title')}</h3>
+      <p class="muted" style="margin-bottom:14px;white-space:pre-line">${t('delete_shop_note')}</p>
+      <div id="deleteShopMsg"></div>
+      <div class="field"><label>${t('delete_shop_reason_label')}</label>
+        <select id="delShopReason" onchange="document.getElementById('delShopReasonOther').style.display = this.value === '__other' ? 'block' : 'none'">
+          <option value="">${t('delete_shop_reason_choose')}</option>
+          ${t('delete_shop_reasons').map(r => '<option>'+escapeHtml(r)+'</option>').join('')}
+          <option value="__other">${t('delete_shop_reason_other')}</option>
+        </select>
+        <input id="delShopReasonOther" maxlength="300" placeholder="${t('delete_shop_reason_other_label')}" style="display:none;margin-top:8px">
+      </div>
+      <div class="field"><label>${t('delete_account_password_label')}</label><input id="delShopPassword" type="password" autocomplete="current-password"></div>
+      <div class="field"><label>${t('delete_account_confirm_label')}</label><input id="delShopConfirm" autocomplete="off"></div>
+      <button class="btn btn-danger" onclick="requestShopDeletion()">${t('delete_shop_btn')}</button>
+    </div>`;
+}
+function requestShopDeletion() {
+  const select = document.getElementById('delShopReason');
+  const reason = select.value === '__other' ? document.getElementById('delShopReasonOther').value.trim() : select.value;
+  const password = document.getElementById('delShopPassword').value;
+  const confirm = document.getElementById('delShopConfirm').value.trim();
+  const msg = document.getElementById('deleteShopMsg');
+  if (!reason) { msg.innerHTML = '<div class="msg error">'+t('delete_shop_reason_required')+'</div>'; return; }
+  if (!password || confirm.toUpperCase() !== 'SUPPRIMER') { msg.innerHTML = '<div class="msg error">'+t('delete_account_required')+'</div>'; return; }
+  customConfirm(tf('delete_shop_final_confirm', {name: CURRENT.name}), {danger: true}).then(ok => {
+    if (!ok) return;
+    post('/boutiques?action=delete', {id: CURRENT.id, reason, password, confirm}).then(({data}) => {
+      if (!data.success) { msg.innerHTML = '<div class="msg error">'+escapeHtml(data.message||'')+'</div>'; return; }
+      showToast(data.message, 'success');
+      loadBoutiques().then(() => { window.location.hash = '#/boutiques'; });
+    });
+  });
+}
 // Le logo n'est pas dans la liste des boutiques (trop lourd) : Parametres charge la
 // boutique complete, sinon un enregistrement effacerait le logo.
 function renderSettings(bt) {
@@ -4345,6 +4400,7 @@ function renderSettingsForm(bt) {
       <div class="page-sub" style="margin-bottom:10px">${t('backup_subtitle')}</div>
       <button class="btn btn-ghost" onclick="downloadCsv('/boutiques?action=export_backup&boutique_id='+CURRENT.id,'sauvegarde-'+CURRENT.slug+'.json')">${t('btn_export_backup')}</button>
     </div>
+    ${deleteShopCardHtml(bt)}
   `;
   // Choisir un pays selectionne automatiquement sa devise (modifiable ensuite).
   // On ne reagit qu'a un VRAI changement de pays : re-choisir le meme pays ne

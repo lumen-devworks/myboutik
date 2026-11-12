@@ -153,6 +153,33 @@ const reviews = async s => (await call('/shop?action=reviews&slug=' + s.shop.slu
   const alerts = await admin('suspicious_reviews_list');
   check('liste des avis a verifier', alerts.success && Array.isArray(alerts.data.same_phone), alerts);
 
+  console.log("Suppression d'une seule boutique");
+  const shopOwner = await newSeller('boutiqueseule');
+  const shopId = shopOwner.shop.id, shopSlug = shopOwner.shop.slug;
+  const askDelete = extra => call('/boutiques?action=delete', Object.assign({ id: shopId, password: shopOwner.password, confirm: 'SUPPRIMER' }, extra), shopOwner.jwt);
+  check('raison obligatoire pour le vendeur', !(await askDelete({})).success);
+  check('mot de passe exige', (await askDelete({ reason: 'Boutique créée pour essayer', password: 'faux' })).status === 403);
+  check('rien ne change apres un refus', (await call('/shop?action=boutique&slug=' + shopSlug)).success);
+  const shopDel = await askDelete({ reason: 'Boutique créée pour essayer' });
+  check('la demande du vendeur est acceptee', shopDel.success, shopDel);
+  check('la boutique disparait aussitot', !(await call('/shop?action=boutique&slug=' + shopSlug)).success);
+  check('le compte reste actif', (await call('/auth?action=me', null, shopOwner.jwt)).success);
+  check('la boutique sort de la liste du vendeur', !((await call('/boutiques?action=list', null, shopOwner.jwt)).data || []).some(b => b.id === shopId));
+  check('le tableau de bord de cette boutique est ferme', !(await call('/boutiques?action=get&id=' + shopId, null, shopOwner.jwt)).success);
+  check('une autre boutique peut etre creee', (await call('/boutiques?action=create', { name: 'Remplacante test', city: 'Abidjan', country: "Côte d'Ivoire" }, shopOwner.jwt)).success);
+  const shopList = await admin('boutique_deletion_list');
+  check('la boutique est dans la liste de l\'administration', shopList.success && shopList.data.some(b => b.id === shopId && b.deletion_reason === 'Boutique créée pour essayer'), shopList);
+  check('le compte n\'est pas dans les comptes a supprimer', !((await admin('account_deletion_list')).data || []).some(a => a.id === shopOwner.userId));
+  check('restauration de la boutique', (await admin('boutique_delete_cancel', { id: shopId })).success);
+  check('la boutique revient', (await call('/shop?action=boutique&slug=' + shopSlug)).success);
+  check('raison obligatoire pour l\'administration', !(await admin('boutique_delete_start', { id: shopId })).success);
+  check('suppression par l\'administration', (await admin('boutique_delete_start', { id: shopId, reason: 'Arnaque ou fraude' })).success);
+  check('effacement sans le mot refuse', !(await admin('boutique_delete_now', { id: shopId, confirm: 'non' })).success);
+  check('effacement definitif de la boutique', (await admin('boutique_delete_now', { id: shopId, confirm: 'SUPPRIMER' })).success);
+  check('la boutique n\'existe plus', !(await call('/shop?action=products&slug=' + shopSlug)).success);
+  check('le vendeur peut toujours se connecter', (await call('/auth?action=login', { email: shopOwner.email, password: shopOwner.password })).success);
+  check('sa boutique remplacante est intacte', ((await call('/boutiques?action=list', null, shopOwner.jwt)).data || []).some(b => b.name === 'Remplacante test'));
+
   console.log('Suppression de compte');
   const victim = await newSeller('asupprimer');
   const other = await newSeller('autre');

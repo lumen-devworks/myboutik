@@ -241,6 +241,8 @@
       <br>
       <input id="boutiqueSearch" placeholder="Rechercher par nom ou email…" style="max-width:280px" oninput="renderBoutiquesFiltered()">
       <div class="table-wrap" id="boutiquesBody"></div>
+      <h4 id="h4BoutiqueDeletions" style="margin:20px 0 8px">Boutiques en cours de suppression</h4>
+      <div class="table-wrap" id="boutiqueDeletionsBody"></div>
     </div>
     <div class="card" data-panel="quality">
       <h3 id="h3Quality">Surveillance qualité</h3>
@@ -519,6 +521,10 @@ const I18N = {
     no_low_reviews: 'Aucun avis à 2 étoiles ou moins pour le moment.',
     h4_account_deletions: 'Comptes en cours de suppression',
     no_account_deletions: 'Aucun compte en cours de suppression.',
+    h4_boutique_deletions: 'Boutiques en cours de suppression', no_boutique_deletions: 'Aucune boutique en cours de suppression.',
+    confirm_delete_boutique: 'Supprimer la boutique « {name} » ?\n\nAttention : elle disparaît tout de suite pour les clients et le propriétaire est prévenu par e-mail. Vous pourrez la restaurer pendant 30 jours ; ensuite, ses produits, commandes et clients sont effacés. Le compte et ses autres boutiques ne changent pas.',
+    confirm_restore_boutique: 'Restaurer la boutique « {name} » ?',
+    confirm_erase_boutique: 'Effacer définitivement la boutique « {name} » maintenant ?\n\nAttention : produits, commandes et clients seront perdus, sans restauration possible depuis ce panneau. Tapez SUPPRIMER pour confirmer.',
     status_deleting: 'Suppression en cours', btn_delete_account: 'Supprimer',
     col_requested_by: 'Demandé par', col_delete_on: 'Effacé le', col_email: 'E-mail',
     requested_by_user: 'Le vendeur', requested_by_admin: 'Administration',
@@ -734,6 +740,10 @@ const I18N = {
     no_low_reviews: 'No reviews at 2 stars or below at the moment.',
     h4_account_deletions: 'Accounts being deleted',
     no_account_deletions: 'No accounts being deleted.',
+    h4_boutique_deletions: 'Shops being deleted', no_boutique_deletions: 'No shops being deleted.',
+    confirm_delete_boutique: 'Delete the shop "{name}"?\n\nWarning: it disappears right away for customers and the owner is notified by email. You can restore it for 30 days; after that, its products, orders and customers are erased. The account and its other shops do not change.',
+    confirm_restore_boutique: 'Restore the shop "{name}"?',
+    confirm_erase_boutique: 'Permanently erase the shop "{name}" now?\n\nWarning: products, orders and customers will be lost, with no restore from this panel. Type SUPPRIMER to confirm.',
     status_deleting: 'Deletion in progress', btn_delete_account: 'Delete',
     col_requested_by: 'Requested by', col_delete_on: 'Erased on', col_email: 'Email',
     requested_by_user: 'The seller', requested_by_admin: 'Administration',
@@ -947,6 +957,7 @@ function applyStaticTranslations() {
   document.getElementById('h4Disputes').textContent = t('h4_disputes');
   document.getElementById('h4LowReviews').textContent = t('h4_low_reviews');
   document.getElementById('h4AccountDeletions').textContent = t('h4_account_deletions');
+  document.getElementById('h4BoutiqueDeletions').textContent = t('h4_boutique_deletions');
   document.getElementById('h4SuspiciousReviews').textContent = t('h4_suspicious_reviews');
   document.getElementById('suspiciousReviewsNote').textContent = t('suspicious_reviews_note');
   document.getElementById('h3TopBoutiques').textContent = t('h3_top_boutiques');
@@ -1110,7 +1121,7 @@ function refreshPeriodViews() {
   updatePeriodBar();
   loadPeriodData();
   renderBoutiquesFiltered();
-  renderDisputes(DISPUTES_ROWS); renderLowReviews(LOW_REVIEWS_ROWS); renderSuspiciousReviews(SUSPICIOUS_REVIEWS); renderAccountDeletions(); renderActionsLog(ACTIONS_LOG_ROWS);
+  renderDisputes(DISPUTES_ROWS); renderLowReviews(LOW_REVIEWS_ROWS); renderSuspiciousReviews(SUSPICIOUS_REVIEWS); renderAccountDeletions(); renderBoutiqueDeletions(); renderActionsLog(ACTIONS_LOG_ROWS);
   renderHistoryFiltered(); renderClients(); renderFeedback(FEEDBACK_ROWS);
 }
 function loadPeriodData() {
@@ -1716,6 +1727,7 @@ function loadAll() {
       LOW_REVIEWS_ROWS = d9.data || []; renderLowReviews(LOW_REVIEWS_ROWS);
     });
     loadAccountDeletions();
+    loadBoutiqueDeletions();
     call('suspicious_reviews_list').then(d => {
       if (!d.success) { document.getElementById('suspiciousReviewsBody').innerHTML = '<p style="color:#b91c1c">'+escapeAttr(d.message||'')+'</p>'; return; }
       SUSPICIOUS_REVIEWS = d.data || {same_phone: [], burst: []}; renderSuspiciousReviews(SUSPICIOUS_REVIEWS);
@@ -1853,6 +1865,105 @@ function renderClients() {
 // Envoie une fausse alerte d'erreur a l'adresse de contact, pour verifier qu'elle arrive.
 function testErrorAlert() {
   call('test_error_alert').then(data => showToast(data.message || t('toast_error'), data.success ? 'success' : 'error'));
+}
+// Fenetre commune : message d'avertissement + raison obligatoire choisie dans la liste.
+function askDeletionReason(message, onReason) {
+  document.getElementById('confirmModalBody').innerHTML = `
+    <p style="font-size:14.5px;line-height:1.5;white-space:pre-line;margin-bottom:10px">${escapeAttr(message)}</p>
+    <label for="deletionReasonSelect" style="display:block;font-size:13px;margin-bottom:4px">${t('deletion_reason_label')}</label>
+    <select id="deletionReasonSelect">
+      <option value="">${t('deletion_reason_choose')}</option>
+      ${t('deletion_reasons').map(r => '<option>'+escapeAttr(r)+'</option>').join('')}
+      <option value="__other">${t('deletion_reason_other')}</option>
+    </select>
+    <input id="deletionReasonOther" maxlength="300" placeholder="${t('deletion_reason_other_label')}" style="display:none;margin-top:8px">
+    <p id="deletionReasonError" style="color:#b91c1c;font-size:13px;margin-top:6px"></p>
+    <div class="modal-actions">
+      <button type="button" class="ghost" id="confirmCancelBtn">${t('confirm_cancel_btn')}</button>
+      <button type="button" class="danger" id="confirmOkBtn">${t('confirm_ok_btn')}</button>
+    </div>`;
+  const overlay = document.getElementById('confirmOverlay');
+  const select = document.getElementById('deletionReasonSelect');
+  const other = document.getElementById('deletionReasonOther');
+  overlay.classList.add('open');
+  select.onchange = () => { other.style.display = select.value === '__other' ? 'block' : 'none'; };
+  document.getElementById('confirmCancelBtn').onclick = () => overlay.classList.remove('open');
+  document.getElementById('confirmOkBtn').onclick = () => {
+    const reason = select.value === '__other' ? other.value.trim() : select.value;
+    if (!reason) { document.getElementById('deletionReasonError').textContent = t('deletion_reason_required'); return; }
+    overlay.classList.remove('open');
+    onReason(reason);
+  };
+}
+// Irreversible depuis ce panneau : le mot SUPPRIMER doit etre tape.
+function askTypedErase(message, onConfirm) {
+  document.getElementById('confirmModalBody').innerHTML = `
+    <p style="font-size:14.5px;line-height:1.5;white-space:pre-line;margin-bottom:10px">${escapeAttr(message)}</p>
+    <input id="eraseConfirmInput" autocomplete="off">
+    <div class="modal-actions">
+      <button type="button" class="ghost" id="confirmCancelBtn">${t('confirm_cancel_btn')}</button>
+      <button type="button" class="danger" id="confirmOkBtn">${t('confirm_ok_btn')}</button>
+    </div>`;
+  const overlay = document.getElementById('confirmOverlay');
+  overlay.classList.add('open');
+  document.getElementById('confirmCancelBtn').onclick = () => overlay.classList.remove('open');
+  document.getElementById('confirmOkBtn').onclick = () => {
+    const confirm = document.getElementById('eraseConfirmInput').value.trim();
+    if (confirm.toUpperCase() !== 'SUPPRIMER') return;
+    overlay.classList.remove('open');
+    onConfirm(confirm);
+  };
+}
+// Suppression d'une seule boutique (le compte et ses autres boutiques restent).
+let BOUTIQUE_DELETIONS = [];
+function loadBoutiqueDeletions() {
+  call('boutique_deletion_list').then(d => {
+    if (!d.success) { document.getElementById('boutiqueDeletionsBody').innerHTML = '<p style="color:#b91c1c">'+escapeAttr(d.message||'')+'</p>'; return; }
+    BOUTIQUE_DELETIONS = d.data || []; renderBoutiqueDeletions();
+  });
+}
+function renderBoutiqueDeletions() {
+  document.getElementById('boutiqueDeletionsBody').innerHTML = BOUTIQUE_DELETIONS.length ? `<table><thead><tr>
+      <th>${t('col_boutique')}</th><th>${t('col_owner')}</th><th>${t('col_requested_by')}</th><th>${t('col_deletion_reason')}</th><th>${t('col_delete_on')}</th><th></th>
+    </tr></thead><tbody>
+    ${BOUTIQUE_DELETIONS.map(b => `<tr>
+      <td>${escapeAttr(b.name)}</td>
+      <td>${escapeAttr(b.owner_email)}</td>
+      <td>${t(b.deletion_requested_by === 'admin' ? 'requested_by_admin' : 'requested_by_user')}</td>
+      <td style="max-width:260px;white-space:normal">${escapeAttr(b.deletion_reason||'—')}</td>
+      <td>${fmtDate(b.delete_on)}</td>
+      <td style="white-space:nowrap"><button onclick="restoreBoutique(${jsArg(b.id)})">${t('btn_restore_account')}</button>
+        <button class="ghost" onclick="eraseBoutiqueNow(${jsArg(b.id)})">${t('btn_erase_now')}</button></td>
+    </tr>`).join('')}
+    </tbody></table>` : '<p style="color:var(--gray)">'+t('no_boutique_deletions')+'</p>';
+}
+function boutiqueActionDone(data, id, status) {
+  showToast(data.message || (data.success ? t('toast_done') : t('toast_error')), data.success ? 'success' : 'error');
+  if (!data.success) return;
+  const row = BOUTIQUES_ROWS.find(x => x.id === id);
+  if (row && status) row.status = status;
+  if (!status) BOUTIQUES_ROWS = BOUTIQUES_ROWS.filter(x => x.id !== id);
+  renderBoutiquesFiltered();
+  loadBoutiqueDeletions();
+}
+function startBoutiqueDeletion(id) {
+  const b = BOUTIQUES_ROWS.find(x => x.id === id);
+  askDeletionReason(tf('confirm_delete_boutique', {name: b ? b.name : ''}), reason => {
+    call('boutique_delete_start', {id, reason}).then(data => boutiqueActionDone(data, id, 'deletion_pending'));
+  });
+}
+function restoreBoutique(id) {
+  const b = BOUTIQUE_DELETIONS.find(x => x.id === id);
+  customConfirm(tf('confirm_restore_boutique', {name: b ? b.name : ''})).then(ok => {
+    if (!ok) return;
+    call('boutique_delete_cancel', {id}).then(data => boutiqueActionDone(data, id, 'active'));
+  });
+}
+function eraseBoutiqueNow(id) {
+  const b = BOUTIQUE_DELETIONS.find(x => x.id === id);
+  askTypedErase(tf('confirm_erase_boutique', {name: b ? b.name : ''}), confirm => {
+    call('boutique_delete_now', {id, confirm}).then(data => boutiqueActionDone(data, id, null));
+  });
 }
 function loadAccountDeletions() {
   call('account_deletion_list').then(d => {
@@ -2214,7 +2325,7 @@ function renderBoutiquesFiltered() {
     ${rows.map(b => `<tr>
       <td>${nameCellHtml(b.name)}</td>
       <td>${escapeAttr(b.owner_email)}</td>
-      <td>${b.status === 'active' ? '<span class="pill pill-ok">'+t('status_active')+'</span>' : '<span class="pill pill-bad">'+t('status_suspended')+'</span>'}</td>
+      <td>${b.status === 'deletion_pending' ? '<span class="pill pill-bad">'+t('status_deleting')+'</span>' : b.status === 'active' ? '<span class="pill pill-ok">'+t('status_active')+'</span>' : '<span class="pill pill-bad">'+t('status_suspended')+'</span>'}</td>
       <td>${Number(b.public_listed) ? '<span class="pill pill-ok">'+t('status_yes')+'</span>' : '<span class="pill" style="background:var(--bg);color:var(--gray)">'+t('status_no')+'</span>'}</td>
       <td>${escapeAttr(b.city||'—')}</td>
       <td>${Number(b.open_disputes_count) > 0 ? '<span class="pill pill-bad">'+b.open_disputes_count+'</span>' : '0'}</td>
@@ -2223,11 +2334,11 @@ function renderBoutiquesFiltered() {
       <td>${lastSaleHtml(b)}</td>
       <td>${Number(b.warning_count) > 0 ? '<span class="pill pill-warn">'+b.warning_count+'</span>' : '0'}</td>
       <td>${fmtDate(b.created_at)}</td>
-      <td style="white-space:nowrap">${b.status === 'active'
+      <td style="white-space:nowrap">${b.status === 'deletion_pending' ? '' : b.status === 'active'
         ? '<button class="ghost" onclick="toggleBoutiqueStatus(\''+b.id+'\',\'suspended\')">'+t('btn_suspend')+'</button>'
         : '<button onclick="toggleBoutiqueStatus(\''+b.id+'\',\'active\')">'+t('btn_reactivate')+'</button>'}
       ${b.status === 'active' && !Number(b.public_listed) ? ' <button class="ghost" onclick="encourageListing(\''+b.id+'\')">'+t('btn_encourage')+'</button>' : ''}
-      <button class="ghost" onclick="openWarnModal('${b.id}')">${t('btn_warn')}</button></td>
+      <button class="ghost" onclick="openWarnModal('${b.id}')">${t('btn_warn')}</button>${b.status === 'deletion_pending' ? '' : ' <button class="ghost" onclick="startBoutiqueDeletion(\''+b.id+'\')">'+t('btn_delete_account')+'</button>'}</td>
     </tr>`).join('')}
     </tbody></table>` : '<p style="color:var(--gray)">'+t('no_boutiques_match')+'</p>';
 }
