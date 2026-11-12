@@ -7,8 +7,10 @@
   var isIos = /iPhone|iPad|iPod/i.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
   var isAndroid = /Android/i.test(ua);
   var inApp = /FBAN|FBAV|FBIOS|FB_IAB|Instagram|WhatsApp|Snapchat|musical_ly|TikTok|Line\//i.test(ua);
-  // Une cle par espace (site, boutique, tableau de bord...) : chacun s'installe a part.
-  var KEY = 'myboutik_installed:' + location.pathname.replace(/[^/]*$/, '');
+  // Une cle par application (son manifeste) : le site et le panneau admin sont dans
+  // le meme dossier mais s'installent chacun a part.
+  var manifest = document.querySelector('link[rel="manifest"]');
+  var KEY = 'myboutik_installed:' + (manifest ? manifest.getAttribute('href') + '@' : '') + location.pathname.replace(/[^/]*$/, '');
   var deferred = null;
 
   var TEXT = {
