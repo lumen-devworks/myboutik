@@ -67,6 +67,20 @@ jobs:
       - name: Parcours principaux
         run: node tests/api_test.js
 
+      # Le serveur Render n'est mis a jour qu'ici, donc seulement si tous les tests
+      # ci-dessus ont reussi. Le lien secret vient de Render > Settings > Deploy Hook.
+      - name: Mettre a jour le serveur Render
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          RENDER_DEPLOY_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK }}
+        run: |
+          if [ -z "$RENDER_DEPLOY_HOOK" ]; then
+            echo "::warning::Secret RENDER_DEPLOY_HOOK absent : le serveur n'a pas ete mis a jour."
+            exit 0
+          fi
+          curl -fsS -X POST "$RENDER_DEPLOY_HOOK" > /dev/null
+          echo "::notice::Mise a jour du serveur demandee a Render."
+
       - name: Journal du serveur en cas d'echec
         if: failure()
         run: |
