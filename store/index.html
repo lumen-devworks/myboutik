@@ -389,6 +389,7 @@ const I18N = {
     shop_not_found: 'Boutique introuvable.',
     add_slug_hint: "Ajoutez ?b=nom-de-la-boutique à l'adresse.",
     shop_not_found_closed: 'Boutique introuvable ou fermée.',
+    shop_unavailable: 'La boutique est momentanément indisponible. Réessayez dans quelques instants.',
     track_order_btn: '📦 Mes commandes',
     back_to_directory: '← Accueil MYBOUTIK',
     cart_btn: '🛒 Panier',
@@ -512,6 +513,7 @@ const I18N = {
     shop_not_found: 'Shop not found.',
     add_slug_hint: 'Add ?b=shop-name to the address.',
     shop_not_found_closed: 'Shop not found or closed.',
+    shop_unavailable: 'The shop is temporarily unavailable. Please try again in a moment.',
     track_order_btn: '📦 My orders',
     back_to_directory: '← MYBOUTIK Home',
     cart_btn: '🛒 Cart',
@@ -664,11 +666,21 @@ function renderCartCount() {
   if (el) el.textContent = CART.length;
 }
 
+// Pages sans boutique a montrer : Google ne doit pas les afficher dans ses resultats.
+// Jamais pour une simple panne du serveur, sinon une vraie boutique serait retiree.
+function hideFromSearch() { setHeadTag('meta', 'name', 'robots', 'content', 'noindex'); }
 if (!SLUG) {
+  hideFromSearch();
   document.getElementById('root').innerHTML = '<div class="empty"><div class="big">🏬</div>'+t('shop_not_found')+'<br><span style="font-size:13px">'+t('add_slug_hint')+'</span></div>';
 } else {
   Promise.all([api('/shop?action=boutique&slug='+encodeURIComponent(SLUG)), api('/shop?action=products&slug='+encodeURIComponent(SLUG)), api('/shop?action=active_promos&slug='+encodeURIComponent(SLUG)), api('/shop?action=categories&slug='+encodeURIComponent(SLUG)), api('/shop?action=rates&slug='+encodeURIComponent(SLUG))]).then(([bt, prods, promos, cats, fx]) => {
-    if (!bt.data.success) { document.getElementById('root').innerHTML = '<div class="empty"><div class="big">🏬</div>'+t('shop_not_found_closed')+'</div>'; return; }
+    if (!bt.data.success) {
+      // 404 : la boutique n'existe pas ou est fermee. Sinon (0, 5xx) : serveur momentanement injoignable.
+      const missing = bt.status === 404;
+      if (missing) hideFromSearch();
+      document.getElementById('root').innerHTML = '<div class="empty"><div class="big">🏬</div>'+t(missing ? 'shop_not_found_closed' : 'shop_unavailable')+'</div>';
+      return;
+    }
     BOUTIQUE = bt.data.data; PRODUCTS = prods.data.data || [];
     try { localStorage.setItem('myboutik_last_shop', BOUTIQUE.slug); } catch (e) { /* stockage indisponible */ } ACTIVE_PROMOS = (promos.data.success && promos.data.data) || [];
     CATEGORIES = (cats.data.success && cats.data.data) || [];
