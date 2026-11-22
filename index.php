@@ -9,35 +9,44 @@
 // codee en dur pour les secrets).
 // ============================================================
 
+// Reglages de l'hebergeur : les espaces, sauts de ligne et textes "\n" ou "\r"
+// colles en fin de valeur sont retires (un "\n" en trop dans DB_USER a deja coupe
+// l'acces a la base).
+function env_value($name) {
+    $value = getenv($name);
+    if ($value === false) return false;
+    return trim(preg_replace('/(\\\\[rn]|\s)+$/', '', $value));
+}
+
 // Jamais d'erreur PHP dans une reponse en production : elles reveleraient les
 // chemins du serveur et casseraient le JSON attendu par le frontend. Elles
 // restent disponibles dans les journaux de l'hebergeur.
-ini_set('display_errors', getenv('APP_ENV') === 'development' ? '1' : '0');
+ini_set('display_errors', env_value('APP_ENV') === 'development' ? '1' : '0');
 ini_set('log_errors', '1');
 header_remove('X-Powered-By');
 
-define('DB_HOST',     getenv('DB_HOST')     ?: 'localhost');
-define('DB_NAME',     getenv('DB_NAME')     ?: 'myboutik_db');
-define('DB_USER',     getenv('DB_USER')     ?: 'postgres');
-define('DB_PASS',     getenv('DB_PASS')     ?: '');
-define('DB_PORT',     getenv('DB_PORT')     ?: '5432');
+define('DB_HOST',     env_value('DB_HOST')     ?: 'localhost');
+define('DB_NAME',     env_value('DB_NAME')     ?: 'myboutik_db');
+define('DB_USER',     env_value('DB_USER')     ?: 'postgres');
+define('DB_PASS',     env_value('DB_PASS')     ?: '');
+define('DB_PORT',     env_value('DB_PORT')     ?: '5432');
 // Neon (et la plupart des Postgres serverless) exigent une connexion
 // chiffree et refusent toute tentative en clair. Render Postgres et un
 // Postgres local l'acceptent aussi sans probleme, donc ce reglage est sans
 // danger dans tous les cas - mais il reste desactive par defaut (chaine
 // vide) pour ne rien changer au comportement existant tant qu'il n'est pas
 // explicitement demande.
-define('DB_SSLMODE',  getenv('DB_SSLMODE')  ?: '');
-define('JWT_SECRET',  getenv('JWT_SECRET')  ?: null);
+define('DB_SSLMODE',  env_value('DB_SSLMODE')  ?: '');
+define('JWT_SECRET',  env_value('JWT_SECRET')  ?: null);
 // Cle dediee pour route_install() (creation/mise a jour des tables), separee
 // de JWT_SECRET par souci de coherence avec ROM_MONEY. Si INSTALL_KEY n'est
 // pas configuree, on retombe sur JWT_SECRET.
-define('INSTALL_KEY', getenv('INSTALL_KEY') ?: JWT_SECRET);
+define('INSTALL_KEY', env_value('INSTALL_KEY') ?: JWT_SECRET);
 // Cle pour declencher les taches planifiees (relances paniers abandonnes,
 // alertes de stock) - aucun worker en arriere-plan sur cet hebergement, donc
 // un service de cron externe (cron-job.org, etc.) appelle /cron?key=...&
 // action=... a intervalle regulier. Repli sur INSTALL_KEY, meme logique.
-define('CRON_KEY', getenv('CRON_KEY') ?: INSTALL_KEY);
+define('CRON_KEY', env_value('CRON_KEY') ?: INSTALL_KEY);
 // Delai pendant lequel un compte dont la suppression est demandee reste
 // recuperable, avant l'effacement definitif (voir account_purge()).
 define('ACCOUNT_DELETION_DAYS', 30);
@@ -61,35 +70,35 @@ define('JWT_EXPIRY', 30 * 86400); // 30 jours (etait 12h) - voir token_version p
 // (sur, ferme), jamais 'development' (permissif, ouvre le CORS a tout le
 // web et affiche les erreurs BDD brutes). 'development' ne doit s'activer
 // que par un choix EXPLICITE.
-define('APP_ENV',   getenv('APP_ENV')   ?: 'production');
+define('APP_ENV',   env_value('APP_ENV')   ?: 'production');
 define('APP_DEBUG', APP_ENV === 'development');
 // Mot de passe du panneau admin (validation manuelle des demandes
 // d'abonnement - voir route_admin()). Optionnel : contrairement a
 // JWT_SECRET, son absence ne bloque pas le demarrage de l'app, seules les
 // routes /admin repondent "non configure" tant qu'il n'est pas defini.
-define('ADMIN_PASSWORD', getenv('ADMIN_PASSWORD') ?: null);
+define('ADMIN_PASSWORD', env_value('ADMIN_PASSWORD') ?: null);
 // Adresse recevant les alertes qualite automatiques (nouvelle reclamation,
 // boutique qui cumule trop de reclamations en attente - voir
 // notify_admin_new_dispute()). Optionnelle : si absente, ces emails sont
 // simplement sautes (l'operateur garde de toute facon la vue d'ensemble
 // dans le panneau admin), rien ne casse.
-define('ADMIN_NOTIFY_EMAIL', getenv('ADMIN_NOTIFY_EMAIL') ?: null);
+define('ADMIN_NOTIFY_EMAIL', env_value('ADMIN_NOTIFY_EMAIL') ?: null);
 // Adresse declaree a MyMemory (traduction des annonces) pour passer de 5 000 a 50 000 caracteres/jour. Distincte de ADMIN_NOTIFY_EMAIL pour ne pas declencher les alertes qualite.
-define('MYMEMORY_EMAIL', getenv('MYMEMORY_EMAIL') ?: null);
+define('MYMEMORY_EMAIL', env_value('MYMEMORY_EMAIL') ?: null);
 // Cle DeepL (offre gratuite : 500 000 caracteres/mois, cle finissant par ":fx") : service principal de traduction des annonces ; MyMemory ne sert plus que de secours.
-define('DEEPL_API_KEY', getenv('DEEPL_API_KEY') ?: null);
+define('DEEPL_API_KEY', env_value('DEEPL_API_KEY') ?: null);
 
 // Envoi d'email transactionnel (Brevo, https://app.brevo.com/settings/keys/api)
 // - optionnel : en son absence, send_email() se contente de journaliser
 // comme avant (voir plus bas), rien ne casse.
-define('BREVO_API_KEY',     getenv('BREVO_API_KEY')     ?: null);
-define('BREVO_SENDER_EMAIL',getenv('BREVO_SENDER_EMAIL')?: null);
-define('BREVO_SENDER_NAME', getenv('BREVO_SENDER_NAME') ?: 'MYBOUTIK');
+define('BREVO_API_KEY',     env_value('BREVO_API_KEY')     ?: null);
+define('BREVO_SENDER_EMAIL',env_value('BREVO_SENDER_EMAIL')?: null);
+define('BREVO_SENDER_NAME', env_value('BREVO_SENDER_NAME') ?: 'MYBOUTIK');
 // Origine du frontend statique (GitHub Pages) - utilisee pour construire les
 // liens de redirection dans les pages d'apercu (voir route_preview()) et
 // pour le CTA de l'annuaire. Configurable par env var pour ne pas casser au
 // prochain demenagement d'hebergement (deja arrive une fois cette session).
-define('FRONTEND_BASE_URL', rtrim(getenv('FRONTEND_BASE_URL') ?: 'https://myboutik.online', '/'));
+define('FRONTEND_BASE_URL', rtrim(env_value('FRONTEND_BASE_URL') ?: 'https://myboutik.online', '/'));
 // Numero unique reutilise partout (instructions de paiement, bouton
 // WhatsApp "J'ai paye", copie en un clic cote tableau de bord) - un seul
 // endroit a modifier si ce numero change un jour.
