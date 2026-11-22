@@ -41,6 +41,8 @@ define('CRON_KEY', getenv('CRON_KEY') ?: INSTALL_KEY);
 // Delai pendant lequel un compte dont la suppression est demandee reste
 // recuperable, avant l'effacement definitif (voir account_purge()).
 define('ACCOUNT_DELETION_DAYS', 30);
+// Durees proposees a l'administration pour prolonger un abonnement (admin_account_extend()).
+define('ADMIN_EXTEND_DAYS', [7, 15, 30, 90, 180, 365]);
 // Duree de garde des photos dans le navigateur des visiteurs, et taille des miniatures.
 define('IMAGE_CACHE_SECONDS', 30 * 86400);
 define('IMAGE_THUMB_SIZE', 400);
@@ -300,6 +302,11 @@ const EN_DICT = [
     'Compte restaure' => 'Account restored',
     'Suppression impossible, rien n\'a ete efface.' => 'Deletion failed, nothing was erased.',
     'Compte efface definitivement' => 'Account permanently erased',
+    'Ce compte est en cours de suppression : restaurez-le d\'abord' => 'This account is being deleted: restore it first',
+    'Formule invalide' => 'Invalid plan',
+    'Duree invalide' => 'Invalid duration',
+    'Choisissez si la prolongation est offerte ou payee' => 'Choose whether the extension is free or paid',
+    'Indiquez la raison de ce geste' => 'Give the reason for this free extension',
     'Seul le proprietaire peut supprimer la boutique' => 'Only the owner can delete the shop',
     'La boutique sera supprimee dans 30 jours. Un e-mail de confirmation vous a ete envoye.' => 'The shop will be deleted in 30 days. A confirmation email has been sent to you.',
     'Cette boutique est deja en cours de suppression' => 'This shop is already being deleted',
@@ -5624,6 +5631,7 @@ function route_admin($action) {
         case 'account_delete_start':    admin_account_delete_start(); break;
         case 'account_delete_cancel':   admin_account_delete_cancel(); break;
         case 'account_delete_now':      admin_account_delete_now(); break;
+        case 'account_extend':          admin_account_extend(); break;
         case 'boutique_deletion_list':  admin_boutique_deletion_list(); break;
         case 'boutique_delete_start':   admin_boutique_delete_start(); break;
         case 'boutique_delete_cancel':  admin_boutique_delete_cancel(); break;
@@ -6724,11 +6732,55 @@ function subscription_request_amount($req) {
     $base = PLANS[$req['plan']]['price'] ?? 0;
     $cycle = $req['billing_cycle'] ?? 'monthly';
     if ($cycle === 'annual') return $base * 12;
-    if ($cycle === 'free_trial') return 0;
+    if ($cycle === 'free_trial' || $cycle === 'gift') return 0;
+    if (str_starts_with((string)$cycle, 'paid:')) return (float)substr($cycle, 5);
     return $base;
 }
 // Duree accordee a l'approbation, selon le billing_cycle - 390 jours
 // (13x30) pour l'annuel ("1 mois offert"), 30 jours sinon.
+// Prolongation decidee par l'administration, sans demande du vendeur : offerte
+// (0 FCFA, raison obligatoire) ou payee hors application (comptee dans les revenus,
+// commission du parrain comprise). La duree s'ajoute aux jours restants.
+// billing_cycle garde le montant : 'gift' ou 'paid:<montant>' (voir subscription_request_amount()).
+function admin_account_extend() {
+    $b = body();
+    $user = q("SELECT id, email, status, referred_by FROM users WHERE id=?", [$b['user_id'] ?? ''])->fetch();
+    if (!$user) fail('Compte introuvable', 404);
+    if ($user['status'] === 'deletion_pending') fail('Ce compte est en cours de suppression : restaurez-le d\'abord');
+    $plan = (string)($b['plan'] ?? '');
+    if (!isset(PLANS[$plan])) fail('Formule invalide');
+    $days = (int)($b['days'] ?? 0);
+    if (!in_array($days, ADMIN_EXTEND_DAYS, true)) fail('Duree invalide');
+    $mode = (string)($b['mode'] ?? '');
+    if (!in_array($mode, ['gift', 'paid'], true)) fail('Choisissez si la prolongation est offerte ou payee');
+    $reason = substr(trim((string)($b['reason'] ?? '')), 0, 300);
+    if ($mode === 'gift' && $reason === '') fail('Indiquez la raison de ce geste');
+    $amount = $mode === 'paid' ? (int)round(PLANS[$plan]['price'] * $days / 30) : 0;
+    $cycle = $mode === 'paid' ? 'paid:'.$amount : 'gift';
+    $until = null;
+    db_transaction(function () use ($user, $plan, $days, $cycle, $amount, $mode, &$until) {
+        $until = q("UPDATE users SET plan=?, plan_status='active',
+                        plan_valid_until=GREATEST(COALESCE(plan_valid_until, NOW()), NOW()) + (?::text || ' days')::interval
+                    WHERE id=? RETURNING plan_valid_until", [$plan, $days, $user['id']])->fetchColumn();
+        $requestId = uid();
+        q("INSERT INTO subscription_requests (id,user_id,plan,status,reviewed_at,billing_cycle) VALUES (?,?,?,'approved',NOW(),?)",
+          [$requestId, $user['id'], $plan, $cycle]);
+        // Meme regle que admin_subscription_approve() : 10 % du montant reellement paye.
+        if ($mode === 'paid' && $user['referred_by'] && $amount > 0) {
+            q("INSERT INTO referral_commissions (id,referrer_user_id,referred_user_id,subscription_request_id,plan,amount) VALUES (?,?,?,?,?,?)",
+              [uid(), $user['referred_by'], $user['id'], $requestId, $plan, round($amount * 0.10, 2)]);
+        }
+    });
+    $dateFr = date('d/m/Y', strtotime($until));
+    $label = $mode === 'gift' ? 'offerte ('.$reason.')' : 'payée hors application ('.$amount.' FCFA)';
+    foreach (q("SELECT id FROM boutiques WHERE owner_user_id=?", [$user['id']])->fetchAll(PDO::FETCH_COLUMN) as $boutiqueId) {
+        admin_log($boutiqueId, 'Abonnement '.PLANS[$plan]['name'].' prolonge de '.$days.' jours par l\'administration, '.$label);
+    }
+    send_email($user['email'], 'Votre abonnement MYBOUTIK est prolongé',
+        "Bonne nouvelle : votre abonnement MYBOUTIK ".PLANS[$plan]['name']." a été prolongé de ".$days." jours.\n\nIl est maintenant valable jusqu'au ".$dateFr.".".
+        ($mode === 'gift' ? "\n\nCette prolongation vous est offerte par l'équipe MYBOUTIK." : "\n\nMerci pour votre paiement."));
+    ok(['plan' => $plan, 'plan_valid_until' => $until], 'Abonnement prolonge jusqu\'au '.$dateFr);
+}
 function subscription_request_days($req) {
     return ($req['billing_cycle'] ?? 'monthly') === 'annual' ? 390 : 30;
 }

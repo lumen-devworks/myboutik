@@ -1,6 +1,6 @@
 {
   "name": "MYBOUTIK — Vendez en ligne, simplement",
-  "short_name": "MYBOUTIK",
+  "short_name": "MyBoutik",
   "description": "Créez votre boutique en ligne, ajoutez vos produits et recevez vos commandes en paiement à la livraison.",
   "start_url": "./index.html",
   "scope": "./",

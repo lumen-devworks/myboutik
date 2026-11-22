@@ -1,6 +1,6 @@
 {
   "name": "MYBOUTIK — Achetez et gérez votre boutique",
-  "short_name": "MYBOUTIK",
+  "short_name": "MyBoutik",
   "description": "Découvrez et achetez chez des boutiques en ligne locales, ou gérez la vôtre — paiement à la livraison.",
   "start_url": "./index.html",
   "scope": "../",

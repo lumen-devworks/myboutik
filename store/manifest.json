@@ -1,6 +1,6 @@
 {
   "name": "MYBOUTIK — Ma boutique",
-  "short_name": "Boutique",
+  "short_name": "MyBoutik",
   "description": "Consultez le catalogue et commandez en paiement à la livraison.",
   "start_url": "./index.html",
   "scope": "../",

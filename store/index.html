@@ -9,7 +9,7 @@
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="Boutique">
+<meta name="apple-mobile-web-app-title" content="MyBoutik">
 <style>
   :root{ --blue:#ea580c; --blue-dark:#c2410c; --ink:#0f172a; --gray:#64748b; --border:#e2e8f0; --bg:#f8fafc; --green:#16a34a; --green-bg:#ecfdf5; }
   *{box-sizing:border-box;margin:0;padding:0}
@@ -129,7 +129,8 @@ function getSlug() {
   const parts = window.location.pathname.split('/').filter(Boolean);
   const i = parts.indexOf('store');
   if (i >= 0 && parts[i+1] && parts[i+1] !== 'index.html') return parts[i+1];
-  return '';
+  // Application installee : elle s'ouvre sans adresse de boutique, on reprend la derniere visitee.
+  try { return localStorage.getItem('myboutik_last_shop') || ''; } catch (e) { return ''; }
 }
 const SLUG = getSlug();
 function showToast(message, type) {
@@ -668,7 +669,8 @@ if (!SLUG) {
 } else {
   Promise.all([api('/shop?action=boutique&slug='+encodeURIComponent(SLUG)), api('/shop?action=products&slug='+encodeURIComponent(SLUG)), api('/shop?action=active_promos&slug='+encodeURIComponent(SLUG)), api('/shop?action=categories&slug='+encodeURIComponent(SLUG)), api('/shop?action=rates&slug='+encodeURIComponent(SLUG))]).then(([bt, prods, promos, cats, fx]) => {
     if (!bt.data.success) { document.getElementById('root').innerHTML = '<div class="empty"><div class="big">🏬</div>'+t('shop_not_found_closed')+'</div>'; return; }
-    BOUTIQUE = bt.data.data; PRODUCTS = prods.data.data || []; ACTIVE_PROMOS = (promos.data.success && promos.data.data) || [];
+    BOUTIQUE = bt.data.data; PRODUCTS = prods.data.data || [];
+    try { localStorage.setItem('myboutik_last_shop', BOUTIQUE.slug); } catch (e) { /* stockage indisponible */ } ACTIVE_PROMOS = (promos.data.success && promos.data.data) || [];
     CATEGORIES = (cats.data.success && cats.data.data) || [];
     FX_RATES = (fx && fx.data && fx.data.success && fx.data.data && fx.data.data.rates) || {};
     if (BUYER_CURRENCY && (!FX_RATES[BUYER_CURRENCY] || BUYER_CURRENCY === BOUTIQUE.currency)) BUYER_CURRENCY = '';

@@ -153,6 +153,18 @@ const reviews = async s => (await call('/shop?action=reviews&slug=' + s.shop.slu
   const alerts = await admin('suspicious_reviews_list');
   check('liste des avis a verifier', alerts.success && Array.isArray(alerts.data.same_phone), alerts);
 
+  console.log("Prolongation par l'administration");
+  const ext = await newSeller('prolongation');
+  const extBefore = ((await admin('clients_list')).data || []).find(c => c.id === ext.userId).plan_valid_until;
+  check('raison obligatoire pour une prolongation offerte', !(await admin('account_extend', { user_id: ext.userId, plan: 'pro', days: 30, mode: 'gift' })).success);
+  check('duree hors liste refusee', !(await admin('account_extend', { user_id: ext.userId, plan: 'pro', days: 31, mode: 'paid' })).success);
+  const gift = await admin('account_extend', { user_id: ext.userId, plan: 'pro', days: 30, mode: 'gift', reason: 'Geste commercial' });
+  check('prolongation offerte', gift.success && gift.data.plan === 'pro', gift);
+  check('les jours restants sont gardes', new Date(gift.data.plan_valid_until) - new Date(extBefore || 0) > 29 * 86400000, { extBefore, after: gift.data && gift.data.plan_valid_until });
+  check('prolongation payee hors application', (await admin('account_extend', { user_id: ext.userId, plan: 'pro', days: 90, mode: 'paid' })).success);
+  const extHistory = ((await admin('subscription_history')).data || []).filter(r => r.user_id === ext.userId).map(r => r.billing_cycle);
+  check('historique : offert et paye avec son montant', extHistory.includes('gift') && extHistory.includes('paid:36000'), extHistory);
+
   console.log("Suppression d'une seule boutique");
   const shopOwner = await newSeller('boutiqueseule');
   const shopId = shopOwner.shop.id, shopSlug = shopOwner.shop.slug;

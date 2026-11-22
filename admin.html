@@ -521,6 +521,14 @@ const I18N = {
     no_low_reviews: 'Aucun avis à 2 étoiles ou moins pour le moment.',
     h4_account_deletions: 'Comptes en cours de suppression',
     no_account_deletions: 'Aucun compte en cours de suppression.',
+    btn_extend_short: '⏳ Prolonger', btn_extend: 'Prolonger', extend_title: "Prolonger l'abonnement de {email}",
+    extend_current_end: 'Fin actuelle : {date}', extend_no_end: 'Aucune date de fin enregistrée',
+    extend_plan_label: 'Formule', extend_days_label: 'Durée ajoutée',
+    extend_days_7: '7 jours', extend_days_15: '15 jours', extend_days_30: '1 mois', extend_days_90: '3 mois', extend_days_180: '6 mois', extend_days_365: '1 an',
+    extend_mode_label: 'Type', extend_mode_choose: 'Choisir…', extend_mode_gift: 'Offert (0 FCFA)', extend_mode_paid: 'Payé hors application',
+    extend_reason_label: 'Raison du geste (obligatoire)', extend_reasons: ['Geste commercial', "Compensation d'une panne", 'Partenaire ou ambassadeur', 'Compte de test'],
+    extend_amount_note: 'Montant compté dans vos revenus : {amount}', extend_mode_required: 'Choisissez si la prolongation est offerte ou payée.',
+    extend_reason_required: 'Indiquez la raison de ce geste.', cycle_gift: 'Offert', cycle_paid_outside: 'Payé hors application · {amount}',
     h4_boutique_deletions: 'Boutiques en cours de suppression', no_boutique_deletions: 'Aucune boutique en cours de suppression.',
     confirm_delete_boutique: 'Supprimer la boutique « {name} » ?\n\nAttention : elle disparaît tout de suite pour les clients et le propriétaire est prévenu par e-mail. Vous pourrez la restaurer pendant 30 jours ; ensuite, ses produits, commandes et clients sont effacés. Le compte et ses autres boutiques ne changent pas.',
     confirm_restore_boutique: 'Restaurer la boutique « {name} » ?',
@@ -740,6 +748,14 @@ const I18N = {
     no_low_reviews: 'No reviews at 2 stars or below at the moment.',
     h4_account_deletions: 'Accounts being deleted',
     no_account_deletions: 'No accounts being deleted.',
+    btn_extend_short: '⏳ Extend', btn_extend: 'Extend', extend_title: 'Extend the subscription of {email}',
+    extend_current_end: 'Current end: {date}', extend_no_end: 'No end date recorded',
+    extend_plan_label: 'Plan', extend_days_label: 'Added duration',
+    extend_days_7: '7 days', extend_days_15: '15 days', extend_days_30: '1 month', extend_days_90: '3 months', extend_days_180: '6 months', extend_days_365: '1 year',
+    extend_mode_label: 'Type', extend_mode_choose: 'Choose…', extend_mode_gift: 'Free (0 FCFA)', extend_mode_paid: 'Paid outside the app',
+    extend_reason_label: 'Reason (required)', extend_reasons: ['Commercial gesture', 'Compensation for an outage', 'Partner or ambassador', 'Test account'],
+    extend_amount_note: 'Amount counted in your revenue: {amount}', extend_mode_required: 'Choose whether the extension is free or paid.',
+    extend_reason_required: 'Give the reason for this free extension.', cycle_gift: 'Free', cycle_paid_outside: 'Paid outside the app · {amount}',
     h4_boutique_deletions: 'Shops being deleted', no_boutique_deletions: 'No shops being deleted.',
     confirm_delete_boutique: 'Delete the shop "{name}"?\n\nWarning: it disappears right away for customers and the owner is notified by email. You can restore it for 30 days; after that, its products, orders and customers are erased. The account and its other shops do not change.',
     confirm_restore_boutique: 'Restore the shop "{name}"?',
@@ -1857,7 +1873,7 @@ function renderClients() {
       <td>${fmtDate(c.plan_valid_until)}</td><td>${boutiqueCell(c)}</td><td>${c.payments_count}</td>
       <td>${fmtMoney(c.total_paid)}</td><td>${fmtDate(c.created_at)}</td>
       <td>${clientWhatsappCell(c)}</td>
-      <td>${c.status === 'deletion_pending' ? '' : '<button class="ghost" onclick="startAccountDeletion('+jsArg(c.id)+')">'+t('btn_delete_account')+'</button>'}</td>
+      <td style="white-space:nowrap">${c.status === 'deletion_pending' ? '' : '<button class="ghost" onclick="openExtendModal('+jsArg(c.id)+')">'+t('btn_extend_short')+'</button> <button class="ghost" onclick="startAccountDeletion('+jsArg(c.id)+')">'+t('btn_delete_account')+'</button>'}</td>
     </tr>`).join('')}
     </tbody></table>` : '<p style="color:var(--gray)">'+t('no_clients_match')+'</p>';
   updateClientsMailBtn();
@@ -1964,6 +1980,65 @@ function eraseBoutiqueNow(id) {
   askTypedErase(tf('confirm_erase_boutique', {name: b ? b.name : ''}), confirm => {
     call('boutique_delete_now', {id, confirm}).then(data => boutiqueActionDone(data, id, null));
   });
+}
+// Prolonger un abonnement sans demande du vendeur (voir admin_account_extend()).
+const EXTEND_DAYS = [7, 15, 30, 90, 180, 365];
+const PLAN_PRICES = {starter: 7000, pro: 12000, premium: 20000};
+function extendAmount(plan, days) { return Math.round((PLAN_PRICES[plan] || 0) * days / 30); }
+function cycleLabel(cycle) {
+  if (cycle === 'gift') return '<span class="pill pill-ok">'+t('cycle_gift')+'</span>';
+  if (String(cycle || '').startsWith('paid:')) return '<span class="pill pill-warn">'+tf('cycle_paid_outside', {amount: fmtMoney(Number(String(cycle).slice(5)))})+'</span>';
+  return '';
+}
+function openExtendModal(id) {
+  const c = CLIENTS.find(x => x.id === id);
+  if (!c) return;
+  const plan = PLAN_PRICES[c.plan] ? c.plan : 'starter';
+  document.getElementById('confirmModalBody').innerHTML = `
+    <p style="font-size:15px;font-weight:700;margin-bottom:4px">${escapeAttr(tf('extend_title', {email: c.email}))}</p>
+    <p class="muted" style="font-size:13px;margin-bottom:12px">${escapeAttr(c.plan_valid_until ? tf('extend_current_end', {date: fmtDate(c.plan_valid_until)}) : t('extend_no_end'))}</p>
+    <label style="display:block;font-size:13px;margin-bottom:4px">${t('extend_plan_label')}</label>
+    <select id="extendPlan">${Object.keys(PLAN_PRICES).map(p => '<option value="'+p+'"'+(p === plan ? ' selected' : '')+'>'+p.charAt(0).toUpperCase()+p.slice(1)+'</option>').join('')}</select>
+    <label style="display:block;font-size:13px;margin:10px 0 4px">${t('extend_days_label')}</label>
+    <select id="extendDays">${EXTEND_DAYS.map(d => '<option value="'+d+'"'+(d === 30 ? ' selected' : '')+'>'+t('extend_days_'+d)+'</option>').join('')}</select>
+    <label style="display:block;font-size:13px;margin:10px 0 4px">${t('extend_mode_label')}</label>
+    <select id="extendMode"><option value="">${t('extend_mode_choose')}</option><option value="gift">${t('extend_mode_gift')}</option><option value="paid">${t('extend_mode_paid')}</option></select>
+    <div id="extendReasonWrap" style="display:none">
+      <label style="display:block;font-size:13px;margin:10px 0 4px">${t('extend_reason_label')}</label>
+      <select id="extendReason"><option value="">${t('deletion_reason_choose')}</option>${t('extend_reasons').map(r => '<option>'+escapeAttr(r)+'</option>').join('')}<option value="__other">${t('deletion_reason_other')}</option></select>
+      <input id="extendReasonOther" maxlength="300" placeholder="${t('deletion_reason_other_label')}" style="display:none;margin-top:8px">
+    </div>
+    <p id="extendAmount" class="muted" style="font-size:13px;margin-top:8px"></p>
+    <p id="extendError" style="color:#b91c1c;font-size:13px;margin-top:6px"></p>
+    <div class="modal-actions">
+      <button type="button" class="ghost" id="confirmCancelBtn">${t('confirm_cancel_btn')}</button>
+      <button type="button" id="confirmOkBtn">${t('btn_extend')}</button>
+    </div>`;
+  const overlay = document.getElementById('confirmOverlay');
+  const get = el => document.getElementById(el);
+  const refresh = () => {
+    get('extendReasonWrap').style.display = get('extendMode').value === 'gift' ? 'block' : 'none';
+    get('extendReasonOther').style.display = get('extendReason').value === '__other' ? 'block' : 'none';
+    get('extendAmount').textContent = get('extendMode').value === 'paid'
+      ? tf('extend_amount_note', {amount: fmtMoney(extendAmount(get('extendPlan').value, Number(get('extendDays').value)))}) : '';
+  };
+  ['extendPlan', 'extendDays', 'extendMode', 'extendReason'].forEach(el => { get(el).onchange = refresh; });
+  overlay.classList.add('open');
+  get('confirmCancelBtn').onclick = () => overlay.classList.remove('open');
+  get('confirmOkBtn').onclick = () => {
+    const mode = get('extendMode').value;
+    const reason = get('extendReason').value === '__other' ? get('extendReasonOther').value.trim() : get('extendReason').value;
+    if (!mode) { get('extendError').textContent = t('extend_mode_required'); return; }
+    if (mode === 'gift' && !reason) { get('extendError').textContent = t('extend_reason_required'); return; }
+    const payload = {user_id: id, plan: get('extendPlan').value, days: Number(get('extendDays').value), mode, reason: mode === 'gift' ? reason : ''};
+    overlay.classList.remove('open');
+    call('account_extend', payload).then(data => {
+      showToast(data.message || t('toast_error'), data.success ? 'success' : 'error');
+      if (!data.success) return;
+      c.plan = data.data.plan; c.plan_valid_until = data.data.plan_valid_until;
+      renderClients();
+    });
+  };
 }
 function loadAccountDeletions() {
   call('account_deletion_list').then(d => {
@@ -2193,7 +2268,7 @@ function renderHistoryFiltered() {
   const statusPill = s => s==='approved' ? '<span class="pill pill-ok">'+t('pill_approved')+'</span>' : s==='rejected' ? '<span class="pill pill-bad">'+t('pill_rejected')+'</span>' : '<span class="pill pill-warn">'+t('pill_pending')+'</span>';
   const locale = LANG === 'en' ? 'en-US' : 'fr-FR';
   document.getElementById('historyBody').innerHTML = rows.length ? `<table><thead><tr><th>${t('col_email')}</th><th>${t('col_plan')}</th><th>${t('col_status')}</th><th>${t('col_requested')}</th><th>${t('col_processed')}</th></tr></thead><tbody>
-    ${rows.map(r => `<tr><td>${escapeAttr(r.email)}</td><td>${escapeAttr(r.plan)}</td><td>${statusPill(r.status)}</td><td>${new Date(r.created_at).toLocaleString(locale)}</td><td>${r.reviewed_at?new Date(r.reviewed_at).toLocaleString(locale):'—'}</td></tr>`).join('')}
+    ${rows.map(r => `<tr><td>${escapeAttr(r.email)}</td><td>${escapeAttr(r.plan)} ${cycleLabel(r.billing_cycle)}</td><td>${statusPill(r.status)}</td><td>${new Date(r.created_at).toLocaleString(locale)}</td><td>${r.reviewed_at?new Date(r.reviewed_at).toLocaleString(locale):'—'}</td></tr>`).join('')}
     </tbody></table>` : '<p style="color:var(--gray)">'+t('no_history_match')+'</p>';
 }
 function renderSubs(rows) {

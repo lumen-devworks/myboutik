@@ -1,6 +1,6 @@
 {
   "name": "MYBOUTIK — Tableau de bord marchand",
-  "short_name": "MYBOUTIK Pro",
+  "short_name": "MyBoutik",
   "description": "Gérez vos boutiques, produits, commandes, livraisons et finances.",
   "start_url": "./index.html",
   "scope": "../",
